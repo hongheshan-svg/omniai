@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PromptOptimization, PromptOptimizationRequest, PromptTemplate } from "../models";
+import type { PromptOptimization, PromptOptimizationRequest, PromptTemplate } from "..";
 
 describe("prompt optimization contracts", () => {
   it("represents prompt templates for each creation mode", () => {

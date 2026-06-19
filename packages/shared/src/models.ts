@@ -1,6 +1,6 @@
 export type ModelCapability = "text" | "image" | "video";
 
-export type CreationMode = ModelCapability;
+export type CreationMode = "text" | "image" | "video";
 
 export type ModelVisibility = "visible" | "hidden" | "maintenance";
 
