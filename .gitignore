@@ -7,6 +7,7 @@ build/
 .tauri/
 target/
 coverage/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
