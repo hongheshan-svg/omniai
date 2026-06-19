@@ -8,8 +8,8 @@ export function buildServer() {
     logger: false
   });
 
-  void registerHealthRoute(server);
-  void registerModelRoutes(server);
+  registerHealthRoute(server);
+  registerModelRoutes(server);
 
   return server;
 }

@@ -73,6 +73,6 @@ test("workspace package manifests declare expected contract", () => {
     assert.equal(manifest.name, name);
     assert.equal(manifest.private, true);
     assert.equal(manifest.type, "module");
-    assert.equal(manifest.scripts.test, "vitest run --passWithNoTests");
+    assert.equal(manifest.scripts.test, "vitest run");
   }
 });
