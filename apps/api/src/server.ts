@@ -1,15 +1,23 @@
 import Fastify from "fastify";
 import { loadConfig } from "./config";
+import { registerAuthRoutes } from "./routes/auth";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
+import { InMemoryAuthService, type AuthService } from "./services/authService";
 
-export function buildServer() {
+export interface BuildServerOptions {
+  authService?: AuthService;
+}
+
+export function buildServer(options: BuildServerOptions = {}) {
   const server = Fastify({
     logger: false
   });
+  const authService = options.authService ?? new InMemoryAuthService();
 
   registerHealthRoute(server);
   registerModelRoutes(server);
+  registerAuthRoutes(server, authService);
 
   return server;
 }
