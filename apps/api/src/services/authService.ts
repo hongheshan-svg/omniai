@@ -88,9 +88,12 @@ export class InMemoryAuthService implements AuthService {
   startLogin(request: LoginStartRequest): LoginStartResponse {
     const channel = request.channel ?? inferLoginChannel(request.destination.trim());
     const destination = normalizeDestination(request.destination, channel);
+    const nowMs = this.clock.now().getTime();
+    this.sweepExpiredChallenges(nowMs);
+
     const code = this.codeGenerator();
     const challengeId = this.challengeIdGenerator();
-    const expiresAtMs = this.clock.now().getTime() + this.challengeTtlMs;
+    const expiresAtMs = nowMs + this.challengeTtlMs;
 
     this.challenges.set(challengeId, {
       id: challengeId,
@@ -111,13 +114,16 @@ export class InMemoryAuthService implements AuthService {
   }
 
   verifyLogin(request: LoginVerifyRequest): AuthSession {
+    const nowMs = this.clock.now().getTime();
+    this.sweepExpiredSessions(nowMs);
+
     const challenge = this.challenges.get(request.challengeId);
 
     if (!challenge) {
       throw new AuthError("Login challenge was not found", 404);
     }
 
-    if (challenge.expiresAtMs <= this.clock.now().getTime()) {
+    if (challenge.expiresAtMs <= nowMs) {
       this.challenges.delete(request.challengeId);
       throw new AuthError("Login challenge expired", 410);
     }
@@ -136,7 +142,7 @@ export class InMemoryAuthService implements AuthService {
     this.challenges.delete(request.challengeId);
     const user = this.findOrCreateUser(challenge);
     const token = this.tokenGenerator();
-    const expiresAtMs = this.clock.now().getTime() + this.sessionTtlMs;
+    const expiresAtMs = nowMs + this.sessionTtlMs;
 
     this.sessions.set(token, {
       token,
@@ -152,16 +158,16 @@ export class InMemoryAuthService implements AuthService {
   }
 
   getSession(token: string | undefined): SessionResponse {
+    const nowMs = this.clock.now().getTime();
+    this.sweepExpiredSessions(nowMs);
+
     if (!token) {
       return anonymousSession();
     }
 
     const session = this.sessions.get(token);
 
-    if (!session || session.expiresAtMs <= this.clock.now().getTime()) {
-      if (session) {
-        this.sessions.delete(token);
-      }
+    if (!session) {
       return anonymousSession();
     }
 
@@ -187,7 +193,7 @@ export class InMemoryAuthService implements AuthService {
   }
 
   private findOrCreateUser(challenge: LoginChallengeRecord): UserProfile {
-    const subject = `${challenge.channel}:${challenge.destination}`;
+    const subject = createUserSubject(challenge.channel, challenge.destination);
     const existing = this.usersBySubject.get(subject);
 
     if (existing) {
@@ -206,6 +212,22 @@ export class InMemoryAuthService implements AuthService {
     this.usersBySubject.set(subject, user);
     this.usersById.set(user.id, user);
     return user;
+  }
+
+  private sweepExpiredChallenges(nowMs: number): void {
+    for (const [challengeId, challenge] of this.challenges) {
+      if (challenge.expiresAtMs <= nowMs) {
+        this.challenges.delete(challengeId);
+      }
+    }
+  }
+
+  private sweepExpiredSessions(nowMs: number): void {
+    for (const [token, session] of this.sessions) {
+      if (session.expiresAtMs <= nowMs) {
+        this.sessions.delete(token);
+      }
+    }
   }
 }
 
@@ -228,8 +250,12 @@ function hashCode(code: string): string {
 }
 
 function createUserId(channel: "email" | "phone", destination: string): string {
-  const safeDestination = destination.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-  return `user_${channel}_${safeDestination}`;
+  const subjectHash = createHash("sha256").update(createUserSubject(channel, destination)).digest("hex").slice(0, 16);
+  return `user_${channel}_${subjectHash}`;
+}
+
+function createUserSubject(channel: "email" | "phone", destination: string): string {
+  return `${channel}:${destination}`;
 }
 
 function createDisplayName(destination: string, channel: "email" | "phone"): string {

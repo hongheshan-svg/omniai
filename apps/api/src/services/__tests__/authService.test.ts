@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AuthError, InMemoryAuthService } from "../authService";
 
 const fixedNow = new Date("2026-06-19T12:00:00.000Z");
+const hashedEmailUserId = /^user_email_[a-f0-9]{16}$/;
+const hashedPhoneUserId = /^user_phone_[a-f0-9]{16}$/;
 
 function createService() {
   return new InMemoryAuthService({
@@ -11,6 +13,32 @@ function createService() {
     challengeIdGenerator: () => "challenge-1",
     devCodesEnabled: true
   });
+}
+
+function createSequenceGenerator(values: string[]): () => string {
+  let index = 0;
+
+  return () => {
+    const value = values[index];
+    index += 1;
+
+    if (value === undefined) {
+      throw new Error("Sequence generator exhausted");
+    }
+
+    return value;
+  };
+}
+
+function createMutableClock(initialNow: Date) {
+  let now = initialNow;
+
+  return {
+    clock: { now: () => now },
+    setNow: (nextNow: Date) => {
+      now = nextNow;
+    }
+  };
 }
 
 describe("InMemoryAuthService", () => {
@@ -48,7 +76,7 @@ describe("InMemoryAuthService", () => {
     expect(service.verifyLogin({ challengeId: "challenge-1", code: "123456" })).toEqual({
       token: "session-token-1",
       user: {
-        id: "user_email_creator_example_com",
+        id: expect.stringMatching(hashedEmailUserId),
         displayName: "creator",
         destination: "creator@example.com",
         channel: "email",
@@ -68,8 +96,44 @@ describe("InMemoryAuthService", () => {
       authenticated: true,
       expiresAt: "2026-06-26T12:00:00.000Z",
       user: {
-        id: "user_email_creator_example_com",
+        id: expect.stringMatching(hashedEmailUserId),
         displayName: "creator"
+      }
+    });
+  });
+
+  it("keeps active sessions isolated when email destinations collide under slug ids", () => {
+    const service = new InMemoryAuthService({
+      clock: { now: () => fixedNow },
+      codeGenerator: () => "123456",
+      tokenGenerator: createSequenceGenerator(["token-1", "token-2"]),
+      challengeIdGenerator: createSequenceGenerator(["challenge-1", "challenge-2"]),
+      devCodesEnabled: true
+    });
+
+    service.startLogin({ destination: "a+b@example.com" });
+    const firstSession = service.verifyLogin({ challengeId: "challenge-1", code: "123456" });
+
+    service.startLogin({ destination: "a.b@example.com" });
+    const secondSession = service.verifyLogin({ challengeId: "challenge-2", code: "123456" });
+
+    expect(firstSession.user.id).toMatch(hashedEmailUserId);
+    expect(secondSession.user.id).toMatch(hashedEmailUserId);
+    expect(firstSession.user.id).not.toBe(secondSession.user.id);
+    expect(service.getSession("token-1")).toMatchObject({
+      authenticated: true,
+      user: {
+        id: firstSession.user.id,
+        destination: "a+b@example.com",
+        displayName: "a+b"
+      }
+    });
+    expect(service.getSession("token-2")).toMatchObject({
+      authenticated: true,
+      user: {
+        id: secondSession.user.id,
+        destination: "a.b@example.com",
+        displayName: "a.b"
       }
     });
   });
@@ -120,7 +184,7 @@ describe("InMemoryAuthService", () => {
     service.startLogin({ destination: " Creator@Example.COM " });
 
     expect(service.verifyLogin({ challengeId: "challenge-1", code: "123456" }).user).toMatchObject({
-      id: "user_email_creator_example_com",
+      id: expect.stringMatching(hashedEmailUserId),
       displayName: "creator",
       destination: "creator@example.com"
     });
@@ -131,10 +195,91 @@ describe("InMemoryAuthService", () => {
     service.startLogin({ destination: "+86 138 0013 8000" });
 
     expect(service.verifyLogin({ challengeId: "challenge-1", code: "123456" }).user).toMatchObject({
-      id: "user_phone_8613800138000",
+      id: expect.stringMatching(hashedPhoneUserId),
       displayName: "User 8000",
       destination: "8613800138000"
     });
+  });
+
+  it("sweeps expired challenges before starting another login", () => {
+    const { clock, setNow } = createMutableClock(fixedNow);
+    const service = new InMemoryAuthService({
+      challengeTtlMs: 1_000,
+      clock,
+      codeGenerator: () => "123456",
+      tokenGenerator: () => "active-token",
+      challengeIdGenerator: createSequenceGenerator(["expired-challenge", "active-challenge"]),
+      devCodesEnabled: true
+    });
+
+    service.startLogin({ destination: "expired@example.com" });
+    setNow(new Date(fixedNow.getTime() + 1_001));
+    service.startLogin({ destination: "active@example.com" });
+
+    expect(() =>
+      service.verifyLogin({ challengeId: "expired-challenge", code: "123456" })
+    ).toThrow(new AuthError("Login challenge was not found", 404));
+    expect(service.verifyLogin({ challengeId: "active-challenge", code: "123456" }).user).toMatchObject({
+      destination: "active@example.com"
+    });
+  });
+
+  it("sweeps expired sessions before creating another session", () => {
+    const { clock, setNow } = createMutableClock(fixedNow);
+    const service = new InMemoryAuthService({
+      challengeTtlMs: 10_000,
+      sessionTtlMs: 1_000,
+      clock,
+      codeGenerator: () => "123456",
+      tokenGenerator: createSequenceGenerator(["expired-token", "active-token"]),
+      challengeIdGenerator: createSequenceGenerator(["challenge-1", "challenge-2"]),
+      devCodesEnabled: true
+    });
+
+    service.startLogin({ destination: "expired@example.com" });
+    service.verifyLogin({ challengeId: "challenge-1", code: "123456" });
+
+    setNow(new Date(fixedNow.getTime() + 1_001));
+    service.startLogin({ destination: "active@example.com" });
+    service.verifyLogin({ challengeId: "challenge-2", code: "123456" });
+
+    expect(service.logout("expired-token")).toBe(false);
+    expect(service.getSession("active-token")).toMatchObject({
+      authenticated: true,
+      user: {
+        destination: "active@example.com"
+      }
+    });
+  });
+
+  it("sweeps expired sessions during session lookup without dropping active sessions", () => {
+    const { clock, setNow } = createMutableClock(fixedNow);
+    const service = new InMemoryAuthService({
+      challengeTtlMs: 10_000,
+      sessionTtlMs: 1_000,
+      clock,
+      codeGenerator: () => "123456",
+      tokenGenerator: createSequenceGenerator(["expired-token", "active-token"]),
+      challengeIdGenerator: createSequenceGenerator(["challenge-1", "challenge-2"]),
+      devCodesEnabled: true
+    });
+
+    service.startLogin({ destination: "expired@example.com" });
+    service.verifyLogin({ challengeId: "challenge-1", code: "123456" });
+
+    setNow(new Date(fixedNow.getTime() + 500));
+    service.startLogin({ destination: "active@example.com" });
+    service.verifyLogin({ challengeId: "challenge-2", code: "123456" });
+
+    setNow(new Date(fixedNow.getTime() + 1_001));
+
+    expect(service.getSession("active-token")).toMatchObject({
+      authenticated: true,
+      user: {
+        destination: "active@example.com"
+      }
+    });
+    expect(service.logout("expired-token")).toBe(false);
   });
 
   it("logs out a session token", () => {

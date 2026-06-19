@@ -3,6 +3,7 @@ import { buildServer } from "../../server";
 import { AuthError, InMemoryAuthService, type AuthService } from "../../services/authService";
 
 const fixedNow = new Date("2026-06-19T12:00:00.000Z");
+const hashedEmailUserId = /^user_email_[a-f0-9]{16}$/;
 
 function buildAuthTestServer() {
   return buildServer({
@@ -66,7 +67,7 @@ describe("auth routes", () => {
     expect(verifyResponse.json()).toMatchObject({
       token: "session-token-1",
       user: {
-        id: "user_email_creator_example_com",
+        id: expect.stringMatching(hashedEmailUserId),
         displayName: "creator",
         plan: "free"
       },
@@ -85,7 +86,7 @@ describe("auth routes", () => {
     expect(sessionResponse.json()).toMatchObject({
       authenticated: true,
       user: {
-        id: "user_email_creator_example_com"
+        id: expect.stringMatching(hashedEmailUserId)
       },
       expiresAt: "2026-06-26T12:00:00.000Z"
     });
