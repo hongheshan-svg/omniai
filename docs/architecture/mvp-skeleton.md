@@ -16,7 +16,7 @@ The MVP skeleton separates product experience from AI provider integration. Clie
 
 The first auth slice uses passwordless email/phone verification. It provides shared contracts, an in-memory API auth service, bearer session routes, and app shell session entry points. The service returns `devCode` for local development so tests and demos can complete without real SMS or email providers.
 
-Production-ready auth follow-up work should replace the in-memory service with persistent storage, add real SMS/email delivery, disable `devCode`, add refresh-token rotation, and introduce device/session management.
+Production-ready auth follow-up work should replace the in-memory service with persistent storage, add real SMS/email delivery, keep `devCode` disabled (`NODE_ENV=production` defaults `GW_LINK_AUTH_DEV_CODES_ENABLED` to `false`), add refresh-token rotation, and introduce device/session management.
 
 ## First Implementation Slice
 

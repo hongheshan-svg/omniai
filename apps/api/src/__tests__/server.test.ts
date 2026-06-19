@@ -50,4 +50,57 @@ describe("product API", () => {
       ]
     });
   });
+
+  it("includes auth dev codes when the default auth service is configured for local development", async () => {
+    const server = buildServer({
+      config: {
+        port: 8787,
+        gatewayBaseUrl: "https://gateway.gw-link.local",
+        authDevCodesEnabled: true
+      }
+    });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/auth/start-login",
+      payload: {
+        destination: "creator@example.com"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      challengeId: expect.any(String),
+      channel: "email",
+      maskedDestination: "c***@example.com",
+      expiresAt: expect.any(String),
+      devCode: expect.stringMatching(/^\d{6}$/)
+    });
+  });
+
+  it("omits auth dev codes when the default auth service is configured for production", async () => {
+    const server = buildServer({
+      config: {
+        port: 8787,
+        gatewayBaseUrl: "https://gateway.gw-link.local",
+        authDevCodesEnabled: false
+      }
+    });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/auth/start-login",
+      payload: {
+        destination: "creator@example.com"
+      }
+    });
+    const body = response.json();
+
+    expect(response.statusCode).toBe(200);
+    expect(body).toMatchObject({
+      challengeId: expect.any(String),
+      channel: "email",
+      maskedDestination: "c***@example.com",
+      expiresAt: expect.any(String)
+    });
+    expect(body).not.toHaveProperty("devCode");
+  });
 });

@@ -33,6 +33,7 @@ pnpm dev:mobile
 ## Auth Session API
 
 Local development auth uses passwordless email or phone verification. The in-memory service returns a `devCode` in the start-login response so the verification flow can be completed without a real SMS or email provider.
+When `NODE_ENV=production`, auth dev codes default to disabled; deployments can also set `GW_LINK_AUTH_DEV_CODES_ENABLED=false` explicitly.
 
 ```bash
 curl -X POST http://localhost:8787/v1/auth/start-login \

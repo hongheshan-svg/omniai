@@ -5,7 +5,8 @@ describe("loadConfig", () => {
   it("returns default API configuration", () => {
     expect(loadConfig({})).toEqual({
       port: 8787,
-      gatewayBaseUrl: "https://gateway.gw-link.local"
+      gatewayBaseUrl: "https://gateway.gw-link.local",
+      authDevCodesEnabled: true
     });
   });
 
@@ -13,12 +14,43 @@ describe("loadConfig", () => {
     expect(
       loadConfig({
         PORT: "9000",
-        GW_LINK_GATEWAY_BASE_URL: "https://gateway.example"
+        GW_LINK_GATEWAY_BASE_URL: "https://gateway.example",
+        GW_LINK_AUTH_DEV_CODES_ENABLED: "false"
       })
     ).toEqual({
       port: 9000,
-      gatewayBaseUrl: "https://gateway.example"
+      gatewayBaseUrl: "https://gateway.example",
+      authDevCodesEnabled: false
     });
+  });
+
+  it("disables auth dev codes by default in production", () => {
+    expect(loadConfig({ NODE_ENV: "production" })).toMatchObject({
+      authDevCodesEnabled: false
+    });
+  });
+
+  it("allows auth dev codes to be explicitly enabled in production", () => {
+    expect(
+      loadConfig({
+        NODE_ENV: "production",
+        GW_LINK_AUTH_DEV_CODES_ENABLED: "true"
+      })
+    ).toMatchObject({
+      authDevCodesEnabled: true
+    });
+  });
+
+  it("allows auth dev codes to be explicitly disabled outside production", () => {
+    expect(loadConfig({ GW_LINK_AUTH_DEV_CODES_ENABLED: "false" })).toMatchObject({
+      authDevCodesEnabled: false
+    });
+  });
+
+  it("rejects invalid auth dev code configuration values", () => {
+    expect(() => loadConfig({ GW_LINK_AUTH_DEV_CODES_ENABLED: "yes" })).toThrow(
+      'GW_LINK_AUTH_DEV_CODES_ENABLED must be "true" or "false"'
+    );
   });
 
   it("rejects non-numeric PORT values", () => {
