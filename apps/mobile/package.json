@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "expo start",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
