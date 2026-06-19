@@ -71,6 +71,10 @@ export class LocalPromptOptimizer implements PromptOptimizer {
   }
 
   listTemplates(mode?: CreationMode): PromptTemplate[] {
+    if (mode !== undefined && !isCreationMode(mode)) {
+      throw new PromptOptimizationError("Unsupported creation mode", 400);
+    }
+
     return promptTemplates.filter((template) => !mode || template.mode === mode).map(cloneTemplate);
   }
 
@@ -99,7 +103,7 @@ export class LocalPromptOptimizer implements PromptOptimizer {
           template: template.id,
           ...strategy.parameters
         },
-        creditEstimate: strategy.creditEstimate
+        creditEstimate: { ...strategy.creditEstimate }
       },
       createdAt: this.clock.now().toISOString()
     };

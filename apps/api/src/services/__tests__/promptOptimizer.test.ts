@@ -10,6 +10,18 @@ function createOptimizer() {
   });
 }
 
+function expectPromptError(action: () => unknown, message: string, statusCode: number) {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(PromptOptimizationError);
+    expect(error).toMatchObject({ message, statusCode });
+    return;
+  }
+
+  throw new Error("Expected prompt optimization error");
+}
+
 describe("LocalPromptOptimizer", () => {
   it("optimizes text prompts into a writing brief", () => {
     const optimizer = createOptimizer();
@@ -103,49 +115,101 @@ describe("LocalPromptOptimizer", () => {
     });
   });
 
+  it("returns independent credit estimates for each optimization", () => {
+    const optimizer = createOptimizer();
+    const firstOptimization = optimizer.optimizePrompt({
+      mode: "image",
+      prompt: "做一张咖啡店新品海报",
+      templateId: "image-poster"
+    });
+
+    firstOptimization.preset.creditEstimate.credits = 999;
+
+    const secondOptimization = optimizer.optimizePrompt({
+      mode: "image",
+      prompt: "做一张咖啡店新品海报",
+      templateId: "image-poster"
+    });
+
+    expect(secondOptimization.preset.creditEstimate).toEqual({ credits: 2, unit: "credit" });
+  });
+
+  it("returns independent template tag arrays", () => {
+    const optimizer = createOptimizer();
+    const [firstTemplate] = optimizer.listTemplates("image");
+    expect(firstTemplate).toBeDefined();
+
+    firstTemplate!.tags.push("mutated");
+
+    const [secondTemplate] = optimizer.listTemplates("image");
+    expect(secondTemplate!.tags).toEqual(["poster", "visual"]);
+  });
+
   it("rejects unsupported modes", () => {
     const optimizer = createOptimizer();
 
-    expect(() =>
-      optimizer.optimizePrompt({
-        mode: "audio" as "text",
-        prompt: "生成一段音频"
-      })
-    ).toThrow(new PromptOptimizationError("Unsupported creation mode", 400));
+    expectPromptError(
+      () =>
+        optimizer.optimizePrompt({
+          mode: "audio" as "text",
+          prompt: "生成一段音频"
+        }),
+      "Unsupported creation mode",
+      400
+    );
+  });
+
+  it("rejects unsupported list template modes", () => {
+    const optimizer = createOptimizer();
+
+    expectPromptError(
+      () => optimizer.listTemplates("audio" as "text"),
+      "Unsupported creation mode",
+      400
+    );
   });
 
   it("rejects empty prompts", () => {
     const optimizer = createOptimizer();
 
-    expect(() =>
-      optimizer.optimizePrompt({
-        mode: "text",
-        prompt: "   "
-      })
-    ).toThrow(new PromptOptimizationError("Prompt is required", 400));
+    expectPromptError(
+      () =>
+        optimizer.optimizePrompt({
+          mode: "text",
+          prompt: "   "
+        }),
+      "Prompt is required",
+      400
+    );
   });
 
   it("rejects unknown templates", () => {
     const optimizer = createOptimizer();
 
-    expect(() =>
-      optimizer.optimizePrompt({
-        mode: "image",
-        prompt: "做一张海报",
-        templateId: "missing-template"
-      })
-    ).toThrow(new PromptOptimizationError("Prompt template was not found", 404));
+    expectPromptError(
+      () =>
+        optimizer.optimizePrompt({
+          mode: "image",
+          prompt: "做一张海报",
+          templateId: "missing-template"
+        }),
+      "Prompt template was not found",
+      404
+    );
   });
 
   it("rejects templates that do not match the creation mode", () => {
     const optimizer = createOptimizer();
 
-    expect(() =>
-      optimizer.optimizePrompt({
-        mode: "video",
-        prompt: "生成短视频",
-        templateId: "image-poster"
-      })
-    ).toThrow(new PromptOptimizationError("Prompt template was not found", 404));
+    expectPromptError(
+      () =>
+        optimizer.optimizePrompt({
+          mode: "video",
+          prompt: "生成短视频",
+          templateId: "image-poster"
+        }),
+      "Prompt template was not found",
+      404
+    );
   });
 });
