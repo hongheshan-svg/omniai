@@ -14,14 +14,13 @@ export interface BuildServerOptions {
 }
 
 export function buildServer(options: BuildServerOptions = {}) {
-  const config = options.config ?? loadConfig();
   const server = Fastify({
     logger: false
   });
   const authService =
     options.authService ??
     new InMemoryAuthService({
-      devCodesEnabled: config.authDevCodesEnabled
+      devCodesEnabled: (options.config ?? loadConfig()).authDevCodesEnabled
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../../server";
-import { LocalPromptOptimizer } from "../../services/promptOptimizer";
+import { LocalPromptOptimizer, type PromptOptimizer } from "../../services/promptOptimizer";
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
 
@@ -114,5 +114,28 @@ describe("prompt routes", () => {
     expect(emptyPrompt.json()).toEqual({ error: "Prompt is required" });
     expect(missingTemplate.statusCode).toBe(404);
     expect(missingTemplate.json()).toEqual({ error: "Prompt template was not found" });
+  });
+
+  it("maps unexpected optimizer errors to a 500 response", async () => {
+    const promptOptimizer = {
+      listTemplates: () => [],
+      optimizePrompt: () => {
+        throw new Error("boom");
+      }
+    } satisfies PromptOptimizer;
+    const server = buildServer({ promptOptimizer });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/prompt/optimize",
+      payload: {
+        mode: "text",
+        prompt: "帮我写一个新品发布文案"
+      }
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: "Unexpected prompt optimization error"
+    });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../server";
+import type { AuthService } from "../services/authService";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -73,6 +74,39 @@ describe("product API", () => {
         }
       }
     });
+  });
+
+  it("does not load environment config when an auth service is injected", () => {
+    const originalPort = process.env.PORT;
+    const fakeAuthService = {
+      startLogin: () => ({
+        challengeId: "challenge_1",
+        channel: "email",
+        maskedDestination: "c***@example.com",
+        expiresAt: "2026-06-20T00:00:00.000Z"
+      }),
+      verifyLogin: () => {
+        throw new Error("not implemented");
+      },
+      getSession: () => ({
+        authenticated: false,
+        user: null,
+        expiresAt: null
+      }),
+      logout: () => false
+    } satisfies AuthService;
+
+    try {
+      process.env.PORT = "abc";
+
+      expect(() => buildServer({ authService: fakeAuthService })).not.toThrow();
+    } finally {
+      if (originalPort === undefined) {
+        delete process.env.PORT;
+      } else {
+        process.env.PORT = originalPort;
+      }
+    }
   });
 
   it("includes auth dev codes when the default auth service is configured for local development", async () => {
