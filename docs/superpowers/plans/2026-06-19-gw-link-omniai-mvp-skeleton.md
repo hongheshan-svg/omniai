@@ -125,7 +125,7 @@ Create `package.json`:
   "name": "gw-link-omniai",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@11.7.0",
   "workspaces": [
     "apps/*",
     "packages/*"

@@ -49,7 +49,7 @@ test("root package declares expected workspaces", () => {
 
   assert.equal(rootPackage.private, true);
   assert.equal(rootPackage.name, "gw-link-omniai");
-  assert.equal(rootPackage.packageManager, "pnpm@9.15.0");
+  assert.equal(rootPackage.packageManager, "pnpm@11.7.0");
   assert.deepEqual(rootPackage.workspaces, ["apps/*", "packages/*"]);
 });
 
