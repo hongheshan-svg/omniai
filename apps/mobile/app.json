@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "GW-LINK OmniAI",
+    "slug": "gw-link-omniai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "gwlinkomniai",
+    "ios": {
+      "bundleIdentifier": "com.gw-link.omniai"
+    },
+    "android": {
+      "package": "com.gwlink.omniai"
+    }
+  }
+}
