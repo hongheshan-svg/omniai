@@ -51,6 +51,30 @@ describe("product API", () => {
     });
   });
 
+  it("registers the prompt optimization route", async () => {
+    const server = buildServer();
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/prompt/optimize",
+      payload: {
+        mode: "text",
+        prompt: "帮我写一个新品发布文案"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      optimization: {
+        mode: "text",
+        originalPrompt: "帮我写一个新品发布文案",
+        preset: {
+          modelId: "recommended-text",
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+  });
+
   it("includes auth dev codes when the default auth service is configured for local development", async () => {
     const server = buildServer({
       config: {
