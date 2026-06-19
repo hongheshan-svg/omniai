@@ -1,0 +1,12 @@
+[package]
+name = "gw-link-omniai-desktop"
+version = "0.1.0"
+description = "GW-LINK OmniAI desktop shell"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-build = "2"
+
+[build-dependencies]
+tauri-build = "2"
