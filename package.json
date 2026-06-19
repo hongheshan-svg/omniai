@@ -1,0 +1,22 @@
+{
+  "name": "gw-link-omniai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test tests/workspace.test.mjs && pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev:api": "pnpm --filter @gw-link-omniai/api dev",
+    "dev:admin": "pnpm --filter @gw-link-omniai/admin dev",
+    "dev:desktop": "pnpm --filter @gw-link-omniai/desktop dev",
+    "dev:mobile": "pnpm --filter @gw-link-omniai/mobile dev"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.5"
+  }
+}

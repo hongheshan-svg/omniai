@@ -1,0 +1,19 @@
+{
+  "name": "@gw-link-omniai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gw-link-omniai/shared": "workspace:*",
+    "fastify": "^4.26.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.1",
+    "vitest": "^1.6.0"
+  }
+}

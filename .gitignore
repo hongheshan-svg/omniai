@@ -1,1 +1,15 @@
+node_modules/
+dist/
+build/
+.next/
+.expo/
+.turbo/
+.tauri/
+target/
+coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+.superpowers/
 .worktrees/

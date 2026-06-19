@@ -1,0 +1,21 @@
+{
+  "name": "@gw-link-omniai/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "expo start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gw-link-omniai/shared": "workspace:*",
+    "expo": "^51.0.0",
+    "react": "^18.2.0",
+    "react-native": "^0.74.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.74",
+    "vitest": "^1.6.0"
+  }
+}
