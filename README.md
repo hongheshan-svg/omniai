@@ -9,6 +9,7 @@ GW-LINK OmniAI is a multi-platform AI creation product for text chat, image gene
 - `apps/desktop` - Windows, macOS, and Linux desktop app shell
 - `apps/mobile` - iOS and Android app shell
 - `packages/shared` - shared product contracts and helpers
+- `docs/architecture` - architecture notes
 - `docs/superpowers/specs` - approved product specs
 - `docs/superpowers/plans` - implementation plans
 
@@ -27,4 +28,16 @@ pnpm dev:api
 pnpm dev:admin
 pnpm dev:desktop
 pnpm dev:mobile
+```
+
+## Validation
+
+```bash
+node --test tests/workspace.test.mjs
+pnpm --filter @gw-link-omniai/shared test
+pnpm --filter @gw-link-omniai/api test
+pnpm --filter @gw-link-omniai/admin test
+pnpm --filter @gw-link-omniai/desktop test
+pnpm --filter @gw-link-omniai/mobile test
+pnpm typecheck
 ```
