@@ -11,6 +11,7 @@ import { inferLoginChannel, maskLoginDestination } from "@gw-link-omniai/shared"
 
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_FAILED_ATTEMPTS = 5;
 
 export class AuthError extends Error {
   constructor(
@@ -34,6 +35,7 @@ export interface AuthServiceOptions {
   tokenGenerator?: () => string;
   challengeIdGenerator?: () => string;
   devCodesEnabled?: boolean;
+  maxFailedAttempts?: number;
 }
 
 interface LoginChallengeRecord {
@@ -42,6 +44,7 @@ interface LoginChallengeRecord {
   channel: "email" | "phone";
   codeHash: string;
   expiresAtMs: number;
+  failedAttempts: number;
 }
 
 interface SessionRecord {
@@ -65,8 +68,10 @@ export class InMemoryAuthService implements AuthService {
   private readonly tokenGenerator: () => string;
   private readonly challengeIdGenerator: () => string;
   private readonly devCodesEnabled: boolean;
+  private readonly maxFailedAttempts: number;
   private readonly challenges = new Map<string, LoginChallengeRecord>();
   private readonly usersBySubject = new Map<string, UserProfile>();
+  private readonly usersById = new Map<string, UserProfile>();
   private readonly sessions = new Map<string, SessionRecord>();
 
   constructor(options: AuthServiceOptions = {}) {
@@ -76,12 +81,13 @@ export class InMemoryAuthService implements AuthService {
     this.codeGenerator = options.codeGenerator ?? generateNumericCode;
     this.tokenGenerator = options.tokenGenerator ?? randomUUID;
     this.challengeIdGenerator = options.challengeIdGenerator ?? randomUUID;
-    this.devCodesEnabled = options.devCodesEnabled ?? true;
+    this.devCodesEnabled = options.devCodesEnabled ?? false;
+    this.maxFailedAttempts = options.maxFailedAttempts ?? DEFAULT_MAX_FAILED_ATTEMPTS;
   }
 
   startLogin(request: LoginStartRequest): LoginStartResponse {
-    const destination = normalizeDestination(request.destination);
-    const channel = request.channel ?? inferLoginChannel(destination);
+    const channel = request.channel ?? inferLoginChannel(request.destination.trim());
+    const destination = normalizeDestination(request.destination, channel);
     const code = this.codeGenerator();
     const challengeId = this.challengeIdGenerator();
     const expiresAtMs = this.clock.now().getTime() + this.challengeTtlMs;
@@ -91,7 +97,8 @@ export class InMemoryAuthService implements AuthService {
       destination,
       channel,
       codeHash: hashCode(code),
-      expiresAtMs
+      expiresAtMs,
+      failedAttempts: 0
     });
 
     return {
@@ -116,6 +123,13 @@ export class InMemoryAuthService implements AuthService {
     }
 
     if (challenge.codeHash !== hashCode(request.code)) {
+      challenge.failedAttempts += 1;
+
+      if (challenge.failedAttempts >= this.maxFailedAttempts) {
+        this.challenges.delete(request.challengeId);
+        throw new AuthError("Too many invalid verification attempts", 429);
+      }
+
       throw new AuthError("Invalid verification code", 401);
     }
 
@@ -151,7 +165,7 @@ export class InMemoryAuthService implements AuthService {
       return anonymousSession();
     }
 
-    const user = [...this.usersBySubject.values()].find((entry) => entry.id === session.userId);
+    const user = this.usersById.get(session.userId);
 
     if (!user) {
       return anonymousSession();
@@ -190,12 +204,13 @@ export class InMemoryAuthService implements AuthService {
     };
 
     this.usersBySubject.set(subject, user);
+    this.usersById.set(user.id, user);
     return user;
   }
 }
 
-function normalizeDestination(destination: string): string {
-  const normalized = destination.trim();
+function normalizeDestination(destination: string, channel: "email" | "phone"): string {
+  const normalized = channel === "email" ? destination.trim().toLowerCase() : destination.trim().replace(/\D/g, "");
 
   if (!normalized) {
     throw new AuthError("Login destination is required", 400);
