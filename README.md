@@ -49,6 +49,24 @@ curl http://localhost:8787/v1/auth/session \
   -H "authorization: Bearer <token>"
 ```
 
+### Studio Shell and Prompt Optimizer
+
+The first product-first slice is the Studio Shell + Prompt Optimizer MVP.
+
+- Desktop exposes three creation modes: text, image, and video.
+- Each mode has a prompt optimization experience.
+- `POST /v1/prompt/optimize` returns deterministic local optimization output.
+- The optimizer does not call real AI providers or external networks in this stage.
+- Generation task submission, asset storage, and real provider adapters are later slices.
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:8787/v1/prompt/optimize \
+  -H 'content-type: application/json' \
+  -d '{"mode":"image","prompt":"做一张咖啡店新品海报","templateId":"image-poster"}'
+```
+
 ## Validation
 
 ```bash
