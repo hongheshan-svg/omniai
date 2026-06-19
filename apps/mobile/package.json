@@ -2,6 +2,7 @@
   "name": "@gw-link-omniai/mobile",
   "version": "0.1.0",
   "private": true,
+  "main": "index.ts",
   "type": "module",
   "scripts": {
     "dev": "expo start",
