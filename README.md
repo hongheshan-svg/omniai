@@ -16,7 +16,7 @@ GW-LINK OmniAI is a multi-platform AI creation product for text chat, image gene
 ## First-Time Setup
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm test
 pnpm typecheck
 ```
@@ -28,6 +28,23 @@ pnpm dev:api
 pnpm dev:admin
 pnpm dev:desktop
 pnpm dev:mobile
+```
+
+## Auth Session API
+
+Local development auth uses passwordless email or phone verification. The in-memory service returns a `devCode` in the start-login response so the verification flow can be completed without a real SMS or email provider.
+
+```bash
+curl -X POST http://localhost:8787/v1/auth/start-login \
+  -H "content-type: application/json" \
+  -d '{"destination":"creator@example.com"}'
+
+curl -X POST http://localhost:8787/v1/auth/verify-login \
+  -H "content-type: application/json" \
+  -d '{"challengeId":"<challengeId>","code":"<devCode>"}'
+
+curl http://localhost:8787/v1/auth/session \
+  -H "authorization: Bearer <token>"
 ```
 
 ## Validation
