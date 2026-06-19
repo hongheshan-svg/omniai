@@ -14,3 +14,4 @@ coverage/
 .DS_Store
 .superpowers/
 .worktrees/
+.pnpm-store/
