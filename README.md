@@ -67,6 +67,24 @@ curl -s -X POST http://localhost:8787/v1/prompt/optimize \
   -d '{"mode":"image","prompt":"做一张咖啡店新品海报","templateId":"image-poster"}'
 ```
 
+### Unified Generation Task MVP
+
+The second product-first slice connects prompt optimization to generation task submission.
+
+- Text, image, and video use one shared `GenerationTask` contract.
+- `POST /v1/generations` creates a queued in-memory task.
+- `GET /v1/generations` lists tasks in the current API process.
+- Desktop can submit the current Studio result into a local task center.
+- This stage still does not call real AI providers, persist tasks, store assets, or deduct credits.
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:8787/v1/generations \
+  -H 'content-type: application/json' \
+  -d '{"mode":"image","prompt":"做一张咖啡店新品海报","optimizedPrompt":"制作一张咖啡店新品商业海报。","preset":{"modelId":"gw-image-creative","parameters":{"aspectRatio":"4:3","quality":"high","count":1},"creditEstimate":{"credits":2,"unit":"credit"}}}'
+```
+
 ## Validation
 
 ```bash

@@ -26,6 +26,14 @@ The API exposes `/v1/prompt/optimize` through a local rule-based optimizer. It r
 
 This slice intentionally leaves generation task submission, asset persistence, billing mutations, and real provider adapters for later stages. Gateway integration must plug into the product workflow instead of driving the product architecture.
 
+## Unified Generation Task Slice
+
+The unified generation task slice connects Studio prompt optimization to product-level task submission. Text, image, and video tasks share `GenerationTaskRequest` and `GenerationTask`, so later provider adapters can implement one stable product contract instead of shaping the product API.
+
+The API exposes `/v1/generations` through an in-memory task service. Tasks are queued and listable inside the current API process, but this slice intentionally does not persist tasks, create assets, call real providers, or mutate credits.
+
+Desktop submission remains local in this slice. The UI proves the user workflow from optimized prompt to task center while keeping HTTP client, auth token handling, persistence, and provider execution for later stages.
+
 ## First Implementation Slice
 
 This skeleton proves that the repository can host all planned product surfaces, share contracts safely, and run tests per package. Business features should be added in thin vertical slices: authentication, model catalog, text generation, image generation, video task submission, assets, credits, and orders.
