@@ -239,7 +239,8 @@ describe("product API", () => {
       config: {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
-        authDevCodesEnabled: true
+        authDevCodesEnabled: true,
+        modelConfigPath: "config/models.json"
       }
     });
     const response = await server.inject({
@@ -265,7 +266,8 @@ describe("product API", () => {
       config: {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
-        authDevCodesEnabled: false
+        authDevCodesEnabled: false,
+        modelConfigPath: "config/models.json"
       }
     });
     const response = await server.inject({
