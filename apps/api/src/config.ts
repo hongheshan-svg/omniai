@@ -2,6 +2,7 @@ export interface ApiConfig {
   port: number;
   gatewayBaseUrl: string;
   authDevCodesEnabled: boolean;
+  modelConfigPath?: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -36,10 +37,11 @@ function parseAuthDevCodesEnabled(env: NodeJS.ProcessEnv): boolean {
   throw new Error('GW_LINK_AUTH_DEV_CODES_ENABLED must be "true" or "false"');
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig & { modelConfigPath: string } {
   return {
     port: parsePort(env.PORT),
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
-    authDevCodesEnabled: parseAuthDevCodesEnabled(env)
+    authDevCodesEnabled: parseAuthDevCodesEnabled(env),
+    modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json"
   };
 }
