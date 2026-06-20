@@ -1,15 +1,18 @@
 import Fastify from "fastify";
 import { loadConfig, type ApiConfig } from "./config";
 import { registerAuthRoutes } from "./routes/auth";
+import { registerAssetRoutes } from "./routes/assets";
 import { registerGenerationRoutes } from "./routes/generations";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
 import { registerPromptRoutes } from "./routes/prompt";
+import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { LocalPromptOptimizer, type PromptOptimizer } from "./services/promptOptimizer";
 
 export interface BuildServerOptions {
+  assetService?: AssetService;
   authService?: AuthService;
   config?: ApiConfig;
   generationService?: GenerationService;
@@ -20,6 +23,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   const server = Fastify({
     logger: false
   });
+  const assetService = options.assetService ?? new InMemoryAssetService();
   const authService =
     options.authService ??
     new InMemoryAuthService({
@@ -32,6 +36,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   registerModelRoutes(server);
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService);
+  registerAssetRoutes(server, assetService);
   registerAuthRoutes(server, authService);
 
   return server;

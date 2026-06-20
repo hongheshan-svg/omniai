@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../server";
+import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
 
@@ -123,6 +124,65 @@ describe("product API", () => {
     });
   });
 
+  it("registers the asset routes", async () => {
+    const server = buildServer();
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/v1/assets",
+      payload: {
+        mode: "text",
+        title: "文本资产",
+        content: {
+          kind: "text",
+          text: "这是一段可复用的新品推广文案。",
+          format: "markdown"
+        },
+        source: {
+          taskId: "generation_task_000001",
+          taskStatus: "succeeded"
+        },
+        prompt: "帮我写一个新品发布文案",
+        optimizedPrompt: "请生成一段新品推广文案。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: {
+            outputFormat: "markdown",
+            tone: "clear"
+          },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+    const listResponse = await server.inject({
+      method: "GET",
+      url: "/v1/assets"
+    });
+
+    expect(createResponse.statusCode).toBe(200);
+    expect(createResponse.json()).toMatchObject({
+      asset: {
+        mode: "text",
+        title: "文本资产",
+        content: {
+          kind: "text"
+        },
+        preset: {
+          modelId: "gw-text-balanced",
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json()).toMatchObject({
+      assets: [
+        {
+          mode: "text",
+          title: "文本资产"
+        }
+      ]
+    });
+  });
+
   it("does not load environment config when an auth service is injected", () => {
     const originalPort = process.env.PORT;
     const fakeAuthService = {
@@ -148,6 +208,12 @@ describe("product API", () => {
       },
       listTasks: () => []
     } satisfies GenerationService;
+    const fakeAssetService = {
+      createAsset: () => {
+        throw new Error("not implemented");
+      },
+      listAssets: () => []
+    } satisfies AssetService;
 
     try {
       process.env.PORT = "abc";
@@ -155,7 +221,8 @@ describe("product API", () => {
       expect(() =>
         buildServer({
           authService: fakeAuthService,
-          generationService: fakeGenerationService
+          generationService: fakeGenerationService,
+          assetService: fakeAssetService
         })
       ).not.toThrow();
     } finally {
