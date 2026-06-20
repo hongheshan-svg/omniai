@@ -56,33 +56,44 @@ export class InMemoryGenerationService implements GenerationService {
   }
 
   createTask(request: GenerationTaskRequest): GenerationTask {
-    if (!isCreationMode(request.mode)) {
-      throw new GenerationTaskError("Unsupported creation mode", 400);
+    const requestValue: unknown = request;
+    if (!isRecord(requestValue) || typeof requestValue.prompt !== "string") {
+      throw new GenerationTaskError("Prompt is required", 400);
     }
 
-    const prompt = request.prompt.trim();
+    const prompt = requestValue.prompt.trim();
     if (!prompt) {
       throw new GenerationTaskError("Prompt is required", 400);
     }
 
-    const optimizedPrompt = request.optimizedPrompt.trim();
+    if (typeof requestValue.optimizedPrompt !== "string") {
+      throw new GenerationTaskError("Optimized prompt is required", 400);
+    }
+
+    const optimizedPrompt = requestValue.optimizedPrompt.trim();
     if (!optimizedPrompt) {
       throw new GenerationTaskError("Optimized prompt is required", 400);
     }
 
-    if (!isValidPresetSuggestion(request.preset)) {
+    const mode = requestValue.mode;
+    if (!isCreationMode(mode)) {
+      throw new GenerationTaskError("Unsupported creation mode", 400);
+    }
+
+    const preset = requestValue.preset;
+    if (!isValidPresetSuggestion(preset)) {
       throw new GenerationTaskError("Invalid preset suggestion", 400);
     }
 
     const timestamp = this.clock.now().toISOString();
     const task: GenerationTask = {
       id: this.idGenerator(),
-      mode: request.mode,
+      mode,
       status: "queued",
       prompt,
       optimizedPrompt,
-      preset: clonePresetSuggestion(request.preset),
-      resultPreview: cloneResultPreview(resultPreviews[request.mode]),
+      preset: clonePresetSuggestion(preset),
+      resultPreview: cloneResultPreview(resultPreviews[mode]),
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -133,7 +144,11 @@ function isValidPresetSuggestion(value: unknown): value is PresetSuggestion {
 }
 
 function isPresetParameterValue(value: unknown): value is string | number | boolean {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+  return (
+    typeof value === "string" ||
+    (typeof value === "number" && Number.isFinite(value)) ||
+    typeof value === "boolean"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

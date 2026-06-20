@@ -151,6 +151,29 @@ describe("InMemoryGenerationService", () => {
     );
   });
 
+  it.each([
+    [
+      "non-string prompt",
+      () =>
+        ({
+          ...createImageRequest(),
+          prompt: 123
+        }) as unknown as GenerationTaskRequest
+    ],
+    [
+      "missing prompt",
+      () => {
+        const requestWithoutPrompt = createImageRequest() as Partial<GenerationTaskRequest>;
+        delete requestWithoutPrompt.prompt;
+        return requestWithoutPrompt as unknown as GenerationTaskRequest;
+      }
+    ],
+    ["null request", () => null as unknown as GenerationTaskRequest]
+  ])("rejects %s", (_label, createRequest) => {
+    const service = createService();
+    expectGenerationError(() => service.createTask(createRequest()), "Prompt is required", 400);
+  });
+
   it("rejects empty optimized prompts", () => {
     const service = createService();
     expectGenerationError(
@@ -159,6 +182,32 @@ describe("InMemoryGenerationService", () => {
           ...createImageRequest(),
           optimizedPrompt: " "
         }),
+      "Optimized prompt is required",
+      400
+    );
+  });
+
+  it.each([
+    [
+      "non-string optimized prompt",
+      () =>
+        ({
+          ...createImageRequest(),
+          optimizedPrompt: 123
+        }) as unknown as GenerationTaskRequest
+    ],
+    [
+      "missing optimized prompt",
+      () => {
+        const requestWithoutOptimizedPrompt = createImageRequest() as Partial<GenerationTaskRequest>;
+        delete requestWithoutOptimizedPrompt.optimizedPrompt;
+        return requestWithoutOptimizedPrompt as unknown as GenerationTaskRequest;
+      }
+    ]
+  ])("rejects %s", (_label, createRequest) => {
+    const service = createService();
+    expectGenerationError(
+      () => service.createTask(createRequest()),
       "Optimized prompt is required",
       400
     );
@@ -174,6 +223,30 @@ describe("InMemoryGenerationService", () => {
             modelId: "",
             parameters: { quality: "high" },
             creditEstimate: { credits: 2, unit: "credit" }
+          }
+        }),
+      "Invalid preset suggestion",
+      400
+    );
+  });
+
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["-Infinity", Number.NEGATIVE_INFINITY]
+  ])("rejects %s preset parameter values", (_label, value) => {
+    const service = createService();
+    const request = createImageRequest();
+    expectGenerationError(
+      () =>
+        service.createTask({
+          ...request,
+          preset: {
+            ...request.preset,
+            parameters: {
+              ...request.preset.parameters,
+              count: value
+            }
           }
         }),
       "Invalid preset suggestion",
