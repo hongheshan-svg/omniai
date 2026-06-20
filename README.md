@@ -85,6 +85,25 @@ curl -s -X POST http://localhost:8787/v1/generations \
   -d '{"mode":"image","prompt":"做一张咖啡店新品海报","optimizedPrompt":"制作一张咖啡店新品商业海报。","preset":{"modelId":"gw-image-creative","parameters":{"aspectRatio":"4:3","quality":"high","count":1},"creditEstimate":{"credits":2,"unit":"credit"}}}'
 ```
 
+### Asset Library MVP
+
+The third product-first slice turns generation task output into reusable creation assets.
+
+- Text, image, and video use one shared `CreationAsset` contract.
+- `POST /v1/assets` creates an in-memory asset with fake text, image, or video content.
+- `GET /v1/assets` lists assets in the current API process.
+- Desktop can save submitted tasks into a local asset library.
+- The asset library can filter all, text, image, and video assets.
+- This stage still does not call real AI providers, persist assets, store files, sync across devices, or deduct credits.
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:8787/v1/assets \
+  -H 'content-type: application/json' \
+  -d '{"mode":"image","title":"图片资产","content":{"kind":"image","url":"https://assets.gw-link.local/placeholders/image-generation.png","alt":"咖啡店新品海报占位图"},"source":{"taskId":"generation_task_000001","taskStatus":"succeeded"},"prompt":"做一张咖啡店新品海报","optimizedPrompt":"制作一张咖啡店新品商业海报。","preset":{"modelId":"gw-image-creative","parameters":{"aspectRatio":"4:3","quality":"high","count":1},"creditEstimate":{"credits":2,"unit":"credit"}}}'
+```
+
 ## Validation
 
 ```bash

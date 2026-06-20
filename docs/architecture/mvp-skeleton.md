@@ -34,6 +34,14 @@ The API exposes `/v1/generations` through an in-memory task service. Tasks are q
 
 Desktop submission remains local in this slice. The UI proves the user workflow from optimized prompt to task center while keeping HTTP client, auth token handling, persistence, and provider execution for later stages.
 
+## Asset Library Slice
+
+The asset library slice turns generated task output into reusable product assets. Text, image, and video assets share `CreationAssetRequest` and `CreationAsset`, keeping provider responses and storage details behind later adapter and persistence stages.
+
+The API exposes `/v1/assets` through an in-memory asset service. Assets are listable inside the current API process, but this slice intentionally does not persist assets, upload files, call real providers, sync across devices, or mutate credits.
+
+Desktop asset saving remains local in this slice. The UI proves the workflow from task center to filtered asset library while keeping HTTP client, auth token handling, persistent storage, file lifecycle, and real provider output for later stages.
+
 ## First Implementation Slice
 
 This skeleton proves that the repository can host all planned product surfaces, share contracts safely, and run tests per package. Business features should be added in thin vertical slices: authentication, model catalog, text generation, image generation, video task submission, assets, credits, and orders.
