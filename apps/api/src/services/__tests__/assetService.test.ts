@@ -86,18 +86,26 @@ describe("InMemoryAssetService", () => {
     });
   });
 
-  it("creates unique increasing default ids without depending on Date.now", () => {
+  it("creates unique increasing default ids per service instance without depending on Date.now", () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_782_048_000_000);
 
     try {
-      const service = new InMemoryAssetService({
+      const first = new InMemoryAssetService({
+        clock: { now: () => fixedNow }
+      });
+      const second = new InMemoryAssetService({
         clock: { now: () => fixedNow }
       });
 
       expect([
-        service.createAsset(createImageRequest()).id,
-        service.createAsset(createImageRequest()).id
-      ]).toEqual(["creation_asset_000001", "creation_asset_000002"]);
+        first.createAsset(createImageRequest()).id,
+        second.createAsset(createImageRequest()).id,
+        first.createAsset(createImageRequest()).id
+      ]).toEqual([
+        "creation_asset_000001",
+        "creation_asset_000001",
+        "creation_asset_000002"
+      ]);
     } finally {
       nowSpy.mockRestore();
     }

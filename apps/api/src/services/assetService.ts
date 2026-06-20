@@ -48,16 +48,15 @@ const previews: Record<CreationMode, CreationAssetPreview> = {
   }
 };
 
-let nextAssetId = 1;
-
 export class InMemoryAssetService implements AssetService {
   private readonly clock: AssetServiceClock;
   private readonly idGenerator: () => string;
   private readonly assets: CreationAsset[] = [];
+  private nextAssetId = 1;
 
   constructor(options: AssetServiceOptions = {}) {
     this.clock = options.clock ?? { now: () => new Date() };
-    this.idGenerator = options.idGenerator ?? createAssetId;
+    this.idGenerator = options.idGenerator ?? (() => this.createAssetId());
   }
 
   createAsset(request: CreationAssetRequest): CreationAsset {
@@ -122,6 +121,12 @@ export class InMemoryAssetService implements AssetService {
 
   listAssets(): CreationAsset[] {
     return this.assets.map(cloneAsset);
+  }
+
+  private createAssetId(): string {
+    const id = `creation_asset_${this.nextAssetId.toString().padStart(6, "0")}`;
+    this.nextAssetId += 1;
+    return id;
   }
 }
 
@@ -265,10 +270,4 @@ function clonePreset(preset: PresetSuggestion): PresetSuggestion {
     parameters: { ...preset.parameters },
     creditEstimate: { ...preset.creditEstimate }
   };
-}
-
-function createAssetId(): string {
-  const id = `creation_asset_${nextAssetId.toString().padStart(6, "0")}`;
-  nextAssetId += 1;
-  return id;
 }
