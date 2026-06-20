@@ -9,6 +9,11 @@ export type {
 } from "./auth";
 export { inferLoginChannel, maskLoginDestination } from "./auth";
 export type {
+  CreationAsset,
+  CreationAssetContent,
+  CreationAssetPreview,
+  CreationAssetRequest,
+  CreationAssetSource,
   CreationMode,
   CreditAmount,
   GenerationTask,

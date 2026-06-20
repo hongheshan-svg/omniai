@@ -77,6 +77,37 @@ export interface GenerationTask {
   updatedAt: string;
 }
 
+export type CreationAssetContent =
+  | { kind: "text"; text: string; format: "markdown" | "plain" }
+  | { kind: "image"; url: string; alt: string }
+  | { kind: "video"; url: string; durationSeconds: number; posterUrl: string };
+
+export interface CreationAssetPreview {
+  title: string;
+  description: string;
+}
+
+export interface CreationAssetSource {
+  taskId: string;
+  taskStatus: GenerationTaskStatus;
+}
+
+export interface CreationAssetRequest {
+  mode: CreationMode;
+  title: string;
+  content: CreationAssetContent;
+  source: CreationAssetSource;
+  prompt: string;
+  optimizedPrompt: string;
+  preset: PresetSuggestion;
+}
+
+export interface CreationAsset extends CreationAssetRequest {
+  id: string;
+  preview: CreationAssetPreview;
+  createdAt: string;
+}
+
 export interface CreditAmount {
   credits: number;
   unit: "credit";
