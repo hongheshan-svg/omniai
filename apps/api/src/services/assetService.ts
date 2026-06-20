@@ -48,6 +48,8 @@ const previews: Record<CreationMode, CreationAssetPreview> = {
   }
 };
 
+let nextAssetId = 1;
+
 export class InMemoryAssetService implements AssetService {
   private readonly clock: AssetServiceClock;
   private readonly idGenerator: () => string;
@@ -225,7 +227,28 @@ function cloneAsset(asset: CreationAsset): CreationAsset {
 }
 
 function cloneContent(content: CreationAssetContent): CreationAssetContent {
-  return { ...content };
+  if (content.kind === "text") {
+    return {
+      kind: content.kind,
+      text: content.text,
+      format: content.format
+    };
+  }
+
+  if (content.kind === "image") {
+    return {
+      kind: content.kind,
+      url: content.url,
+      alt: content.alt
+    };
+  }
+
+  return {
+    kind: content.kind,
+    url: content.url,
+    durationSeconds: content.durationSeconds,
+    posterUrl: content.posterUrl
+  };
 }
 
 function clonePreview(preview: CreationAssetPreview): CreationAssetPreview {
@@ -245,5 +268,7 @@ function clonePreset(preset: PresetSuggestion): PresetSuggestion {
 }
 
 function createAssetId(): string {
-  return `creation_asset_${Date.now().toString(36)}`;
+  const id = `creation_asset_${nextAssetId.toString().padStart(6, "0")}`;
+  nextAssetId += 1;
+  return id;
 }

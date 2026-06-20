@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CreationAssetRequest } from "@gw-link-omniai/shared";
 import { AssetError, InMemoryAssetService } from "../assetService";
 
@@ -84,6 +84,23 @@ describe("InMemoryAssetService", () => {
       },
       createdAt: "2026-06-20T00:00:00.000Z"
     });
+  });
+
+  it("creates unique increasing default ids without depending on Date.now", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_782_048_000_000);
+
+    try {
+      const service = new InMemoryAssetService({
+        clock: { now: () => fixedNow }
+      });
+
+      expect([
+        service.createAsset(createImageRequest()).id,
+        service.createAsset(createImageRequest()).id
+      ]).toEqual(["creation_asset_000001", "creation_asset_000002"]);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it("creates mode-specific text and video previews", () => {
@@ -189,6 +206,39 @@ describe("InMemoryAssetService", () => {
         alt: "咖啡店新品海报占位图"
       }
     });
+  });
+
+  it("normalizes content by dropping fields outside the asset contract", () => {
+    const service = createService();
+    const request = {
+      ...createImageRequest(),
+      content: {
+        ...createImageRequest().content,
+        metadata: {
+          tags: ["original"]
+        }
+      }
+    } as unknown as CreationAssetRequest;
+
+    const asset = service.createAsset(request);
+    expect(asset.content).toEqual({
+      kind: "image",
+      url: "https://assets.gw-link.local/placeholders/image-generation.png",
+      alt: "咖啡店新品海报占位图"
+    });
+    expect("metadata" in asset.content).toBe(false);
+
+    (asset.content as typeof asset.content & { metadata?: { tags: string[] } }).metadata?.tags.push(
+      "mutated"
+    );
+
+    const [listedAsset] = service.listAssets();
+    expect(listedAsset!.content).toEqual({
+      kind: "image",
+      url: "https://assets.gw-link.local/placeholders/image-generation.png",
+      alt: "咖啡店新品海报占位图"
+    });
+    expect("metadata" in listedAsset!.content).toBe(false);
   });
 
   it("rejects unsupported modes", () => {
