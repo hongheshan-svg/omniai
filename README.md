@@ -104,6 +104,19 @@ curl -s -X POST http://localhost:8787/v1/assets \
   -d '{"mode":"image","title":"图片资产","content":{"kind":"image","url":"https://assets.gw-link.local/placeholders/image-generation.png","alt":"咖啡店新品海报占位图"},"source":{"taskId":"generation_task_000001","taskStatus":"succeeded"},"prompt":"做一张咖啡店新品海报","optimizedPrompt":"制作一张咖啡店新品商业海报。","preset":{"modelId":"gw-image-creative","parameters":{"aspectRatio":"4:3","quality":"high","count":1},"creditEstimate":{"credits":2,"unit":"credit"}}}'
 ```
 
+### Provider Adapter Foundation
+
+The fourth product-first slice adds the model catalog and provider adapter foundation behind the existing creation workflow.
+
+- `config/models.json` declares product-facing text, image, and video models.
+- OpenAI-compatible and Anthropic-compatible providers can use any configured `providerModelId`.
+- `/v1/models` returns product fields only and does not expose provider model IDs, base URLs, or API key env names.
+- `/v1/generations` still accepts the product `mode`, prompt, optimized prompt, and preset contract.
+- The current provider adapter is a fake dry-run adapter. It does not read provider API keys and does not send network requests.
+- Real provider HTTP clients, streaming, persistence, file storage, credit mutation, and automatic asset creation remain later slices.
+
+Set `GW_LINK_MODEL_CONFIG_PATH=/absolute/path/to/models.json` to load another model catalog.
+
 ## Validation
 
 ```bash

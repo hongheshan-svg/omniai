@@ -5,6 +5,8 @@ import type {
   GenerationTaskResultPreview,
   PresetSuggestion
 } from "@gw-link-omniai/shared";
+import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter } from "./gatewayClient";
+import { ModelCatalogError, type ModelCatalog } from "./modelCatalog";
 
 export class GenerationTaskError extends Error {
   constructor(
@@ -23,10 +25,13 @@ export interface GenerationServiceClock {
 export interface GenerationServiceOptions {
   clock?: GenerationServiceClock;
   idGenerator?: () => string;
+  modelCatalog?: ModelCatalog;
+  providerAdapter?: ProviderAdapter;
+  userId?: string;
 }
 
 export interface GenerationService {
-  createTask(request: GenerationTaskRequest): GenerationTask;
+  createTask(request: GenerationTaskRequest): GenerationTask | Promise<GenerationTask>;
   listTasks(): GenerationTask[];
 }
 
@@ -48,14 +53,20 @@ const resultPreviews: Record<CreationMode, GenerationTaskResultPreview> = {
 export class InMemoryGenerationService implements GenerationService {
   private readonly clock: GenerationServiceClock;
   private readonly idGenerator: () => string;
+  private readonly modelCatalog?: ModelCatalog;
+  private readonly providerAdapter: ProviderAdapter;
   private readonly tasks: GenerationTask[] = [];
+  private readonly userId: string;
 
   constructor(options: GenerationServiceOptions = {}) {
     this.clock = options.clock ?? { now: () => new Date() };
     this.idGenerator = options.idGenerator ?? createGenerationTaskId;
+    this.modelCatalog = options.modelCatalog;
+    this.providerAdapter = options.providerAdapter ?? new FakeProviderAdapter();
+    this.userId = options.userId ?? "development-user";
   }
 
-  createTask(request: GenerationTaskRequest): GenerationTask {
+  async createTask(request: GenerationTaskRequest): Promise<GenerationTask> {
     const requestValue: unknown = request;
     if (!isRecord(requestValue) || typeof requestValue.prompt !== "string") {
       throw new GenerationTaskError("Prompt is required", 400);
@@ -83,6 +94,43 @@ export class InMemoryGenerationService implements GenerationService {
     const preset = requestValue.preset;
     if (!isValidPresetSuggestion(preset)) {
       throw new GenerationTaskError("Invalid preset suggestion", 400);
+    }
+
+    if (this.modelCatalog === undefined) {
+      throw new GenerationTaskError("Model catalog is not configured", 500);
+    }
+
+    let modelReference: ReturnType<ModelCatalog["getModelReference"]>;
+    try {
+      modelReference = this.modelCatalog.getModelReference(preset.modelId, mode);
+    } catch (error) {
+      if (error instanceof ModelCatalogError) {
+        throw new GenerationTaskError(error.message, error.statusCode);
+      }
+
+      throw error;
+    }
+
+    if (modelReference.product.visibility === "maintenance") {
+      throw new GenerationTaskError("Model is temporarily unavailable", 409);
+    }
+
+    try {
+      await this.providerAdapter.submitGeneration({
+        mode,
+        productModelId: modelReference.product.id,
+        provider: modelReference.provider,
+        providerModelId: modelReference.providerModelId,
+        optimizedPrompt,
+        parameters: { ...preset.parameters },
+        userId: this.userId
+      });
+    } catch (error) {
+      if (error instanceof ProviderAdapterError) {
+        throw new GenerationTaskError(error.message, error.statusCode);
+      }
+
+      throw new GenerationTaskError("Provider adapter failed", 502);
     }
 
     const timestamp = this.clock.now().toISOString();

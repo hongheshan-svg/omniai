@@ -1,51 +1,68 @@
-import type { GenerationTask, ModelCapability } from "@gw-link-omniai/shared";
+import type { CreationMode, PresetSuggestion } from "@gw-link-omniai/shared";
+import type { CatalogProviderReference } from "./modelCatalog";
 
-export interface GatewayGenerationRequest {
-  capability: ModelCapability;
-  modelId: string;
-  prompt: string;
+export interface ProviderGenerationRequest {
+  mode: CreationMode;
+  productModelId: string;
+  provider: CatalogProviderReference;
+  providerModelId: string;
+  optimizedPrompt: string;
+  parameters: PresetSuggestion["parameters"];
   userId: string;
 }
 
-export interface GatewayClient {
-  submitGeneration(request: GatewayGenerationRequest): Promise<GenerationTask>;
+export interface ProviderGenerationResult {
+  status: "queued";
+  providerId: string;
+  providerProtocol: CatalogProviderReference["protocol"];
+  providerModelId: string;
+  submittedAt: string;
 }
 
-export class GwLinkGatewayClient implements GatewayClient {
-  constructor(private readonly baseUrl: string) {}
+export interface ProviderAdapter {
+  submitGeneration(request: ProviderGenerationRequest): Promise<ProviderGenerationResult>;
+}
 
-  async submitGeneration(request: GatewayGenerationRequest): Promise<GenerationTask> {
-    const now = new Date().toISOString();
-    const modeLabel = {
-      text: "文本",
-      image: "图片",
-      video: "视频"
-    }[request.capability];
+export class ProviderAdapterError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number
+  ) {
+    super(message);
+    this.name = "ProviderAdapterError";
+  }
+}
+
+export interface FakeProviderAdapterClock {
+  now(): Date;
+}
+
+export interface FakeProviderAdapterOptions {
+  clock?: FakeProviderAdapterClock;
+}
+
+export class FakeProviderAdapter implements ProviderAdapter {
+  private readonly clock: FakeProviderAdapterClock;
+
+  constructor(options: FakeProviderAdapterOptions = {}) {
+    this.clock = options.clock ?? { now: () => new Date() };
+  }
+
+  async submitGeneration(request: ProviderGenerationRequest): Promise<ProviderGenerationResult> {
+    if (!isSupportedProtocol(request.provider.protocol)) {
+      throw new ProviderAdapterError("Provider protocol is not supported", 502);
+    }
 
     return {
-      id: `task_${request.capability}_${request.modelId}`,
-      mode: request.capability,
       status: "queued",
-      prompt: request.prompt,
-      optimizedPrompt: request.prompt,
-      preset: {
-        modelId: request.modelId,
-        parameters: {},
-        creditEstimate: {
-          credits: 1,
-          unit: "credit"
-        }
-      },
-      resultPreview: {
-        title: `${modeLabel}生成任务`,
-        description: "任务已排队，后续阶段将接入真实生成结果。"
-      },
-      createdAt: now,
-      updatedAt: now
+      providerId: request.provider.id,
+      providerProtocol: request.provider.protocol,
+      providerModelId: request.providerModelId,
+      submittedAt: this.clock.now().toISOString()
     };
   }
+}
 
-  getBaseUrl(): string {
-    return this.baseUrl;
-  }
+function isSupportedProtocol(protocol: unknown): protocol is CatalogProviderReference["protocol"] {
+  return protocol === "openai-compatible" || protocol === "anthropic-compatible";
 }

@@ -6,7 +6,8 @@ describe("loadConfig", () => {
     expect(loadConfig({})).toEqual({
       port: 8787,
       gatewayBaseUrl: "https://gateway.gw-link.local",
-      authDevCodesEnabled: true
+      authDevCodesEnabled: true,
+      modelConfigPath: "config/models.json"
     });
   });
 
@@ -15,12 +16,20 @@ describe("loadConfig", () => {
       loadConfig({
         PORT: "9000",
         GW_LINK_GATEWAY_BASE_URL: "https://gateway.example",
-        GW_LINK_AUTH_DEV_CODES_ENABLED: "false"
+        GW_LINK_AUTH_DEV_CODES_ENABLED: "false",
+        GW_LINK_MODEL_CONFIG_PATH: "/tmp/custom-models.json"
       })
     ).toEqual({
       port: 9000,
       gatewayBaseUrl: "https://gateway.example",
-      authDevCodesEnabled: false
+      authDevCodesEnabled: false,
+      modelConfigPath: "/tmp/custom-models.json"
+    });
+  });
+
+  it("returns the supplied model config path", () => {
+    expect(loadConfig({ GW_LINK_MODEL_CONFIG_PATH: "fixtures/models.json" })).toMatchObject({
+      modelConfigPath: "fixtures/models.json"
     });
   });
 

@@ -3,6 +3,7 @@ import { buildServer } from "../server";
 import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
+import type { ModelCatalog } from "../services/modelCatalog";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -214,6 +215,12 @@ describe("product API", () => {
       },
       listAssets: () => []
     } satisfies AssetService;
+    const fakeModelCatalog = {
+      listVisibleModels: () => [],
+      getModelReference: () => {
+        throw new Error("not implemented");
+      }
+    } satisfies ModelCatalog;
 
     try {
       process.env.PORT = "abc";
@@ -222,7 +229,8 @@ describe("product API", () => {
         buildServer({
           authService: fakeAuthService,
           generationService: fakeGenerationService,
-          assetService: fakeAssetService
+          assetService: fakeAssetService,
+          modelCatalog: fakeModelCatalog
         })
       ).not.toThrow();
     } finally {
@@ -239,7 +247,8 @@ describe("product API", () => {
       config: {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
-        authDevCodesEnabled: true
+        authDevCodesEnabled: true,
+        modelConfigPath: "config/models.json"
       }
     });
     const response = await server.inject({
@@ -265,7 +274,8 @@ describe("product API", () => {
       config: {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
-        authDevCodesEnabled: false
+        authDevCodesEnabled: false,
+        modelConfigPath: "config/models.json"
       }
     });
     const response = await server.inject({

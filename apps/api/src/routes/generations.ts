@@ -11,7 +11,7 @@ export function registerGenerationRoutes(server: FastifyInstance, generationServ
     }
 
     try {
-      const task = generationService.createTask(generationRequest)
+      const task = await generationService.createTask(generationRequest)
       return { task }
     } catch (error) {
       return sendGenerationTaskError(reply, error)

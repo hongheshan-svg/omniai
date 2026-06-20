@@ -42,6 +42,14 @@ The API exposes `/v1/assets` through an in-memory asset service. Assets are list
 
 Desktop asset saving remains local in this slice. The UI proves the workflow from task center to filtered asset library while keeping HTTP client, auth token handling, persistent storage, file lifecycle, and real provider output for later stages.
 
+## Provider Adapter Foundation Slice
+
+The provider adapter foundation keeps provider configuration behind the product API. Product requests still use `GenerationTaskRequest`, while the API resolves `preset.modelId` through an internal model catalog before submitting a fake provider dry-run.
+
+`config/models.json` declares product model IDs, provider model IDs, provider protocol, provider base URL, API key environment names, visibility, plan level, tags, and credit unit cost. `/v1/models` exposes only product-facing fields; provider details stay server-side.
+
+The fake provider adapter supports OpenAI-compatible and Anthropic-compatible protocol dispatch without reading API keys or making network calls. This prepares the codebase for real provider HTTP clients without turning GW-LINK OmniAI into a gateway product or changing the text, image, and video creation workflow.
+
 ## First Implementation Slice
 
 This skeleton proves that the repository can host all planned product surfaces, share contracts safely, and run tests per package. Business features should be added in thin vertical slices: authentication, model catalog, text generation, image generation, video task submission, assets, credits, and orders.
