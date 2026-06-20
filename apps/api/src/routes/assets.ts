@@ -11,16 +11,21 @@ export function registerAssetRoutes(server: FastifyInstance, assetService: Asset
     }
 
     try {
-      const asset = assetService.createAsset(assetRequest);
+      const asset = await assetService.createAsset(assetRequest);
       return { asset };
     } catch (error) {
       return sendAssetError(reply, error);
     }
   });
 
-  server.get("/v1/assets", async () => ({
-    assets: assetService.listAssets()
-  }));
+  server.get("/v1/assets", async (_request, reply) => {
+    try {
+      const assets = await assetService.listAssets();
+      return { assets };
+    } catch (error) {
+      return sendAssetError(reply, error);
+    }
+  });
 }
 
 function readCreationAssetRequest(body: unknown): CreationAssetRequest | undefined {

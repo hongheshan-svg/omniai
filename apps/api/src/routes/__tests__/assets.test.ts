@@ -195,6 +195,26 @@ describe("asset routes", () => {
     });
   });
 
+  it("maps async rejected asset creation errors to a 500 response", async () => {
+    const assetService = {
+      createAsset: async () => {
+        throw new Error("boom");
+      },
+      listAssets: () => []
+    } as unknown as AssetService;
+    const server = buildServer({ assetService });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/assets",
+      payload: createImagePayload()
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: "Unexpected asset error"
+    });
+  });
+
   it("maps asset errors from injected services", async () => {
     const assetService = {
       createAsset: () => {
@@ -212,6 +232,48 @@ describe("asset routes", () => {
     expect(response.statusCode).toBe(422);
     expect(response.json()).toEqual({
       error: "Invalid asset source"
+    });
+  });
+
+  it("maps unexpected asset list errors to a 500 response", async () => {
+    const assetService = {
+      createAsset: () => {
+        throw new Error("not implemented");
+      },
+      listAssets: () => {
+        throw new Error("boom");
+      }
+    } satisfies AssetService;
+    const server = buildServer({ assetService });
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/assets"
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: "Unexpected asset error"
+    });
+  });
+
+  it("maps asset list errors from injected services", async () => {
+    const assetService = {
+      createAsset: () => {
+        throw new Error("not implemented");
+      },
+      listAssets: () => {
+        throw new AssetError("Asset library unavailable", 503);
+      }
+    } satisfies AssetService;
+    const server = buildServer({ assetService });
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/assets"
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: "Asset library unavailable"
     });
   });
 });
