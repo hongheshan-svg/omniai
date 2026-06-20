@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import type { CreationMode } from "@gw-link-omniai/shared";
+import type { CreationMode, GenerationTask } from "@gw-link-omniai/shared";
+import {
+  createLocalGenerationTask,
+  getGenerationStatusLabel,
+  summarizeGenerationPrompt
+} from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import {
   getFixtureOptimization,
@@ -16,6 +21,7 @@ const anonymousSession = {
 
 export function App() {
   const [selectedMode, setSelectedMode] = useState<CreationMode>("text");
+  const [generationTasks, setGenerationTasks] = useState<GenerationTask[]>([]);
   const studioModes = useMemo(() => getStudioModes(), []);
   const content = useMemo(() => getStudioModeContent(selectedMode), [selectedMode]);
   const templates = useMemo(() => getStudioTemplates(selectedMode), [selectedMode]);
@@ -23,6 +29,18 @@ export function App() {
   const promptInputId = `${selectedMode}-studio-prompt`;
   const creditCount = optimization.preset.creditEstimate.credits;
   const creditLabel = creditCount === 1 ? "credit" : "credits";
+
+  function handleSubmitGeneration() {
+    setGenerationTasks((currentTasks) => {
+      const taskNumber = currentTasks.length + 1;
+      const task = createLocalGenerationTask(optimization, {
+        idGenerator: () => `desktop_generation_task_${taskNumber.toString().padStart(6, "0")}`,
+        clock: { now: () => new Date("2026-06-20T00:00:00.000Z") }
+      });
+
+      return [task, ...currentTasks];
+    });
+  }
 
   return (
     <main>
@@ -126,9 +144,46 @@ export function App() {
           </dl>
         </section>
 
-        <button type="button" disabled>
-          提交生成（待接入）
+        <button type="button" onClick={handleSubmitGeneration}>
+          提交生成
         </button>
+      </section>
+
+      <section aria-label="任务中心">
+        <h2>任务中心</h2>
+        {generationTasks.length === 0 ? (
+          <p>暂无生成任务</p>
+        ) : (
+          <ol>
+            {generationTasks.map((task) => {
+              const taskMode = getStudioModeContent(task.mode);
+              const taskCreditCount = task.preset.creditEstimate.credits;
+              const taskCreditLabel = taskCreditCount === 1 ? "credit" : "credits";
+
+              return (
+                <li key={task.id}>
+                  <article>
+                    <h3>{taskMode.title}</h3>
+                    <p>{getGenerationStatusLabel(task.status)}</p>
+                    <p>{summarizeGenerationPrompt(task)}</p>
+                    <dl>
+                      <div>
+                        <dt>modelId</dt>
+                        <dd>{task.preset.modelId}</dd>
+                      </div>
+                      <div>
+                        <dt>预计点数</dt>
+                        <dd>
+                          预计点数：{taskCreditCount} {taskCreditLabel}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </section>
     </main>
   );
