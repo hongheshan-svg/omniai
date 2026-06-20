@@ -86,6 +86,68 @@ describe("Desktop App", () => {
     expect(within(taskCenter).getAllByText("排队中")).toHaveLength(2);
   });
 
+  it("saves a submitted text task into the asset library", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    expect(within(assetLibrary).getByText("gw-text-balanced")).toBeTruthy();
+    expect(within(assetLibrary).getByText("预计点数：1 credit")).toBeTruthy();
+    expect(within(assetLibrary).getByText("帮我写一个咖啡店新品发布文案")).toBeTruthy();
+    expect(within(assetLibrary).getByText("占位文本资产，后续阶段将接入真实文本生成结果。")).toBeTruthy();
+    expect(within(assetLibrary).getByRole("button", { name: "复用参数" })).toBeTruthy();
+  });
+
+  it("filters saved assets by creation mode", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
+
+    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
+    fireEvent.click(within(modeNavigation).getByRole("button", { name: "图片创作" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "保存到资产库" })[0]);
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
+
+    const assetFilter = within(assetLibrary).getByRole("navigation", { name: "资产过滤" });
+    fireEvent.click(within(assetFilter).getByRole("button", { name: "图片" }));
+    expect(within(assetLibrary).queryByText("文本资产")).toBeNull();
+    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
+
+    fireEvent.click(within(assetFilter).getByRole("button", { name: "文本" }));
+    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    expect(within(assetLibrary).queryByText("图片资产")).toBeNull();
+
+    fireEvent.click(within(assetFilter).getByRole("button", { name: "全部" }));
+    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
+  });
+
+  it("keeps saved assets when switching modes and saves video assets", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
+
+    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
+    fireEvent.click(within(modeNavigation).getByRole("button", { name: "视频创作" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "保存到资产库" })[0]);
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    expect(within(assetLibrary).getByText("视频资产")).toBeTruthy();
+    expect(within(assetLibrary).getByText("gw-video-motion")).toBeTruthy();
+    expect(within(assetLibrary).getByText("预计点数：18 credits")).toBeTruthy();
+  });
+
   it("summarizes authenticated desktop sessions", () => {
     expect(
       getDesktopSessionCta({

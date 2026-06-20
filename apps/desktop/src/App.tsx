@@ -1,5 +1,12 @@
 import { useMemo, useState } from "react";
-import type { CreationMode, GenerationTask } from "@gw-link-omniai/shared";
+import type { CreationAsset, CreationMode, GenerationTask } from "@gw-link-omniai/shared";
+import {
+  createLocalCreationAsset,
+  filterCreationAssets,
+  getAssetFilterLabel,
+  summarizeAssetPrompt,
+  type AssetFilter
+} from "./assetModel";
 import {
   createLocalGenerationTask,
   getGenerationStatusLabel,
@@ -22,10 +29,17 @@ const anonymousSession = {
 export function App() {
   const [selectedMode, setSelectedMode] = useState<CreationMode>("text");
   const [generationTasks, setGenerationTasks] = useState<GenerationTask[]>([]);
+  const [creationAssets, setCreationAssets] = useState<CreationAsset[]>([]);
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const studioModes = useMemo(() => getStudioModes(), []);
   const content = useMemo(() => getStudioModeContent(selectedMode), [selectedMode]);
   const templates = useMemo(() => getStudioTemplates(selectedMode), [selectedMode]);
   const optimization = useMemo(() => getFixtureOptimization(selectedMode), [selectedMode]);
+  const assetFilters: AssetFilter[] = ["all", "text", "image", "video"];
+  const filteredAssets = useMemo(
+    () => filterCreationAssets(creationAssets, assetFilter),
+    [creationAssets, assetFilter]
+  );
   const promptInputId = `${selectedMode}-studio-prompt`;
   const creditCount = optimization.preset.creditEstimate.credits;
   const creditLabel = creditCount === 1 ? "credit" : "credits";
@@ -39,6 +53,18 @@ export function App() {
       });
 
       return [task, ...currentTasks];
+    });
+  }
+
+  function handleSaveAsset(task: GenerationTask) {
+    setCreationAssets((currentAssets) => {
+      const assetNumber = currentAssets.length + 1;
+      const asset = createLocalCreationAsset(task, {
+        idGenerator: () => `desktop_creation_asset_${assetNumber.toString().padStart(6, "0")}`,
+        clock: { now: () => new Date("2026-06-20T00:00:00.000Z") }
+      });
+
+      return [asset, ...currentAssets];
     });
   }
 
@@ -178,6 +204,58 @@ export function App() {
                         </dd>
                       </div>
                     </dl>
+                    <button type="button" onClick={() => handleSaveAsset(task)}>
+                      保存到资产库
+                    </button>
+                  </article>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+
+      <section aria-label="资产库">
+        <h2>资产库</h2>
+        <nav aria-label="资产过滤">
+          {assetFilters.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={assetFilter === filter}
+              onClick={() => setAssetFilter(filter)}
+            >
+              {getAssetFilterLabel(filter)}
+            </button>
+          ))}
+        </nav>
+        {filteredAssets.length === 0 ? (
+          <p>暂无资产</p>
+        ) : (
+          <ol>
+            {filteredAssets.map((asset) => {
+              const assetCreditCount = asset.preset.creditEstimate.credits;
+              const assetCreditLabel = assetCreditCount === 1 ? "credit" : "credits";
+
+              return (
+                <li key={asset.id}>
+                  <article>
+                    <h3>{asset.title}</h3>
+                    <p>{asset.preview.description}</p>
+                    <p>{summarizeAssetPrompt(asset)}</p>
+                    <dl>
+                      <div>
+                        <dt>modelId</dt>
+                        <dd>{asset.preset.modelId}</dd>
+                      </div>
+                      <div>
+                        <dt>预计点数</dt>
+                        <dd>
+                          预计点数：{assetCreditCount} {assetCreditLabel}
+                        </dd>
+                      </div>
+                    </dl>
+                    <button type="button">复用参数</button>
                   </article>
                 </li>
               );
