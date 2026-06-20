@@ -12,6 +12,8 @@ export type {
   CreationMode,
   CreditAmount,
   GenerationTask,
+  GenerationTaskRequest,
+  GenerationTaskResultPreview,
   GenerationTaskStatus,
   ModelCapability,
   ModelVisibility,

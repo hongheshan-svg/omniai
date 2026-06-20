@@ -16,18 +16,32 @@ export class GwLinkGatewayClient implements GatewayClient {
 
   async submitGeneration(request: GatewayGenerationRequest): Promise<GenerationTask> {
     const now = new Date().toISOString();
+    const modeLabel = {
+      text: "文本",
+      image: "图片",
+      video: "视频"
+    }[request.capability];
 
     return {
       id: `task_${request.capability}_${request.modelId}`,
-      capability: request.capability,
+      mode: request.capability,
       status: "queued",
-      modelId: request.modelId,
+      prompt: request.prompt,
+      optimizedPrompt: request.prompt,
+      preset: {
+        modelId: request.modelId,
+        parameters: {},
+        creditEstimate: {
+          credits: 1,
+          unit: "credit"
+        }
+      },
+      resultPreview: {
+        title: `${modeLabel}生成任务`,
+        description: "任务已排队，后续阶段将接入真实生成结果。"
+      },
       createdAt: now,
-      updatedAt: now,
-      creditEstimate: {
-        credits: 1,
-        unit: "credit"
-      }
+      updatedAt: now
     };
   }
 

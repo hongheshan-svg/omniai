@@ -53,14 +53,28 @@ export interface PromptOptimization {
 
 export type GenerationTaskStatus = "queued" | "running" | "succeeded" | "failed";
 
+export interface GenerationTaskRequest {
+  mode: CreationMode;
+  prompt: string;
+  optimizedPrompt: string;
+  preset: PresetSuggestion;
+}
+
+export interface GenerationTaskResultPreview {
+  title: string;
+  description: string;
+}
+
 export interface GenerationTask {
   id: string;
-  capability: ModelCapability;
+  mode: CreationMode;
   status: GenerationTaskStatus;
-  modelId: string;
+  prompt: string;
+  optimizedPrompt: string;
+  preset: PresetSuggestion;
+  resultPreview: GenerationTaskResultPreview;
   createdAt: string;
   updatedAt: string;
-  creditEstimate: CreditAmount;
 }
 
 export interface CreditAmount {

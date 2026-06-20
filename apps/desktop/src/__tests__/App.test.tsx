@@ -42,7 +42,7 @@ describe("Desktop App", () => {
     expect(within(optimizationResult).getByText("预计点数：2 credits")).toBeTruthy();
   });
 
-  it("switches to the Video Studio optimization fixture with generation submit disabled", () => {
+  it("switches to the Video Studio optimization fixture", () => {
     render(<App />);
 
     const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
@@ -52,8 +52,38 @@ describe("Desktop App", () => {
     expect(within(optimizationResult).getByText("镜头运动")).toBeTruthy();
     expect(within(optimizationResult).getByText("gw-video-motion")).toBeTruthy();
     expect(within(optimizationResult).getByText("预计点数：18 credits")).toBeTruthy();
-    const submitButton = screen.getByRole<HTMLButtonElement>("button", { name: "提交生成（待接入）" });
-    expect(submitButton.disabled).toBe(true);
+    const submitButton = screen.getByRole<HTMLButtonElement>("button", { name: "提交生成" });
+    expect(submitButton.disabled).toBe(false);
+  });
+
+  it("submits the default Text Studio task into the task center", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    expect(within(taskCenter).getByText("文本创作")).toBeTruthy();
+    expect(within(taskCenter).getByText("排队中")).toBeTruthy();
+    expect(within(taskCenter).getByText("gw-text-balanced")).toBeTruthy();
+    expect(within(taskCenter).getByText("预计点数：1 credit")).toBeTruthy();
+    expect(within(taskCenter).getByText("帮我写一个咖啡店新品发布文案")).toBeTruthy();
+  });
+
+  it("keeps submitted tasks when switching modes and appends video tasks", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
+    fireEvent.click(within(modeNavigation).getByRole("button", { name: "视频创作" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    expect(within(taskCenter).getByText("文本创作")).toBeTruthy();
+    expect(within(taskCenter).getByText("视频创作")).toBeTruthy();
+    expect(within(taskCenter).getByText("gw-video-motion")).toBeTruthy();
+    expect(within(taskCenter).getByText("预计点数：18 credits")).toBeTruthy();
+    expect(within(taskCenter).getAllByText("排队中")).toHaveLength(2);
   });
 
   it("summarizes authenticated desktop sessions", () => {
