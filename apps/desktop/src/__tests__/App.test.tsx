@@ -24,7 +24,7 @@ describe("Desktop App", () => {
     expect(screen.getByLabelText("文本创作需求")).toBeTruthy();
     const optimizationResult = screen.getByLabelText("提示词优化结果");
     expect(within(optimizationResult).getByText("写作目标")).toBeTruthy();
-    expect(within(optimizationResult).getByText("recommended-text")).toBeTruthy();
+    expect(within(optimizationResult).getByText("gw-text-balanced")).toBeTruthy();
     expect(within(optimizationResult).getByText("预计点数：1 credit")).toBeTruthy();
   });
 
@@ -38,7 +38,7 @@ describe("Desktop App", () => {
     expect(screen.getByLabelText("图片创作需求")).toBeTruthy();
     const optimizationResult = screen.getByLabelText("提示词优化结果");
     expect(within(optimizationResult).getByText("负向提示词")).toBeTruthy();
-    expect(within(optimizationResult).getByText("recommended-image")).toBeTruthy();
+    expect(within(optimizationResult).getByText("gw-image-creative")).toBeTruthy();
     expect(within(optimizationResult).getByText("预计点数：2 credits")).toBeTruthy();
   });
 
@@ -50,7 +50,8 @@ describe("Desktop App", () => {
 
     const optimizationResult = screen.getByLabelText("提示词优化结果");
     expect(within(optimizationResult).getByText("镜头运动")).toBeTruthy();
-    expect(within(optimizationResult).getByText("recommended-video")).toBeTruthy();
+    expect(within(optimizationResult).getByText("gw-video-motion")).toBeTruthy();
+    expect(within(optimizationResult).getByText("预计点数：18 credits")).toBeTruthy();
     const submitButton = screen.getByRole<HTMLButtonElement>("button", { name: "提交生成（待接入）" });
     expect(submitButton.disabled).toBe(true);
   });

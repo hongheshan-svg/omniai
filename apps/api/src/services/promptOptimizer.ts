@@ -1,9 +1,11 @@
-import type {
-  CreationMode,
-  PromptOptimization,
-  PromptOptimizationRequest,
-  PromptSection,
-  PromptTemplate
+import {
+  estimateCreditCost,
+  type CreditAmount,
+  type CreationMode,
+  type PromptOptimization,
+  type PromptOptimizationRequest,
+  type PromptSection,
+  type PromptTemplate
 } from "@gw-link-omniai/shared";
 
 export class PromptOptimizationError extends Error {
@@ -123,7 +125,7 @@ export class LocalPromptOptimizer implements PromptOptimizer {
 interface ModeStrategy {
   modelId: string;
   parameters: Record<string, string | number | boolean>;
-  creditEstimate: { credits: number; unit: "credit" };
+  creditEstimate: CreditAmount;
   optimizedPrompt(prompt: string): string;
   sections(prompt: string): PromptSection[];
 }
@@ -136,12 +138,16 @@ const defaultTemplateByMode: Record<CreationMode, string> = {
 
 const modeStrategies: Record<CreationMode, ModeStrategy> = {
   text: {
-    modelId: "recommended-text",
+    modelId: "gw-text-balanced",
     parameters: {
       outputFormat: "markdown",
       tone: "clear"
     },
-    creditEstimate: { credits: 1, unit: "credit" },
+    creditEstimate: estimateCreditCost({
+      capability: "text",
+      estimatedInputTokens: 300,
+      estimatedOutputTokens: 600
+    }),
     optimizedPrompt: (prompt) =>
       `请围绕“${prompt}”生成清晰、可直接使用的文本内容，明确目标、受众、语气、格式和约束。`,
     sections: (prompt) => [
@@ -153,13 +159,17 @@ const modeStrategies: Record<CreationMode, ModeStrategy> = {
     ]
   },
   image: {
-    modelId: "recommended-image",
+    modelId: "gw-image-creative",
     parameters: {
       aspectRatio: "4:3",
       quality: "high",
       count: 1
     },
-    creditEstimate: { credits: 2, unit: "credit" },
+    creditEstimate: estimateCreditCost({
+      capability: "image",
+      imageCount: 1,
+      quality: "high"
+    }),
     optimizedPrompt: (prompt) => `为“${prompt}”制作一张商业级视觉图，突出主体、场景氛围、构图和清晰传播信息。`,
     sections: (prompt) => [
       { label: "主体", value: `${prompt} 的核心主体与视觉焦点` },
@@ -171,13 +181,17 @@ const modeStrategies: Record<CreationMode, ModeStrategy> = {
     ]
   },
   video: {
-    modelId: "recommended-video",
+    modelId: "gw-video-motion",
     parameters: {
       durationSeconds: 6,
       aspectRatio: "16:9",
       resolution: "1080p"
     },
-    creditEstimate: { credits: 3, unit: "credit" },
+    creditEstimate: estimateCreditCost({
+      capability: "video",
+      durationSeconds: 6,
+      resolution: "1080p"
+    }),
     optimizedPrompt: (prompt) => `围绕“${prompt}”生成一段短视频，明确主体、动作、镜头运动、场景变化和负向约束。`,
     sections: (prompt) => [
       { label: "主体", value: `${prompt} 的主要人物、物体或视觉中心` },

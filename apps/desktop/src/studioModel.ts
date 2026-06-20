@@ -70,7 +70,7 @@ const fixtureOptimizations: Record<CreationMode, PromptOptimization> = {
       { label: "关键约束", value: "避免夸张承诺，保留新品卖点" }
     ],
     preset: {
-      modelId: "recommended-text",
+      modelId: "gw-text-balanced",
       parameters: {
         outputFormat: "markdown",
         tone: "warm"
@@ -92,7 +92,7 @@ const fixtureOptimizations: Record<CreationMode, PromptOptimization> = {
       { label: "负向提示词", value: "低清晰度、杂乱背景、文字变形、过曝、主体缺失" }
     ],
     preset: {
-      modelId: "recommended-image",
+      modelId: "gw-image-creative",
       parameters: {
         aspectRatio: "4:3",
         quality: "high",
@@ -115,13 +115,13 @@ const fixtureOptimizations: Record<CreationMode, PromptOptimization> = {
       { label: "负向约束", value: "画面闪烁、主体变形、动作断裂、过度模糊、低清晰度" }
     ],
     preset: {
-      modelId: "recommended-video",
+      modelId: "gw-video-motion",
       parameters: {
         durationSeconds: 6,
         aspectRatio: "16:9",
         resolution: "1080p"
       },
-      creditEstimate: { credits: 3, unit: "credit" }
+      creditEstimate: { credits: 18, unit: "credit" }
     },
     createdAt: "2026-06-19T00:00:00.000Z"
   }

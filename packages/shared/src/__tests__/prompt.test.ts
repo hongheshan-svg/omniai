@@ -52,7 +52,7 @@ describe("prompt optimization contracts", () => {
         { label: "负向提示词", value: "低清晰度、杂乱背景、文字变形、过曝" }
       ],
       preset: {
-        modelId: "recommended-image",
+        modelId: "gw-image-creative",
         parameters: {
           aspectRatio: "4:3",
           quality: "high",

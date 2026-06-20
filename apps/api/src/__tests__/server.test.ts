@@ -69,7 +69,7 @@ describe("product API", () => {
         mode: "text",
         originalPrompt: "帮我写一个新品发布文案",
         preset: {
-          modelId: "recommended-text",
+          modelId: "gw-text-balanced",
           creditEstimate: { credits: 1, unit: "credit" }
         }
       }

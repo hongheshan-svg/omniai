@@ -52,15 +52,18 @@ describe("desktop studio model", () => {
   it("provides fixture optimizations for each creation mode", () => {
     const textOptimization = getFixtureOptimization("text");
     expect(textOptimization.mode).toBe("text");
-    expect(textOptimization.preset.modelId).toBe("recommended-text");
+    expect(textOptimization.preset.modelId).toBe("gw-text-balanced");
     expect(textOptimization.preset.creditEstimate).toEqual({ credits: 1, unit: "credit" });
 
     const imageOptimization = getFixtureOptimization("image");
     expect(imageOptimization.mode).toBe("image");
+    expect(imageOptimization.preset.modelId).toBe("gw-image-creative");
     expect(imageOptimization.sections.map((section) => section.label)).toContain("负向提示词");
 
     const videoOptimization = getFixtureOptimization("video");
     expect(videoOptimization.mode).toBe("video");
+    expect(videoOptimization.preset.modelId).toBe("gw-video-motion");
+    expect(videoOptimization.preset.creditEstimate).toEqual({ credits: 18, unit: "credit" });
     expect(videoOptimization.sections.map((section) => section.label)).toContain("镜头运动");
   });
 
@@ -81,6 +84,6 @@ describe("desktop studio model", () => {
     const freshOptimization = getFixtureOptimization("video");
     expect(freshOptimization.sections[0].label).not.toBe("mutated");
     expect(freshOptimization.preset.parameters.durationSeconds).toBe(6);
-    expect(freshOptimization.preset.creditEstimate).toEqual({ credits: 3, unit: "credit" });
+    expect(freshOptimization.preset.creditEstimate).toEqual({ credits: 18, unit: "credit" });
   });
 });

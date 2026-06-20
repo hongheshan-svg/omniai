@@ -55,7 +55,7 @@ The first product-first slice is the Studio Shell + Prompt Optimizer MVP.
 
 - Desktop exposes three creation modes: text, image, and video.
 - Each mode has a prompt optimization experience.
-- `POST /v1/prompt/optimize` returns deterministic local optimization output.
+- `POST /v1/prompt/optimize` returns rule-based local structured optimization output.
 - The optimizer does not call real AI providers or external networks in this stage.
 - Generation task submission, asset storage, and real provider adapters are later slices.
 

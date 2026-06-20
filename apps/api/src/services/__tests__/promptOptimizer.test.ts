@@ -45,7 +45,7 @@ describe("LocalPromptOptimizer", () => {
         { label: "关键约束", value: "保留用户原始意图：帮我写一个新品发布文案" }
       ],
       preset: {
-        modelId: "recommended-text",
+        modelId: "gw-text-balanced",
         parameters: {
           template: "text-copywriting",
           outputFormat: "markdown",
@@ -75,7 +75,7 @@ describe("LocalPromptOptimizer", () => {
       "负向提示词"
     ]);
     expect(optimization.preset).toEqual({
-      modelId: "recommended-image",
+      modelId: "gw-image-creative",
       parameters: {
         template: "image-poster",
         aspectRatio: "4:3",
@@ -104,14 +104,14 @@ describe("LocalPromptOptimizer", () => {
       "负向约束"
     ]);
     expect(optimization.preset).toEqual({
-      modelId: "recommended-video",
+      modelId: "gw-video-motion",
       parameters: {
         template: "video-short",
         durationSeconds: 6,
         aspectRatio: "16:9",
         resolution: "1080p"
       },
-      creditEstimate: { credits: 3, unit: "credit" }
+      creditEstimate: { credits: 18, unit: "credit" }
     });
   });
 

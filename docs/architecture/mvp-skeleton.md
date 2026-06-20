@@ -20,7 +20,7 @@ Production-ready auth follow-up work should replace the in-memory service with p
 
 ## Product-First Studio Slice
 
-The Studio Shell + Prompt Optimizer slice puts the product workflow ahead of provider integration. Desktop users see text, image, and video creation modes, each with mode-specific prompt guidance and deterministic optimization output.
+The Studio Shell + Prompt Optimizer slice puts the product workflow ahead of provider integration. Desktop users see text, image, and video creation modes, each with mode-specific prompt guidance and rule-based local structured optimization output.
 
 The API exposes `/v1/prompt/optimize` through a local rule-based optimizer. It returns structured sections, a recommended preset, and a credit estimate without calling real AI providers or external networks.
 

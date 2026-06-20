@@ -41,7 +41,7 @@ describe("prompt routes", () => {
           { label: "负向提示词", value: "低清晰度、杂乱背景、文字变形、过曝、主体缺失" }
         ],
         preset: {
-          modelId: "recommended-image",
+          modelId: "gw-image-creative",
           parameters: {
             template: "image-poster",
             aspectRatio: "4:3",
