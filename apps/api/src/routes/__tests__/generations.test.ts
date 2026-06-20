@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../../server";
+import { FakeProviderAdapter } from "../../services/gatewayClient";
 import { InMemoryGenerationService, type GenerationService } from "../../services/generationService";
+import { ConfigModelCatalog } from "../../services/modelCatalog";
+import type { ModelCatalogConfig } from "../../services/modelConfig";
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
 
@@ -8,9 +11,86 @@ function buildGenerationTestServer() {
   return buildServer({
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
-      idGenerator: () => "generation_task_000001"
+      idGenerator: () => "generation_task_000001",
+      modelCatalog: new ConfigModelCatalog(createConfig()),
+      providerAdapter: new FakeProviderAdapter()
     })
   });
+}
+
+function createConfig(): ModelCatalogConfig {
+  return {
+    providers: [
+      {
+        id: "openai-main",
+        displayName: "OpenAI Main",
+        protocol: "openai-compatible",
+        baseUrl: "https://api.openai.com/v1",
+        apiKeyEnv: "OPENAI_API_KEY",
+        models: [
+          {
+            id: "gw-text-balanced",
+            providerModelId: "gpt-4.1-mini",
+            displayName: "OmniAI Text Balanced",
+            capability: "text",
+            tags: ["recommended", "balanced"],
+            visibility: "visible",
+            minimumPlan: "free",
+            creditUnitCost: 1
+          },
+          {
+            id: "gw-image-creative",
+            providerModelId: "gpt-image-1",
+            displayName: "OmniAI Image Creative",
+            capability: "image",
+            tags: ["creative", "high-quality"],
+            visibility: "visible",
+            minimumPlan: "pro",
+            creditUnitCost: 2
+          },
+          {
+            id: "gw-text-hidden",
+            providerModelId: "gpt-hidden",
+            displayName: "Hidden Text",
+            capability: "text",
+            tags: ["hidden"],
+            visibility: "hidden",
+            minimumPlan: "pro",
+            creditUnitCost: 2
+          }
+        ]
+      },
+      {
+        id: "anthropic-main",
+        displayName: "Anthropic Main",
+        protocol: "anthropic-compatible",
+        baseUrl: "https://api.anthropic.com",
+        apiKeyEnv: "ANTHROPIC_API_KEY",
+        models: [
+          {
+            id: "gw-video-motion",
+            providerModelId: "claude-compatible-video-motion",
+            displayName: "OmniAI Video Motion",
+            capability: "video",
+            tags: ["motion", "async-task"],
+            visibility: "visible",
+            minimumPlan: "studio",
+            creditUnitCost: 3
+          },
+          {
+            id: "gw-text-maintenance",
+            providerModelId: "claude-maintenance",
+            displayName: "Maintenance Text",
+            capability: "text",
+            tags: ["maintenance"],
+            visibility: "maintenance",
+            minimumPlan: "pro",
+            creditUnitCost: 2
+          }
+        ]
+      }
+    ]
+  };
 }
 
 function createImagePayload() {
@@ -167,6 +247,66 @@ describe("generation routes", () => {
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({
       error: "Unexpected generation task error"
+    });
+  });
+
+  it("maps async unexpected generation service errors to a 500 response", async () => {
+    const generationService = {
+      createTask: async () => {
+        throw new Error("boom");
+      },
+      listTasks: () => []
+    } satisfies GenerationService;
+    const server = buildServer({ generationService });
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      payload: createImagePayload()
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: "Unexpected generation task error"
+    });
+  });
+
+  it("maps missing model validation errors to a 404 response", async () => {
+    const server = buildGenerationTestServer();
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      payload: {
+        ...createImagePayload(),
+        preset: {
+          ...createImagePayload().preset,
+          modelId: "gw-image-missing"
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      error: "Model was not found"
+    });
+  });
+
+  it("maps model mode mismatch validation errors to a 400 response", async () => {
+    const server = buildGenerationTestServer();
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      payload: {
+        ...createImagePayload(),
+        preset: {
+          ...createImagePayload().preset,
+          modelId: "gw-text-balanced"
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "Model does not support this creation mode"
     });
   });
 });

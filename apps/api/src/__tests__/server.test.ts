@@ -3,6 +3,7 @@ import { buildServer } from "../server";
 import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
+import type { ModelCatalog } from "../services/modelCatalog";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -214,6 +215,12 @@ describe("product API", () => {
       },
       listAssets: () => []
     } satisfies AssetService;
+    const fakeModelCatalog = {
+      listVisibleModels: () => [],
+      getModelReference: () => {
+        throw new Error("not implemented");
+      }
+    } satisfies ModelCatalog;
 
     try {
       process.env.PORT = "abc";
@@ -222,7 +229,8 @@ describe("product API", () => {
         buildServer({
           authService: fakeAuthService,
           generationService: fakeGenerationService,
-          assetService: fakeAssetService
+          assetService: fakeAssetService,
+          modelCatalog: fakeModelCatalog
         })
       ).not.toThrow();
     } finally {
