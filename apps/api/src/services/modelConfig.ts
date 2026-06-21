@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
 import type { ProductModel } from "@gw-link-omniai/shared";
 
 export type ProviderProtocol = "openai-compatible" | "anthropic-compatible";
@@ -161,4 +162,28 @@ function isModelVisibility(value: unknown): value is ProviderModelConfig["visibi
 
 function isMinimumPlan(value: unknown): value is ProviderModelConfig["minimumPlan"] {
   return minimumPlans.includes(value as ProviderModelConfig["minimumPlan"]);
+}
+
+export function resolveConfigPath(configPath: string): string {
+  if (isAbsolute(configPath) || existsSync(configPath)) {
+    return configPath;
+  }
+
+  let currentDirectory = process.cwd();
+
+  while (true) {
+    const candidate = join(currentDirectory, configPath);
+
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+
+    const parentDirectory = dirname(currentDirectory);
+
+    if (parentDirectory === currentDirectory) {
+      return configPath;
+    }
+
+    currentDirectory = parentDirectory;
+  }
 }

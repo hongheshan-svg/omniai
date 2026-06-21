@@ -53,3 +53,20 @@ The fake provider adapter supports OpenAI-compatible and Anthropic-compatible pr
 ## First Implementation Slice
 
 This skeleton proves that the repository can host all planned product surfaces, share contracts safely, and run tests per package. Business features should be added in thin vertical slices: authentication, model catalog, text generation, image generation, video task submission, assets, credits, and orders.
+
+## Persistence Foundation Slice
+
+The persistence foundation slice replaces in-process storage with durable
+Postgres storage behind a repository seam, without changing product contracts,
+`/v1/*` routes, or HTTP response shapes. The three core services keep their
+interfaces and business logic; only their storage becomes an injected
+repository, with in-memory and Drizzle implementations locked to one
+cross-backend contract test.
+
+`createServices(config)` selects Drizzle-backed services when `DATABASE_URL`
+is set and in-memory services otherwise. Startup verifies database connectivity
+and registers graceful shutdown; migrations stay an explicit step. The slice
+reserves a nullable `owner_user_id` column on tasks and assets for later
+per-user isolation but does not populate or filter on it — `listTasks` and
+`listAssets` still return everything, matching prior behavior. Real provider
+calls, object storage, billing, and per-user access control remain later slices.

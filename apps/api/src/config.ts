@@ -3,6 +3,7 @@ export interface ApiConfig {
   gatewayBaseUrl: string;
   authDevCodesEnabled: boolean;
   modelConfigPath: string;
+  databaseUrl?: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -42,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     port: parsePort(env.PORT),
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
     authDevCodesEnabled: parseAuthDevCodesEnabled(env),
-    modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json"
+    modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json",
+    databaseUrl: env.DATABASE_URL
   };
 }

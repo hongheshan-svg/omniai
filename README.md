@@ -117,6 +117,30 @@ The fourth product-first slice adds the model catalog and provider adapter found
 
 Set `GW_LINK_MODEL_CONFIG_PATH=/absolute/path/to/models.json` to load another model catalog.
 
+### Persistence Foundation
+
+The fifth product-first slice replaces in-process storage with durable Postgres
+storage behind a repository seam, without changing product contracts or routes.
+
+- Set `DATABASE_URL` to use Drizzle-backed auth, generation, and asset services.
+- Leave `DATABASE_URL` unset for zero-config local development with in-memory
+  services (data is lost on restart).
+- Apply migrations explicitly (startup never migrates automatically):
+
+~~~bash
+pnpm --filter @gw-link-omniai/api db:generate   # regenerate SQL after schema changes
+DATABASE_URL=postgresql://... pnpm --filter @gw-link-omniai/api db:migrate
+~~~
+
+- Supabase Postgres is the managed target. Use the direct connection (5432) or
+  the transaction pooler (6543); the client sets `prepare:false` for pooler
+  compatibility.
+- Tests use `@electric-sql/pglite` (in-process Postgres), so no database is
+  required to run `pnpm --filter @gw-link-omniai/api test`.
+- This slice keeps the fake provider adapter, placeholder asset URLs, dev-code
+  auth, and global (non-per-user) list semantics. A nullable `owner_user_id`
+  column is reserved for later per-user isolation.
+
 ## Validation
 
 ```bash

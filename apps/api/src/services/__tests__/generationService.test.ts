@@ -269,7 +269,7 @@ describe("InMemoryGenerationService", () => {
       message: "Provider adapter failed",
       statusCode: 502
     });
-    expect(service.listTasks()).toEqual([]);
+    expect(await service.listTasks()).toEqual([]);
   });
 
   it("maps unexpected provider adapter errors to provider failures", async () => {
@@ -289,7 +289,7 @@ describe("InMemoryGenerationService", () => {
       message: "Provider adapter failed",
       statusCode: 502
     });
-    expect(service.listTasks()).toEqual([]);
+    expect(await service.listTasks()).toEqual([]);
   });
 
   it("does not map unexpected catalog errors as provider failures", async () => {
@@ -311,7 +311,7 @@ describe("InMemoryGenerationService", () => {
     } catch (error) {
       expect(error).not.toBeInstanceOf(GenerationTaskError);
       expect(error).toMatchObject({ message: "Catalog lookup failed" });
-      expect(service.listTasks()).toEqual([]);
+      expect(await service.listTasks()).toEqual([]);
       return;
     }
 
@@ -325,7 +325,7 @@ describe("InMemoryGenerationService", () => {
     task.preset.creditEstimate.credits = 999;
     task.resultPreview.title = "mutated";
 
-    const [listedTask] = service.listTasks();
+    const [listedTask] = await service.listTasks();
     expect(listedTask).toMatchObject({
       preset: {
         parameters: {
@@ -339,7 +339,7 @@ describe("InMemoryGenerationService", () => {
     });
 
     listedTask!.preset.parameters.quality = "changed again";
-    expect(service.listTasks()[0]!.preset.parameters.quality).toBe("high");
+    expect((await service.listTasks())[0]!.preset.parameters.quality).toBe("high");
   });
 
   it("rejects unsupported modes", async () => {

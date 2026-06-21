@@ -7,6 +7,8 @@ import type {
 } from "@gw-link-omniai/shared";
 import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter } from "./gatewayClient";
 import { ModelCatalogError, type ModelCatalog } from "./modelCatalog";
+import type { GenerationTaskRepository } from "../repositories/types";
+import { InMemoryGenerationTaskRepository } from "../repositories/memory";
 
 export class GenerationTaskError extends Error {
   constructor(
@@ -32,7 +34,7 @@ export interface GenerationServiceOptions {
 
 export interface GenerationService {
   createTask(request: GenerationTaskRequest): GenerationTask | Promise<GenerationTask>;
-  listTasks(): GenerationTask[];
+  listTasks(): GenerationTask[] | Promise<GenerationTask[]>;
 }
 
 const resultPreviews: Record<CreationMode, GenerationTaskResultPreview> = {
@@ -50,15 +52,16 @@ const resultPreviews: Record<CreationMode, GenerationTaskResultPreview> = {
   }
 };
 
-export class InMemoryGenerationService implements GenerationService {
+export class GenerationServiceImpl implements GenerationService {
   private readonly clock: GenerationServiceClock;
   private readonly idGenerator: () => string;
   private readonly modelCatalog?: ModelCatalog;
   private readonly providerAdapter: ProviderAdapter;
-  private readonly tasks: GenerationTask[] = [];
+  private readonly tasks: GenerationTaskRepository;
   private readonly userId: string;
 
-  constructor(options: GenerationServiceOptions = {}) {
+  constructor(taskRepository: GenerationTaskRepository, options: GenerationServiceOptions = {}) {
+    this.tasks = taskRepository;
     this.clock = options.clock ?? { now: () => new Date() };
     this.idGenerator = options.idGenerator ?? createGenerationTaskId;
     this.modelCatalog = options.modelCatalog;
@@ -146,13 +149,18 @@ export class InMemoryGenerationService implements GenerationService {
       updatedAt: timestamp
     };
 
-    this.tasks.push(task);
-
+    await this.tasks.insert(task);
     return cloneGenerationTask(task);
   }
 
-  listTasks(): GenerationTask[] {
-    return this.tasks.map(cloneGenerationTask);
+  async listTasks(): Promise<GenerationTask[]> {
+    return this.tasks.list();
+  }
+}
+
+export class InMemoryGenerationService extends GenerationServiceImpl {
+  constructor(options: GenerationServiceOptions = {}) {
+    super(new InMemoryGenerationTaskRepository(), options);
   }
 }
 

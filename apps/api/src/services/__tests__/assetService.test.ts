@@ -38,9 +38,9 @@ function createImageRequest(): CreationAssetRequest {
   };
 }
 
-function expectAssetError(action: () => unknown, message: string, statusCode: number) {
+async function expectAssetError(action: () => unknown, message: string, statusCode: number) {
   try {
-    action();
+    await action();
   } catch (error) {
     expect(error).toBeInstanceOf(AssetError);
     expect(error).toMatchObject({ message, statusCode });
@@ -51,10 +51,10 @@ function expectAssetError(action: () => unknown, message: string, statusCode: nu
 }
 
 describe("InMemoryAssetService", () => {
-  it("creates an image asset", () => {
+  it("creates an image asset", async () => {
     const service = createService();
 
-    expect(service.createAsset(createImageRequest())).toEqual({
+    expect(await service.createAsset(createImageRequest())).toEqual({
       id: "creation_asset_000001",
       mode: "image",
       title: "图片资产",
@@ -86,7 +86,7 @@ describe("InMemoryAssetService", () => {
     });
   });
 
-  it("creates unique increasing default ids per service instance without depending on Date.now", () => {
+  it("creates unique increasing default ids per service instance without depending on Date.now", async () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_782_048_000_000);
 
     try {
@@ -97,11 +97,12 @@ describe("InMemoryAssetService", () => {
         clock: { now: () => fixedNow }
       });
 
-      expect([
-        first.createAsset(createImageRequest()).id,
-        second.createAsset(createImageRequest()).id,
-        first.createAsset(createImageRequest()).id
-      ]).toEqual([
+      const ids = [
+        (await first.createAsset(createImageRequest())).id,
+        (await second.createAsset(createImageRequest())).id,
+        (await first.createAsset(createImageRequest())).id
+      ];
+      expect(ids).toEqual([
         "creation_asset_000001",
         "creation_asset_000001",
         "creation_asset_000002"
@@ -111,9 +112,9 @@ describe("InMemoryAssetService", () => {
     }
   });
 
-  it("creates mode-specific text and video previews", () => {
+  it("creates mode-specific text and video previews", async () => {
     const service = createService();
-    const textAsset = service.createAsset({
+    const textAsset = await service.createAsset({
       mode: "text",
       title: "文本资产",
       content: {
@@ -133,7 +134,7 @@ describe("InMemoryAssetService", () => {
         creditEstimate: { credits: 1, unit: "credit" }
       }
     });
-    const videoAsset = service.createAsset({
+    const videoAsset = await service.createAsset({
       mode: "video",
       title: "视频资产",
       content: {
@@ -165,9 +166,9 @@ describe("InMemoryAssetService", () => {
     });
   });
 
-  it("lists created assets with defensive copies", () => {
+  it("lists created assets with defensive copies", async () => {
     const service = createService();
-    const asset = service.createAsset(createImageRequest());
+    const asset = await service.createAsset(createImageRequest());
     asset.preset.parameters.quality = "mutated";
     asset.preset.creditEstimate.credits = 999;
     asset.preview.title = "mutated";
@@ -175,7 +176,7 @@ describe("InMemoryAssetService", () => {
       asset.content.alt = "mutated";
     }
 
-    const [listedAsset] = service.listAssets();
+    const [listedAsset] = await service.listAssets();
     expect(listedAsset).toMatchObject({
       preset: {
         parameters: {
@@ -199,7 +200,7 @@ describe("InMemoryAssetService", () => {
       listedAsset!.content.alt = "changed again";
     }
 
-    expect(service.listAssets()[0]).toMatchObject({
+    expect((await service.listAssets())[0]).toMatchObject({
       preset: {
         parameters: {
           quality: "high"
@@ -216,7 +217,7 @@ describe("InMemoryAssetService", () => {
     });
   });
 
-  it("normalizes content by dropping fields outside the asset contract", () => {
+  it("normalizes content by dropping fields outside the asset contract", async () => {
     const service = createService();
     const request = {
       ...createImageRequest(),
@@ -228,7 +229,7 @@ describe("InMemoryAssetService", () => {
       }
     } as unknown as CreationAssetRequest;
 
-    const asset = service.createAsset(request);
+    const asset = await service.createAsset(request);
     expect(asset.content).toEqual({
       kind: "image",
       url: "https://assets.gw-link.local/placeholders/image-generation.png",
@@ -240,7 +241,7 @@ describe("InMemoryAssetService", () => {
       "mutated"
     );
 
-    const [listedAsset] = service.listAssets();
+    const [listedAsset] = await service.listAssets();
     expect(listedAsset!.content).toEqual({
       kind: "image",
       url: "https://assets.gw-link.local/placeholders/image-generation.png",
@@ -249,9 +250,9 @@ describe("InMemoryAssetService", () => {
     expect("metadata" in listedAsset!.content).toBe(false);
   });
 
-  it("rejects unsupported modes", () => {
+  it("rejects unsupported modes", async () => {
     const service = createService();
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...createImageRequest(),
@@ -262,30 +263,30 @@ describe("InMemoryAssetService", () => {
     );
   });
 
-  it("rejects empty titles, prompts, and optimized prompts", () => {
+  it("rejects empty titles, prompts, and optimized prompts", async () => {
     const service = createService();
-    expectAssetError(
+    await expectAssetError(
       () => service.createAsset({ ...createImageRequest(), title: " " }),
       "Asset title is required",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () => service.createAsset({ ...createImageRequest(), prompt: " " }),
       "Prompt is required",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () => service.createAsset({ ...createImageRequest(), optimizedPrompt: " " }),
       "Optimized prompt is required",
       400
     );
   });
 
-  it("rejects invalid preset suggestions", () => {
+  it("rejects invalid preset suggestions", async () => {
     const service = createService();
     const request = createImageRequest();
 
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...request,
@@ -298,7 +299,7 @@ describe("InMemoryAssetService", () => {
       "Invalid preset suggestion",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...request,
@@ -310,7 +311,7 @@ describe("InMemoryAssetService", () => {
       "Invalid preset suggestion",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...request,
@@ -324,9 +325,9 @@ describe("InMemoryAssetService", () => {
     );
   });
 
-  it("rejects invalid asset content", () => {
+  it("rejects invalid asset content", async () => {
     const service = createService();
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...createImageRequest(),
@@ -339,7 +340,7 @@ describe("InMemoryAssetService", () => {
       "Invalid asset content",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...createImageRequest(),
@@ -354,9 +355,9 @@ describe("InMemoryAssetService", () => {
     );
   });
 
-  it("rejects invalid asset sources", () => {
+  it("rejects invalid asset sources", async () => {
     const service = createService();
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...createImageRequest(),
@@ -368,7 +369,7 @@ describe("InMemoryAssetService", () => {
       "Invalid asset source",
       400
     );
-    expectAssetError(
+    await expectAssetError(
       () =>
         service.createAsset({
           ...createImageRequest(),
@@ -382,9 +383,9 @@ describe("InMemoryAssetService", () => {
     );
   });
 
-  it("rejects non-object asset requests without TypeError", () => {
+  it("rejects non-object asset requests without TypeError", async () => {
     const service = createService();
-    expectAssetError(
+    await expectAssetError(
       () => service.createAsset(null as unknown as CreationAssetRequest),
       "Invalid asset request",
       400

@@ -19,7 +19,7 @@ export function registerGenerationRoutes(server: FastifyInstance, generationServ
   })
 
   server.get("/v1/generations", async () => ({
-    tasks: generationService.listTasks()
+    tasks: await generationService.listTasks()
   }))
 }
 
