@@ -8,6 +8,8 @@ import type {
   GenerationTaskStatus,
   PresetSuggestion
 } from "@gw-link-omniai/shared";
+import type { AssetRepository } from "../repositories/types";
+import { InMemoryAssetRepository } from "../repositories/memory";
 
 export class AssetError extends Error {
   constructor(
@@ -29,8 +31,8 @@ export interface AssetServiceOptions {
 }
 
 export interface AssetService {
-  createAsset(request: CreationAssetRequest): CreationAsset;
-  listAssets(): CreationAsset[];
+  createAsset(request: CreationAssetRequest): CreationAsset | Promise<CreationAsset>;
+  listAssets(): CreationAsset[] | Promise<CreationAsset[]>;
 }
 
 const previews: Record<CreationMode, CreationAssetPreview> = {
@@ -48,18 +50,19 @@ const previews: Record<CreationMode, CreationAssetPreview> = {
   }
 };
 
-export class InMemoryAssetService implements AssetService {
+export class AssetServiceImpl implements AssetService {
   private readonly clock: AssetServiceClock;
   private readonly idGenerator: () => string;
-  private readonly assets: CreationAsset[] = [];
+  private readonly assets: AssetRepository;
   private nextAssetId = 1;
 
-  constructor(options: AssetServiceOptions = {}) {
+  constructor(assetRepository: AssetRepository, options: AssetServiceOptions = {}) {
+    this.assets = assetRepository;
     this.clock = options.clock ?? { now: () => new Date() };
     this.idGenerator = options.idGenerator ?? (() => this.createAssetId());
   }
 
-  createAsset(request: CreationAssetRequest): CreationAsset {
+  async createAsset(request: CreationAssetRequest): Promise<CreationAsset> {
     const value: unknown = request;
 
     if (!isRecord(value)) {
@@ -114,19 +117,24 @@ export class InMemoryAssetService implements AssetService {
       createdAt: this.clock.now().toISOString()
     };
 
-    this.assets.push(asset);
-
+    await this.assets.insert(asset);
     return cloneAsset(asset);
   }
 
-  listAssets(): CreationAsset[] {
-    return this.assets.map(cloneAsset);
+  async listAssets(): Promise<CreationAsset[]> {
+    return this.assets.list();
   }
 
   private createAssetId(): string {
     const id = `creation_asset_${this.nextAssetId.toString().padStart(6, "0")}`;
     this.nextAssetId += 1;
     return id;
+  }
+}
+
+export class InMemoryAssetService extends AssetServiceImpl {
+  constructor(options: AssetServiceOptions = {}) {
+    super(new InMemoryAssetRepository(), options);
   }
 }
 
