@@ -83,4 +83,14 @@ describe("loadConfig", () => {
   it("omits the database URL when not provided", () => {
     expect(loadConfig({}).databaseUrl).toBeUndefined();
   });
+
+  it("parses comma-separated CORS origins", () => {
+    expect(
+      loadConfig({ GW_LINK_CORS_ORIGINS: "http://localhost:1420, tauri://localhost" }).corsOrigins
+    ).toEqual(["http://localhost:1420", "tauri://localhost"]);
+  });
+
+  it("omits CORS origins when not provided", () => {
+    expect(loadConfig({}).corsOrigins).toBeUndefined();
+  });
 });

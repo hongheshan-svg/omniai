@@ -11,6 +11,7 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^8.5.0",
     "@gw-link-omniai/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^4.26.2",

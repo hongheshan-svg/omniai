@@ -1,167 +1,162 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+  AuthSession,
+  CreationAsset,
+  GenerationTask,
+  LoginStartResponse,
+  PromptOptimization
+} from "@gw-link-omniai/shared";
 import { App } from "../App";
+import type { ApiClient } from "../apiClient";
 import { getDesktopSessionCta } from "../sessionModel";
 
 afterEach(cleanup);
 
-describe("Desktop App", () => {
-  it("renders the product-first studio shell and sign-in entry", () => {
-    render(<App />);
+const textOptimization: PromptOptimization = {
+  id: "o1",
+  mode: "text",
+  originalPrompt: "帮我写一个咖啡店新品发布文案",
+  optimizedPrompt: "请生成一段新品推广文案。",
+  sections: [{ label: "写作目标", value: "发布新品" }],
+  preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+  createdAt: "2026-06-21T00:00:00.000Z"
+};
 
-    expect(screen.getByText("GW-LINK OmniAI")).toBeTruthy();
+const authSession: AuthSession = {
+  token: "tok-1",
+  user: {
+    id: "user_email_creator",
+    displayName: "creator",
+    destination: "creator@example.com",
+    channel: "email",
+    plan: "free",
+    createdAt: "2026-06-21T00:00:00.000Z"
+  },
+  expiresAt: "2026-06-28T00:00:00.000Z"
+};
+
+function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
+  let tasks: GenerationTask[] = [];
+  const base: ApiClient = {
+    startLogin: async (): Promise<LoginStartResponse> => ({
+      challengeId: "c1",
+      channel: "email",
+      maskedDestination: "c***@example.com",
+      expiresAt: "2026-06-21T00:05:00.000Z",
+      devCode: "123456"
+    }),
+    verifyLogin: async () => authSession,
+    logout: async () => undefined,
+    optimizePrompt: async () => textOptimization,
+    createGeneration: async (request) => {
+      const task: GenerationTask = {
+        id: `task-${tasks.length + 1}`,
+        mode: request.mode,
+        status: "queued",
+        prompt: request.prompt,
+        optimizedPrompt: request.optimizedPrompt,
+        preset: request.preset,
+        resultPreview: { title: "文本生成任务", description: "任务已排队。" },
+        createdAt: "2026-06-21T00:00:00.000Z",
+        updatedAt: "2026-06-21T00:00:00.000Z"
+      };
+      tasks = [task, ...tasks];
+      return task;
+    },
+    listGenerations: async () => tasks,
+    listAssets: async (): Promise<CreationAsset[]> => []
+  };
+  return { ...base, ...overrides };
+}
+
+async function signIn(client: ApiClient) {
+  render(<App client={client} />);
+  fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+  await screen.findByText("开发验证码：123456");
+  fireEvent.click(screen.getByRole("button", { name: "登录" }));
+  await screen.findByRole("button", { name: "Signed in as creator" });
+}
+
+describe("Desktop App", () => {
+  it("shows the sign-in entry when unauthenticated", () => {
+    render(<App client={createFakeClient()} />);
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByLabelText("登录邮箱或手机号")).toBeTruthy();
+  });
+
+  it("completes the passwordless login flow", async () => {
+    const startLogin = vi.fn(async () => ({
+      challengeId: "c1",
+      channel: "email" as const,
+      maskedDestination: "c***@example.com",
+      expiresAt: "2026-06-21T00:05:00.000Z",
+      devCode: "123456"
+    }));
+    const client = createFakeClient({ startLogin });
+    render(<App client={client} />);
+    fireEvent.change(screen.getByLabelText("登录邮箱或手机号"), {
+      target: { value: "creator@example.com" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByText("开发验证码：123456");
+    expect(startLogin).toHaveBeenCalledWith({ destination: "creator@example.com" });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await screen.findByRole("button", { name: "Signed in as creator" });
+    expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
     const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
     expect(within(modeNavigation).getByRole("button", { name: "文本创作" })).toBeTruthy();
-    expect(within(modeNavigation).getByRole("button", { name: "图片创作" })).toBeTruthy();
-    expect(within(modeNavigation).getByRole("button", { name: "视频创作" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 
-  it("defaults to the Text Studio optimization fixture", () => {
-    render(<App />);
+  it("optimizes then submits a generation into the task center", async () => {
+    const client = createFakeClient();
+    await signIn(client);
 
-    expect(screen.getByRole("heading", { name: "文本创作" })).toBeTruthy();
-    expect(screen.getByLabelText("文本创作需求")).toBeTruthy();
-    const optimizationResult = screen.getByLabelText("提示词优化结果");
-    expect(within(optimizationResult).getByText("写作目标")).toBeTruthy();
-    expect(within(optimizationResult).getByText("gw-text-balanced")).toBeTruthy();
-    expect(within(optimizationResult).getByText("预计点数：1 credit")).toBeTruthy();
-  });
-
-  it("switches to the Image Studio optimization fixture", () => {
-    render(<App />);
-
-    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
-    fireEvent.click(within(modeNavigation).getByRole("button", { name: "图片创作" }));
-
-    expect(screen.getByRole("heading", { name: "图片创作" })).toBeTruthy();
-    expect(screen.getByLabelText("图片创作需求")).toBeTruthy();
-    const optimizationResult = screen.getByLabelText("提示词优化结果");
-    expect(within(optimizationResult).getByText("负向提示词")).toBeTruthy();
-    expect(within(optimizationResult).getByText("gw-image-creative")).toBeTruthy();
-    expect(within(optimizationResult).getByText("预计点数：2 credits")).toBeTruthy();
-  });
-
-  it("switches to the Video Studio optimization fixture", () => {
-    render(<App />);
-
-    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
-    fireEvent.click(within(modeNavigation).getByRole("button", { name: "视频创作" }));
-
-    const optimizationResult = screen.getByLabelText("提示词优化结果");
-    expect(within(optimizationResult).getByText("镜头运动")).toBeTruthy();
-    expect(within(optimizationResult).getByText("gw-video-motion")).toBeTruthy();
-    expect(within(optimizationResult).getByText("预计点数：18 credits")).toBeTruthy();
-    const submitButton = screen.getByRole<HTMLButtonElement>("button", { name: "提交生成" });
-    expect(submitButton.disabled).toBe(false);
-  });
-
-  it("submits the default Text Studio task into the task center", () => {
-    render(<App />);
-
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
 
     const taskCenter = screen.getByLabelText("任务中心");
-    expect(within(taskCenter).getByText("文本创作")).toBeTruthy();
-    expect(within(taskCenter).getByText("排队中")).toBeTruthy();
+    await within(taskCenter).findByText("排队中");
     expect(within(taskCenter).getByText("gw-text-balanced")).toBeTruthy();
-    expect(within(taskCenter).getByText("预计点数：1 credit")).toBeTruthy();
-    expect(within(taskCenter).getByText("帮我写一个咖啡店新品发布文案")).toBeTruthy();
   });
 
-  it("keeps submitted tasks when switching modes and appends video tasks", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-
-    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
-    fireEvent.click(within(modeNavigation).getByRole("button", { name: "视频创作" }));
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-
-    const taskCenter = screen.getByLabelText("任务中心");
-    expect(within(taskCenter).getByText("文本创作")).toBeTruthy();
-    expect(within(taskCenter).getByText("视频创作")).toBeTruthy();
-    expect(within(taskCenter).getByText("gw-video-motion")).toBeTruthy();
-    expect(within(taskCenter).getByText("预计点数：18 credits")).toBeTruthy();
-    expect(within(taskCenter).getAllByText("排队中")).toHaveLength(2);
-  });
-
-  it("saves a submitted text task into the asset library", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
+  it("lists the user's assets read-only (no save button)", async () => {
+    const asset: CreationAsset = {
+      id: "a1",
+      mode: "text",
+      title: "文本资产",
+      content: { kind: "text", text: "已生成文案", format: "markdown" },
+      preview: { title: "文本资产", description: "占位文本资产。" },
+      source: { taskId: "t1", taskStatus: "succeeded" },
+      prompt: "帮我写一个咖啡店新品发布文案",
+      optimizedPrompt: "请生成一段新品推广文案。",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      createdAt: "2026-06-21T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listAssets: async () => [asset] });
+    await signIn(client);
 
     const assetLibrary = screen.getByLabelText("资产库");
     expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
-    expect(within(assetLibrary).getByText("gw-text-balanced")).toBeTruthy();
-    expect(within(assetLibrary).getByText("预计点数：1 credit")).toBeTruthy();
-    expect(within(assetLibrary).getByText("帮我写一个咖啡店新品发布文案")).toBeTruthy();
-    expect(within(assetLibrary).getByText("占位文本资产，后续阶段将接入真实文本生成结果。")).toBeTruthy();
-    expect(within(assetLibrary).getByRole("button", { name: "复用参数" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "保存到资产库" })).toBeNull();
   });
 
-  it("filters saved assets by creation mode", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
-
-    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
-    fireEvent.click(within(modeNavigation).getByRole("button", { name: "图片创作" }));
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "保存到资产库" })[0]);
-
-    const assetLibrary = screen.getByLabelText("资产库");
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
-    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
-
-    const assetFilter = within(assetLibrary).getByRole("navigation", { name: "资产过滤" });
-    fireEvent.click(within(assetFilter).getByRole("button", { name: "图片" }));
-    expect(within(assetLibrary).queryByText("文本资产")).toBeNull();
-    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
-
-    fireEvent.click(within(assetFilter).getByRole("button", { name: "文本" }));
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
-    expect(within(assetLibrary).queryByText("图片资产")).toBeNull();
-
-    fireEvent.click(within(assetFilter).getByRole("button", { name: "全部" }));
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
-    expect(within(assetLibrary).getByText("图片资产")).toBeTruthy();
-  });
-
-  it("keeps saved assets when switching modes and saves video assets", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    fireEvent.click(screen.getByRole("button", { name: "保存到资产库" }));
-
-    const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
-    fireEvent.click(within(modeNavigation).getByRole("button", { name: "视频创作" }));
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "保存到资产库" })[0]);
-
-    const assetLibrary = screen.getByLabelText("资产库");
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
-    expect(within(assetLibrary).getByText("视频资产")).toBeTruthy();
-    expect(within(assetLibrary).getByText("gw-video-motion")).toBeTruthy();
-    expect(within(assetLibrary).getByText("预计点数：18 credits")).toBeTruthy();
+  it("surfaces a login error", async () => {
+    const client = createFakeClient({
+      startLogin: async () => {
+        throw new Error("Login destination is required");
+      }
+    });
+    render(<App client={client} />);
+    fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("alert").textContent).toContain("Login destination is required");
   });
 
   it("summarizes authenticated desktop sessions", () => {
     expect(
-      getDesktopSessionCta({
-        authenticated: true,
-        expiresAt: "2026-06-26T12:00:00.000Z",
-        user: {
-          id: "user_email_creator_example_com",
-          displayName: "creator",
-          destination: "creator@example.com",
-          channel: "email",
-          plan: "free",
-          createdAt: "2026-06-19T12:00:00.000Z"
-        }
-      })
+      getDesktopSessionCta({ authenticated: true, expiresAt: authSession.expiresAt, user: authSession.user })
     ).toBe("Signed in as creator");
   });
 });

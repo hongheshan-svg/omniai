@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { loadConfig, type ApiConfig } from "./config";
 import { registerAuthRoutes } from "./routes/auth";
@@ -29,6 +30,11 @@ export function buildServer(options: BuildServerOptions = {}) {
   const server = Fastify({
     logger: false
   });
+
+  server.register(cors, {
+    origin: options.config?.corsOrigins ?? true
+  });
+
   let loadedConfig = options.config;
   function getConfig() {
     loadedConfig ??= loadConfig();
