@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { CreationAsset } from "@gw-link-omniai/shared";
+import type { CreationAsset, GenerationTask } from "@gw-link-omniai/shared";
 import {
+  buildAssetRequestFromTask,
   filterCreationAssets,
   getAssetFilterLabel,
   getAssetModeLabel,
@@ -63,5 +64,59 @@ describe("assetModel", () => {
     const asset = makeAsset({ mode: "image", prompt: "短提示词" });
 
     expect(summarizeAssetPrompt(asset)).toBe("短提示词");
+  });
+
+  it("builds a creation-asset request from a succeeded text task", () => {
+    const task: GenerationTask = {
+      id: "task-1",
+      mode: "text",
+      status: "succeeded",
+      prompt: "帮我写一个新品发布文案",
+      optimizedPrompt: "请生成一段新品推广文案。",
+      preset: {
+        modelId: "gw-text-balanced",
+        parameters: { tone: "warm" },
+        creditEstimate: { credits: 1, unit: "credit" }
+      },
+      resultPreview: { title: "文本生成任务", description: "已生成。" },
+      result: { kind: "text", text: "新品上市文案", format: "markdown" },
+      createdAt: "2026-06-21T00:00:00.000Z",
+      updatedAt: "2026-06-21T00:00:00.000Z"
+    };
+
+    const request = buildAssetRequestFromTask(task);
+
+    expect(request).toEqual({
+      mode: "text",
+      title: "文本资产",
+      content: { kind: "text", text: "新品上市文案", format: "markdown" },
+      source: { taskId: "task-1", taskStatus: "succeeded" },
+      prompt: "帮我写一个新品发布文案",
+      optimizedPrompt: "请生成一段新品推广文案。",
+      preset: {
+        modelId: "gw-text-balanced",
+        parameters: { tone: "warm" },
+        creditEstimate: { credits: 1, unit: "credit" }
+      }
+    });
+
+    // deep copy: mutating the request must not touch the task
+    request.preset.parameters.tone = "mutated";
+    expect(task.preset.parameters.tone).toBe("warm");
+  });
+
+  it("throws when the task is not a succeeded text task", () => {
+    const queued = {
+      id: "t",
+      mode: "text",
+      status: "queued",
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "t", description: "d" },
+      createdAt: "2026-06-21T00:00:00.000Z",
+      updatedAt: "2026-06-21T00:00:00.000Z"
+    } as GenerationTask;
+    expect(() => buildAssetRequestFromTask(queued)).toThrow();
   });
 });

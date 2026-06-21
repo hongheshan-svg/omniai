@@ -178,9 +178,9 @@ The seventh product-first slice connects the desktop app to the product API.
   memory — re-login after restart).
 - Optimize a prompt, submit a generation, and view your own task list and asset
   library (per-user, via the guarded API).
-- Asset *creation* from the desktop is deferred: the API requires a succeeded
-  source task and tasks remain queued until a later task-status/real-provider
-  slice, so the asset library is read-only for now.
+- Save a `succeeded` text generation as an asset ("保存到资产库") — the desktop
+  builds the asset from the task's text result and posts it to `/v1/assets`.
+  (Image/video stay `queued` with no result, so they are not yet saveable.)
 - The API enables CORS (`GW_LINK_CORS_ORIGINS`, reflects the request origin when
   unset — set explicit origins in production).
 

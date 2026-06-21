@@ -1,6 +1,7 @@
 import type {
   AuthSession,
   CreationAsset,
+  CreationAssetRequest,
   GenerationTask,
   GenerationTaskRequest,
   LoginStartRequest,
@@ -33,6 +34,7 @@ export interface ApiClient {
   createGeneration(request: GenerationTaskRequest, token: string): Promise<GenerationTask>;
   listGenerations(token: string): Promise<GenerationTask[]>;
   listAssets(token: string): Promise<CreationAsset[]>;
+  createAsset(request: CreationAssetRequest, token: string): Promise<CreationAsset>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -116,6 +118,14 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     async listAssets(token) {
       const { assets } = await send<{ assets: CreationAsset[] }>("/v1/assets", { token });
       return assets;
+    },
+    async createAsset(request, token) {
+      const { asset } = await send<{ asset: CreationAsset }>("/v1/assets", {
+        method: "POST",
+        body: request,
+        token
+      });
+      return asset;
     }
   };
 }

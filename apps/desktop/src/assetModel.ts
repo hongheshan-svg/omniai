@@ -1,4 +1,4 @@
-import type { CreationAsset, CreationMode } from "@gw-link-omniai/shared";
+import type { CreationAsset, CreationAssetRequest, CreationMode, GenerationTask } from "@gw-link-omniai/shared";
 
 export type AssetFilter = "all" | CreationMode;
 
@@ -29,6 +29,26 @@ export function getAssetFilterLabel(filter: AssetFilter): string {
 
 export function getAssetModeLabel(mode: CreationMode): string {
   return assetModeLabels[mode];
+}
+
+export function buildAssetRequestFromTask(task: GenerationTask): CreationAssetRequest {
+  if (task.result?.kind !== "text") {
+    throw new Error("Only succeeded text tasks can be saved as assets");
+  }
+
+  return {
+    mode: task.mode,
+    title: getAssetModeLabel(task.mode),
+    content: { kind: "text", text: task.result.text, format: task.result.format },
+    source: { taskId: task.id, taskStatus: "succeeded" },
+    prompt: task.prompt,
+    optimizedPrompt: task.optimizedPrompt,
+    preset: {
+      modelId: task.preset.modelId,
+      parameters: { ...task.preset.parameters },
+      creditEstimate: { ...task.preset.creditEstimate }
+    }
+  };
 }
 
 export function summarizeAssetPrompt(asset: CreationAsset, maxLength = 48): string {

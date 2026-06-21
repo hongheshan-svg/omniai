@@ -7,7 +7,7 @@ import type {
   SessionResponse
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "./apiClient";
-import { filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "./assetModel";
+import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "./assetModel";
 import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
@@ -114,6 +114,23 @@ export function App({ client }: { client?: ApiClient } = {}) {
     try {
       setOptimization(await api.optimizePrompt({ mode: selectedMode, prompt: promptText }));
     } catch (error) {
+      setActionError(errorMessage(error));
+    }
+  }
+
+  async function handleSaveAsset(task: GenerationTask) {
+    if (!token) {
+      return;
+    }
+    setActionError(undefined);
+    try {
+      await api.createAsset(buildAssetRequestFromTask(task), token);
+      setAssets(await api.listAssets(token));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
       setActionError(errorMessage(error));
     }
   }
@@ -294,6 +311,11 @@ export function App({ client }: { client?: ApiClient } = {}) {
                       预计点数：{taskCredits} {taskCredits === 1 ? "credit" : "credits"}
                     </p>
                     {task.result?.kind === "text" ? <p>{task.result.text}</p> : null}
+                    {task.status === "succeeded" && task.result?.kind === "text" ? (
+                      <button type="button" onClick={() => handleSaveAsset(task)}>
+                        保存到资产库
+                      </button>
+                    ) : null}
                   </article>
                 </li>
               );

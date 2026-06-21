@@ -96,3 +96,39 @@ it("throws ApiError with the API error message and status on non-2xx", async () 
   });
   await expect(client.listGenerations("bad")).rejects.toBeInstanceOf(ApiError);
 });
+
+it("posts an asset with the bearer token and unwraps the asset envelope", async () => {
+  const asset = {
+    id: "a1",
+    mode: "text",
+    title: "文本资产",
+    content: { kind: "text", text: "已生成文案", format: "markdown" },
+    preview: { title: "文本资产", description: "占位文本资产。" },
+    source: { taskId: "t1", taskStatus: "succeeded" },
+    prompt: "p",
+    optimizedPrompt: "op",
+    preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+    createdAt: "2026-06-21T00:00:00.000Z"
+  };
+  const fetchMock = vi.fn(async () => jsonResponse({ asset }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const created = await client.createAsset(
+    {
+      mode: "text",
+      title: "文本资产",
+      content: { kind: "text", text: "已生成文案", format: "markdown" },
+      source: { taskId: "t1", taskStatus: "succeeded" },
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } }
+    },
+    "tok-1"
+  );
+
+  expect(created).toEqual(asset);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/assets");
+  expect(init.method).toBe("POST");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
