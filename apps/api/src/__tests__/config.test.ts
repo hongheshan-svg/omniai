@@ -7,7 +7,8 @@ describe("loadConfig", () => {
       port: 8787,
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
-      modelConfigPath: "config/models.json"
+      modelConfigPath: "config/models.json",
+      initialCredits: 100
     });
   });
 
@@ -17,13 +18,15 @@ describe("loadConfig", () => {
         PORT: "9000",
         GW_LINK_GATEWAY_BASE_URL: "https://gateway.example",
         GW_LINK_AUTH_DEV_CODES_ENABLED: "false",
-        GW_LINK_MODEL_CONFIG_PATH: "/tmp/custom-models.json"
+        GW_LINK_MODEL_CONFIG_PATH: "/tmp/custom-models.json",
+        GW_LINK_INITIAL_CREDITS: "250"
       })
     ).toEqual({
       port: 9000,
       gatewayBaseUrl: "https://gateway.example",
       authDevCodesEnabled: false,
-      modelConfigPath: "/tmp/custom-models.json"
+      modelConfigPath: "/tmp/custom-models.json",
+      initialCredits: 250
     });
   });
 
@@ -92,5 +95,26 @@ describe("loadConfig", () => {
 
   it("omits CORS origins when not provided", () => {
     expect(loadConfig({}).corsOrigins).toBeUndefined();
+  });
+
+  it("defaults initial credits to 100", () => {
+    expect(loadConfig({}).initialCredits).toBe(100);
+  });
+
+  it("parses a custom initial credit grant", () => {
+    expect(loadConfig({ GW_LINK_INITIAL_CREDITS: "20" }).initialCredits).toBe(20);
+  });
+
+  it("allows a zero initial credit grant", () => {
+    expect(loadConfig({ GW_LINK_INITIAL_CREDITS: "0" }).initialCredits).toBe(0);
+  });
+
+  it("rejects negative or non-integer initial credit values", () => {
+    expect(() => loadConfig({ GW_LINK_INITIAL_CREDITS: "-5" })).toThrow(
+      "GW_LINK_INITIAL_CREDITS must be a non-negative integer"
+    );
+    expect(() => loadConfig({ GW_LINK_INITIAL_CREDITS: "1.5" })).toThrow(
+      "GW_LINK_INITIAL_CREDITS must be a non-negative integer"
+    );
   });
 });

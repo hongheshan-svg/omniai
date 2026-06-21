@@ -13,7 +13,8 @@ function buildGenerationTestServer() {
       port: 8787,
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
-      modelConfigPath: "config/models.json"
+      modelConfigPath: "config/models.json",
+      initialCredits: 100
     },
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
@@ -273,7 +274,8 @@ describe("generation routes", () => {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
-        modelConfigPath: "config/models.json"
+        modelConfigPath: "config/models.json",
+        initialCredits: 100
       },
       generationService
     });
@@ -303,7 +305,8 @@ describe("generation routes", () => {
         port: 8787,
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
-        modelConfigPath: "config/models.json"
+        modelConfigPath: "config/models.json",
+        initialCredits: 100
       },
       generationService
     });

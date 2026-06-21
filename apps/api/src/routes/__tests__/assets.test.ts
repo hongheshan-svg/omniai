@@ -8,7 +8,8 @@ const testConfig = {
   port: 8787,
   gatewayBaseUrl: "https://gateway.gw-link.local",
   authDevCodesEnabled: true,
-  modelConfigPath: "config/models.json"
+  modelConfigPath: "config/models.json",
+  initialCredits: 100
 };
 
 function buildAssetTestServer() {

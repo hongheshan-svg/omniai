@@ -11,6 +11,7 @@ function baseConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     gatewayBaseUrl: "https://gateway.gw-link.local",
     authDevCodesEnabled: true,
     modelConfigPath: "config/models.json",
+    initialCredits: 100,
     ...overrides
   };
 }
