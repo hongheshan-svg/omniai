@@ -10,7 +10,7 @@ export function registerAuthRoutes(server: FastifyInstance, authService: AuthSer
     }
 
     try {
-      return authService.startLogin(loginRequest);
+      return await authService.startLogin(loginRequest);
     } catch (error) {
       return sendAuthError(reply, error);
     }
@@ -23,7 +23,7 @@ export function registerAuthRoutes(server: FastifyInstance, authService: AuthSer
     }
 
     try {
-      return authService.verifyLogin(loginRequest);
+      return await authService.verifyLogin(loginRequest);
     } catch (error) {
       return sendAuthError(reply, error);
     }
@@ -31,7 +31,7 @@ export function registerAuthRoutes(server: FastifyInstance, authService: AuthSer
 
   server.get("/v1/auth/session", async (request, reply) => {
     try {
-      return authService.getSession(readBearerToken(request.headers.authorization));
+      return await authService.getSession(readBearerToken(request.headers.authorization));
     } catch (error) {
       return sendAuthError(reply, error);
     }
@@ -39,7 +39,7 @@ export function registerAuthRoutes(server: FastifyInstance, authService: AuthSer
 
   server.post("/v1/auth/logout", async (request, reply) => {
     try {
-      authService.logout(readBearerToken(request.headers.authorization));
+      await authService.logout(readBearerToken(request.headers.authorization));
       return { ok: true };
     } catch (error) {
       return sendAuthError(reply, error);

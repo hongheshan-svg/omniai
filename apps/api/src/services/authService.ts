@@ -8,6 +8,18 @@ import type {
   UserProfile
 } from "@gw-link-omniai/shared";
 import { inferLoginChannel, maskLoginDestination } from "@gw-link-omniai/shared";
+import type {
+  ChallengeRepository,
+  LoginChallengeRecord,
+  SessionRecord,
+  SessionRepository,
+  UserRepository
+} from "../repositories/types";
+import {
+  InMemoryChallengeRepository,
+  InMemorySessionRepository,
+  InMemoryUserRepository
+} from "../repositories/memory";
 
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -38,29 +50,20 @@ export interface AuthServiceOptions {
   maxFailedAttempts?: number;
 }
 
-interface LoginChallengeRecord {
-  id: string;
-  destination: string;
-  channel: "email" | "phone";
-  codeHash: string;
-  expiresAtMs: number;
-  failedAttempts: number;
-}
-
-interface SessionRecord {
-  token: string;
-  userId: string;
-  expiresAtMs: number;
-}
-
 export interface AuthService {
-  startLogin(request: LoginStartRequest): LoginStartResponse;
-  verifyLogin(request: LoginVerifyRequest): AuthSession;
-  getSession(token: string | undefined): SessionResponse;
-  logout(token: string | undefined): boolean;
+  startLogin(request: LoginStartRequest): LoginStartResponse | Promise<LoginStartResponse>;
+  verifyLogin(request: LoginVerifyRequest): AuthSession | Promise<AuthSession>;
+  getSession(token: string | undefined): SessionResponse | Promise<SessionResponse>;
+  logout(token: string | undefined): boolean | Promise<boolean>;
 }
 
-export class InMemoryAuthService implements AuthService {
+export interface AuthRepositories {
+  users: UserRepository;
+  sessions: SessionRepository;
+  challenges: ChallengeRepository;
+}
+
+export class AuthServiceImpl implements AuthService {
   private readonly challengeTtlMs: number;
   private readonly sessionTtlMs: number;
   private readonly clock: AuthClock;
@@ -69,12 +72,14 @@ export class InMemoryAuthService implements AuthService {
   private readonly challengeIdGenerator: () => string;
   private readonly devCodesEnabled: boolean;
   private readonly maxFailedAttempts: number;
-  private readonly challenges = new Map<string, LoginChallengeRecord>();
-  private readonly usersBySubject = new Map<string, UserProfile>();
-  private readonly usersById = new Map<string, UserProfile>();
-  private readonly sessions = new Map<string, SessionRecord>();
+  private readonly users: UserRepository;
+  private readonly sessions: SessionRepository;
+  private readonly challenges: ChallengeRepository;
 
-  constructor(options: AuthServiceOptions = {}) {
+  constructor(repositories: AuthRepositories, options: AuthServiceOptions = {}) {
+    this.users = repositories.users;
+    this.sessions = repositories.sessions;
+    this.challenges = repositories.challenges;
     this.challengeTtlMs = options.challengeTtlMs ?? DEFAULT_CHALLENGE_TTL_MS;
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
     this.clock = options.clock ?? { now: () => new Date() };
@@ -85,17 +90,17 @@ export class InMemoryAuthService implements AuthService {
     this.maxFailedAttempts = options.maxFailedAttempts ?? DEFAULT_MAX_FAILED_ATTEMPTS;
   }
 
-  startLogin(request: LoginStartRequest): LoginStartResponse {
+  async startLogin(request: LoginStartRequest): Promise<LoginStartResponse> {
     const channel = request.channel ?? inferLoginChannel(request.destination.trim());
     const destination = normalizeDestination(request.destination, channel);
     const nowMs = this.clock.now().getTime();
-    this.sweepExpiredChallenges(nowMs);
+    await this.challenges.deleteExpired(nowMs);
 
     const code = this.codeGenerator();
     const challengeId = this.challengeIdGenerator();
     const expiresAtMs = nowMs + this.challengeTtlMs;
 
-    this.challenges.set(challengeId, {
+    await this.challenges.save({
       id: challengeId,
       destination,
       channel,
@@ -113,18 +118,18 @@ export class InMemoryAuthService implements AuthService {
     };
   }
 
-  verifyLogin(request: LoginVerifyRequest): AuthSession {
+  async verifyLogin(request: LoginVerifyRequest): Promise<AuthSession> {
     const nowMs = this.clock.now().getTime();
-    this.sweepExpiredSessions(nowMs);
+    await this.sessions.deleteExpired(nowMs);
 
-    const challenge = this.challenges.get(request.challengeId);
+    const challenge = await this.challenges.findById(request.challengeId);
 
     if (!challenge) {
       throw new AuthError("Login challenge was not found", 404);
     }
 
     if (challenge.expiresAtMs <= nowMs) {
-      this.challenges.delete(request.challengeId);
+      await this.challenges.delete(request.challengeId);
       throw new AuthError("Login challenge expired", 410);
     }
 
@@ -132,23 +137,20 @@ export class InMemoryAuthService implements AuthService {
       challenge.failedAttempts += 1;
 
       if (challenge.failedAttempts >= this.maxFailedAttempts) {
-        this.challenges.delete(request.challengeId);
+        await this.challenges.delete(request.challengeId);
         throw new AuthError("Too many invalid verification attempts", 429);
       }
 
+      await this.challenges.update(challenge);
       throw new AuthError("Invalid verification code", 401);
     }
 
-    this.challenges.delete(request.challengeId);
-    const user = this.findOrCreateUser(challenge);
+    await this.challenges.delete(request.challengeId);
+    const user = await this.findOrCreateUser(challenge);
     const token = this.tokenGenerator();
     const expiresAtMs = nowMs + this.sessionTtlMs;
 
-    this.sessions.set(token, {
-      token,
-      userId: user.id,
-      expiresAtMs
-    });
+    await this.sessions.save({ token, userId: user.id, expiresAtMs });
 
     return {
       token,
@@ -157,21 +159,21 @@ export class InMemoryAuthService implements AuthService {
     };
   }
 
-  getSession(token: string | undefined): SessionResponse {
+  async getSession(token: string | undefined): Promise<SessionResponse> {
     const nowMs = this.clock.now().getTime();
-    this.sweepExpiredSessions(nowMs);
+    await this.sessions.deleteExpired(nowMs);
 
     if (!token) {
       return anonymousSession();
     }
 
-    const session = this.sessions.get(token);
+    const session = await this.sessions.findByToken(token);
 
     if (!session) {
       return anonymousSession();
     }
 
-    const user = this.usersById.get(session.userId);
+    const user = await this.users.findById(session.userId);
 
     if (!user) {
       return anonymousSession();
@@ -184,7 +186,7 @@ export class InMemoryAuthService implements AuthService {
     };
   }
 
-  logout(token: string | undefined): boolean {
+  async logout(token: string | undefined): Promise<boolean> {
     if (!token) {
       return false;
     }
@@ -192,9 +194,8 @@ export class InMemoryAuthService implements AuthService {
     return this.sessions.delete(token);
   }
 
-  private findOrCreateUser(challenge: LoginChallengeRecord): UserProfile {
-    const subject = createUserSubject(challenge.channel, challenge.destination);
-    const existing = this.usersBySubject.get(subject);
+  private async findOrCreateUser(challenge: LoginChallengeRecord): Promise<UserProfile> {
+    const existing = await this.users.findBySubject(challenge.channel, challenge.destination);
 
     if (existing) {
       return existing;
@@ -209,25 +210,21 @@ export class InMemoryAuthService implements AuthService {
       createdAt: this.clock.now().toISOString()
     };
 
-    this.usersBySubject.set(subject, user);
-    this.usersById.set(user.id, user);
+    await this.users.insert(user);
     return user;
   }
+}
 
-  private sweepExpiredChallenges(nowMs: number): void {
-    for (const [challengeId, challenge] of this.challenges) {
-      if (challenge.expiresAtMs <= nowMs) {
-        this.challenges.delete(challengeId);
-      }
-    }
-  }
-
-  private sweepExpiredSessions(nowMs: number): void {
-    for (const [token, session] of this.sessions) {
-      if (session.expiresAtMs <= nowMs) {
-        this.sessions.delete(token);
-      }
-    }
+export class InMemoryAuthService extends AuthServiceImpl {
+  constructor(options: AuthServiceOptions = {}) {
+    super(
+      {
+        users: new InMemoryUserRepository(),
+        sessions: new InMemorySessionRepository(),
+        challenges: new InMemoryChallengeRepository()
+      },
+      options
+    );
   }
 }
 
