@@ -191,6 +191,8 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
   async insert(task: GenerationTask): Promise<void> {
     await this.db.insert(generationTasks).values({
       id: task.id,
+      // Reserved for later per-user isolation; intentionally NOT populated in
+      // this slice (do not wire the service userId option through here yet).
       ownerUserId: null,
       mode: task.mode,
       status: task.status,
@@ -215,6 +217,8 @@ export class DrizzleAssetRepository implements AssetRepository {
   async insert(asset: CreationAsset): Promise<void> {
     await this.db.insert(assets).values({
       id: asset.id,
+      // Reserved for later per-user isolation; intentionally NOT populated in
+      // this slice (do not wire the service userId option through here yet).
       ownerUserId: null,
       mode: asset.mode,
       title: asset.title,
