@@ -1,9 +1,17 @@
 import type { FastifyInstance, FastifyReply } from "fastify"
 import type { GenerationTaskRequest } from "@gw-link-omniai/shared"
 import { GenerationTaskError, type GenerationService } from "../services/generationService"
+import type { AuthService } from "../services/authService"
+import { createAuthGuard } from "./authGuard"
 
-export function registerGenerationRoutes(server: FastifyInstance, generationService: GenerationService): void {
-  server.post("/v1/generations", async (request, reply) => {
+export function registerGenerationRoutes(
+  server: FastifyInstance,
+  generationService: GenerationService,
+  authService: AuthService
+): void {
+  const preHandler = createAuthGuard(authService)
+
+  server.post("/v1/generations", { preHandler }, async (request, reply) => {
     const generationRequest = readGenerationTaskRequest(request.body)
 
     if (!generationRequest) {
@@ -11,15 +19,15 @@ export function registerGenerationRoutes(server: FastifyInstance, generationServ
     }
 
     try {
-      const task = await generationService.createTask(generationRequest)
+      const task = await generationService.createTask(generationRequest, request.userId!)
       return { task }
     } catch (error) {
       return sendGenerationTaskError(reply, error)
     }
   })
 
-  server.get("/v1/generations", async () => ({
-    tasks: await generationService.listTasks()
+  server.get("/v1/generations", { preHandler }, async (request) => ({
+    tasks: await generationService.listTasks(request.userId!)
   }))
 }
 

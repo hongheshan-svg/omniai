@@ -9,6 +9,12 @@ const fixedNow = new Date("2026-06-20T00:00:00.000Z");
 
 function buildGenerationTestServer() {
   return buildServer({
+    config: {
+      port: 8787,
+      gatewayBaseUrl: "https://gateway.gw-link.local",
+      authDevCodesEnabled: true,
+      modelConfigPath: "config/models.json"
+    },
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
       idGenerator: () => "generation_task_000001",
@@ -16,6 +22,21 @@ function buildGenerationTestServer() {
       providerAdapter: new FakeProviderAdapter()
     })
   });
+}
+
+async function authenticate(server: ReturnType<typeof buildGenerationTestServer>): Promise<string> {
+  const start = await server.inject({
+    method: "POST",
+    url: "/v1/auth/start-login",
+    payload: { destination: "creator@example.com" }
+  });
+  const { challengeId, devCode } = start.json() as { challengeId: string; devCode: string };
+  const verify = await server.inject({
+    method: "POST",
+    url: "/v1/auth/verify-login",
+    payload: { challengeId, code: devCode }
+  });
+  return (verify.json() as { token: string }).token;
 }
 
 function createConfig(): ModelCatalogConfig {
@@ -113,9 +134,11 @@ function createImagePayload() {
 describe("generation routes", () => {
   it("creates and lists generation tasks", async () => {
     const server = buildGenerationTestServer();
+    const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -147,7 +170,8 @@ describe("generation routes", () => {
 
     const listResponse = await server.inject({
       method: "GET",
-      url: "/v1/generations"
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(listResponse.statusCode).toBe(200);
@@ -158,6 +182,7 @@ describe("generation routes", () => {
 
   it("rejects malformed generation task requests", async () => {
     const server = buildGenerationTestServer();
+    const token = await authenticate(server);
     const invalidPayloads = [
       {},
       { mode: "image" },
@@ -171,6 +196,7 @@ describe("generation routes", () => {
       const response = await server.inject({
         method: "POST",
         url: "/v1/generations",
+        headers: { authorization: `Bearer ${token}` },
         payload
       });
 
@@ -183,9 +209,11 @@ describe("generation routes", () => {
 
   it("maps generation domain errors to HTTP responses", async () => {
     const server = buildGenerationTestServer();
+    const token = await authenticate(server);
     const unsupportedMode = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         mode: "audio"
@@ -194,6 +222,7 @@ describe("generation routes", () => {
     const emptyPrompt = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         prompt: " "
@@ -202,6 +231,7 @@ describe("generation routes", () => {
     const emptyOptimizedPrompt = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         optimizedPrompt: " "
@@ -210,6 +240,7 @@ describe("generation routes", () => {
     const invalidPreset = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         preset: {
@@ -232,15 +263,25 @@ describe("generation routes", () => {
 
   it("maps unexpected generation service errors to a 500 response", async () => {
     const generationService = {
-      createTask: () => {
+      createTask: (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listTasks: () => []
+      listTasks: (_userId: string) => []
     } satisfies GenerationService;
-    const server = buildServer({ generationService });
+    const server = buildServer({
+      config: {
+        port: 8787,
+        gatewayBaseUrl: "https://gateway.gw-link.local",
+        authDevCodesEnabled: true,
+        modelConfigPath: "config/models.json"
+      },
+      generationService
+    });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -252,15 +293,25 @@ describe("generation routes", () => {
 
   it("maps async unexpected generation service errors to a 500 response", async () => {
     const generationService = {
-      createTask: async () => {
+      createTask: async (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listTasks: () => []
+      listTasks: (_userId: string) => []
     } satisfies GenerationService;
-    const server = buildServer({ generationService });
+    const server = buildServer({
+      config: {
+        port: 8787,
+        gatewayBaseUrl: "https://gateway.gw-link.local",
+        authDevCodesEnabled: true,
+        modelConfigPath: "config/models.json"
+      },
+      generationService
+    });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -272,9 +323,11 @@ describe("generation routes", () => {
 
   it("maps missing model validation errors to a 404 response", async () => {
     const server = buildGenerationTestServer();
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         preset: {
@@ -292,9 +345,11 @@ describe("generation routes", () => {
 
   it("maps model mode mismatch validation errors to a 400 response", async () => {
     const server = buildGenerationTestServer();
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         preset: {

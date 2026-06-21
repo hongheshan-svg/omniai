@@ -41,9 +41,9 @@ function modelConfig(): ModelCatalogConfig {
   };
 }
 
-function buildServerForDb(database: PgliteDatabase, userId?: string) {
+function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
-  const services = createDbServices(database.db, modelCatalog, { authDevCodesEnabled: true, userId });
+  const services = createDbServices(database.db, modelCatalog, { authDevCodesEnabled: true });
   return buildServer({
     config: smokeConfig(),
     modelCatalog,
@@ -51,6 +51,13 @@ function buildServerForDb(database: PgliteDatabase, userId?: string) {
     generationService: services.generationService,
     assetService: services.assetService
   });
+}
+
+async function login(server: ReturnType<typeof buildServerForDb>, destination: string): Promise<string> {
+  const start = await server.inject({ method: "POST", url: "/v1/auth/start-login", payload: { destination } });
+  const { challengeId, devCode } = start.json() as { challengeId: string; devCode: string };
+  const verify = await server.inject({ method: "POST", url: "/v1/auth/verify-login", payload: { challengeId, code: devCode } });
+  return (verify.json() as { token: string }).token;
 }
 
 describe("database-backed persistence", () => {
@@ -65,34 +72,14 @@ describe("database-backed persistence", () => {
   });
 
   it("persists sessions, tasks, and assets across service instances", async () => {
-    const authServer = buildServerForDb(database);
-
-    const startResponse = await authServer.inject({
-      method: "POST",
-      url: "/v1/auth/start-login",
-      payload: { destination: "creator@example.com" }
-    });
-    const { challengeId, devCode } = startResponse.json() as { challengeId: string; devCode: string };
-
-    const verifyResponse = await authServer.inject({
-      method: "POST",
-      url: "/v1/auth/verify-login",
-      payload: { challengeId, code: devCode }
-    });
-    const { token } = verifyResponse.json() as { token: string };
-
-    const sessionResponse0 = await authServer.inject({
-      method: "GET",
-      url: "/v1/auth/session",
-      headers: { authorization: `Bearer ${token}` }
-    });
-    const { user } = sessionResponse0.json() as { user: { id: string } };
-
-    const first = buildServerForDb(database, user.id);
+    const first = buildServerForDb(database);
+    const token = await login(first, "creator@example.com");
+    const auth = { authorization: `Bearer ${token}` };
 
     await first.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: auth,
       payload: {
         mode: "text",
         prompt: "帮我写一个新品发布文案",
@@ -108,6 +95,7 @@ describe("database-backed persistence", () => {
     await first.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: auth,
       payload: {
         mode: "text",
         title: "文本资产",
@@ -123,25 +111,16 @@ describe("database-backed persistence", () => {
       }
     });
 
-    // Simulate a process restart: brand-new server + services over the SAME database.
-    const second = buildServerForDb(database, user.id);
+    const second = buildServerForDb(database);
+    const sessionResponse = await second.inject({ method: "GET", url: "/v1/auth/session", headers: auth });
+    expect(sessionResponse.json()).toMatchObject({ authenticated: true, user: { destination: "creator@example.com" } });
 
-    const sessionResponse = await second.inject({
-      method: "GET",
-      url: "/v1/auth/session",
-      headers: { authorization: `Bearer ${token}` }
-    });
-    expect(sessionResponse.json()).toMatchObject({
-      authenticated: true,
-      user: { destination: "creator@example.com" }
-    });
-
-    const tasksResponse = await second.inject({ method: "GET", url: "/v1/generations" });
+    const tasksResponse = await second.inject({ method: "GET", url: "/v1/generations", headers: auth });
     expect(tasksResponse.json()).toMatchObject({
       tasks: [{ mode: "text", status: "queued", prompt: "帮我写一个新品发布文案" }]
     });
 
-    const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets" });
+    const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets", headers: auth });
     expect(assetsResponse.json()).toMatchObject({
       assets: [{ mode: "text", title: "文本资产" }]
     });

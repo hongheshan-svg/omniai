@@ -29,12 +29,11 @@ export interface GenerationServiceOptions {
   idGenerator?: () => string;
   modelCatalog?: ModelCatalog;
   providerAdapter?: ProviderAdapter;
-  userId?: string;
 }
 
 export interface GenerationService {
-  createTask(request: GenerationTaskRequest): GenerationTask | Promise<GenerationTask>;
-  listTasks(): GenerationTask[] | Promise<GenerationTask[]>;
+  createTask(request: GenerationTaskRequest, userId: string): GenerationTask | Promise<GenerationTask>;
+  listTasks(userId: string): GenerationTask[] | Promise<GenerationTask[]>;
 }
 
 const resultPreviews: Record<CreationMode, GenerationTaskResultPreview> = {
@@ -58,7 +57,6 @@ export class GenerationServiceImpl implements GenerationService {
   private readonly modelCatalog?: ModelCatalog;
   private readonly providerAdapter: ProviderAdapter;
   private readonly tasks: GenerationTaskRepository;
-  private readonly userId: string;
 
   constructor(taskRepository: GenerationTaskRepository, options: GenerationServiceOptions = {}) {
     this.tasks = taskRepository;
@@ -66,10 +64,9 @@ export class GenerationServiceImpl implements GenerationService {
     this.idGenerator = options.idGenerator ?? createGenerationTaskId;
     this.modelCatalog = options.modelCatalog;
     this.providerAdapter = options.providerAdapter ?? new FakeProviderAdapter();
-    this.userId = options.userId ?? "development-user";
   }
 
-  async createTask(request: GenerationTaskRequest): Promise<GenerationTask> {
+  async createTask(request: GenerationTaskRequest, userId: string): Promise<GenerationTask> {
     const requestValue: unknown = request;
     if (!isRecord(requestValue) || typeof requestValue.prompt !== "string") {
       throw new GenerationTaskError("Prompt is required", 400);
@@ -126,7 +123,7 @@ export class GenerationServiceImpl implements GenerationService {
         providerModelId: modelReference.providerModelId,
         optimizedPrompt,
         parameters: { ...preset.parameters },
-        userId: this.userId
+        userId
       });
     } catch (error) {
       if (error instanceof ProviderAdapterError) {
@@ -149,12 +146,12 @@ export class GenerationServiceImpl implements GenerationService {
       updatedAt: timestamp
     };
 
-    await this.tasks.insert(task, this.userId);
+    await this.tasks.insert(task, userId);
     return cloneGenerationTask(task);
   }
 
-  async listTasks(): Promise<GenerationTask[]> {
-    return this.tasks.list(this.userId);
+  async listTasks(userId: string): Promise<GenerationTask[]> {
+    return this.tasks.list(userId);
   }
 }
 

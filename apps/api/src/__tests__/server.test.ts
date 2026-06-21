@@ -79,11 +79,28 @@ describe("product API", () => {
     });
   });
 
+  async function authenticate(server: ReturnType<typeof buildServer>): Promise<string> {
+    const start = await server.inject({
+      method: "POST",
+      url: "/v1/auth/start-login",
+      payload: { destination: "creator@example.com" }
+    });
+    const { challengeId, devCode } = start.json() as { challengeId: string; devCode: string };
+    const verify = await server.inject({
+      method: "POST",
+      url: "/v1/auth/verify-login",
+      payload: { challengeId, code: devCode }
+    });
+    return (verify.json() as { token: string }).token;
+  }
+
   it("registers the generation routes", async () => {
     const server = buildServer();
+    const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         mode: "text",
         prompt: "帮我写一个新品发布文案",
@@ -100,7 +117,8 @@ describe("product API", () => {
     });
     const listResponse = await server.inject({
       method: "GET",
-      url: "/v1/generations"
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(createResponse.statusCode).toBe(200);
@@ -125,11 +143,34 @@ describe("product API", () => {
     });
   });
 
+  it("rejects unauthenticated generation requests", async () => {
+    const server = buildServer();
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      payload: {
+        mode: "text",
+        prompt: "帮我写一个新品发布文案",
+        optimizedPrompt: "请生成一段新品推广文案。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: { outputFormat: "markdown", tone: "clear" },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "Authentication required" });
+  });
+
   it("registers the asset routes", async () => {
     const server = buildServer();
+    const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         mode: "text",
         title: "文本资产",
@@ -156,7 +197,8 @@ describe("product API", () => {
     });
     const listResponse = await server.inject({
       method: "GET",
-      url: "/v1/assets"
+      url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(createResponse.statusCode).toBe(200);
@@ -184,6 +226,17 @@ describe("product API", () => {
     });
   });
 
+  it("rejects unauthenticated asset requests", async () => {
+    const server = buildServer();
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/assets"
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "Authentication required" });
+  });
+
   it("does not load environment config when an auth service is injected", () => {
     const originalPort = process.env.PORT;
     const fakeAuthService = {
@@ -204,16 +257,16 @@ describe("product API", () => {
       logout: () => false
     } satisfies AuthService;
     const fakeGenerationService = {
-      createTask: () => {
+      createTask: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listTasks: () => []
+      listTasks: (_userId: string) => []
     } satisfies GenerationService;
     const fakeAssetService = {
-      createAsset: () => {
+      createAsset: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listAssets: () => []
+      listAssets: (_userId: string) => []
     } satisfies AssetService;
     const fakeModelCatalog = {
       listVisibleModels: () => [],

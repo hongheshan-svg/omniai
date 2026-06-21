@@ -6,6 +6,7 @@ import { ConfigModelCatalog, type ModelCatalog } from "../modelCatalog";
 import type { ModelCatalogConfig } from "../modelConfig";
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
+const TEST_USER_ID = "user_email_testowner000000";
 
 function createService() {
   return new InMemoryGenerationService({
@@ -128,7 +129,7 @@ describe("InMemoryGenerationService", () => {
   it("creates a queued image generation task", async () => {
     const service = createService();
 
-    await expect(service.createTask(createImageRequest())).resolves.toEqual({
+    await expect(service.createTask(createImageRequest(), TEST_USER_ID)).resolves.toEqual({
       id: "generation_task_000001",
       mode: "image",
       status: "queued",
@@ -163,8 +164,8 @@ describe("InMemoryGenerationService", () => {
         parameters: { outputFormat: "markdown", tone: "clear" },
         creditEstimate: { credits: 1, unit: "credit" }
       }
-    });
-    const imageTask = await service.createTask(createImageRequest());
+    }, TEST_USER_ID);
+    const imageTask = await service.createTask(createImageRequest(), TEST_USER_ID);
     const videoTask = await service.createTask({
       mode: "video",
       prompt: "生成一段咖啡拉花短视频",
@@ -174,7 +175,7 @@ describe("InMemoryGenerationService", () => {
         parameters: { durationSeconds: 6, aspectRatio: "16:9", resolution: "1080p" },
         creditEstimate: { credits: 18, unit: "credit" }
       }
-    });
+    }, TEST_USER_ID);
 
     expect([textTask.status, imageTask.status, videoTask.status]).toEqual(["queued", "queued", "queued"]);
     expect(textTask.resultPreview).toEqual({
@@ -197,7 +198,7 @@ describe("InMemoryGenerationService", () => {
         ...request.preset,
         modelId: "missing-model"
       }
-    })).rejects.toMatchObject({
+    }, TEST_USER_ID)).rejects.toMatchObject({
       message: "Model was not found",
       statusCode: 404
     });
@@ -215,7 +216,7 @@ describe("InMemoryGenerationService", () => {
         parameters: { outputFormat: "markdown", tone: "clear" },
         creditEstimate: { credits: 1, unit: "credit" }
       }
-    })).rejects.toMatchObject({
+    }, TEST_USER_ID)).rejects.toMatchObject({
       message: "Model was not found",
       statusCode: 404
     });
@@ -233,7 +234,7 @@ describe("InMemoryGenerationService", () => {
         parameters: { outputFormat: "markdown", tone: "clear" },
         creditEstimate: { credits: 1, unit: "credit" }
       }
-    })).rejects.toMatchObject({
+    }, TEST_USER_ID)).rejects.toMatchObject({
       message: "Model is temporarily unavailable",
       statusCode: 409
     });
@@ -246,7 +247,7 @@ describe("InMemoryGenerationService", () => {
     await expect(service.createTask({
       ...request,
       mode: "text"
-    })).rejects.toMatchObject({
+    }, TEST_USER_ID)).rejects.toMatchObject({
       message: "Model does not support this creation mode",
       statusCode: 400
     });
@@ -265,11 +266,11 @@ describe("InMemoryGenerationService", () => {
       providerAdapter
     });
 
-    await expect(service.createTask(createImageRequest())).rejects.toMatchObject({
+    await expect(service.createTask(createImageRequest(), TEST_USER_ID)).rejects.toMatchObject({
       message: "Provider adapter failed",
       statusCode: 502
     });
-    expect(await service.listTasks()).toEqual([]);
+    expect(await service.listTasks(TEST_USER_ID)).toEqual([]);
   });
 
   it("maps unexpected provider adapter errors to provider failures", async () => {
@@ -285,11 +286,11 @@ describe("InMemoryGenerationService", () => {
       providerAdapter
     });
 
-    await expect(service.createTask(createImageRequest())).rejects.toMatchObject({
+    await expect(service.createTask(createImageRequest(), TEST_USER_ID)).rejects.toMatchObject({
       message: "Provider adapter failed",
       statusCode: 502
     });
-    expect(await service.listTasks()).toEqual([]);
+    expect(await service.listTasks(TEST_USER_ID)).toEqual([]);
   });
 
   it("does not map unexpected catalog errors as provider failures", async () => {
@@ -307,11 +308,11 @@ describe("InMemoryGenerationService", () => {
     });
 
     try {
-      await service.createTask(createImageRequest());
+      await service.createTask(createImageRequest(), TEST_USER_ID);
     } catch (error) {
       expect(error).not.toBeInstanceOf(GenerationTaskError);
       expect(error).toMatchObject({ message: "Catalog lookup failed" });
-      expect(await service.listTasks()).toEqual([]);
+      expect(await service.listTasks(TEST_USER_ID)).toEqual([]);
       return;
     }
 
@@ -320,12 +321,12 @@ describe("InMemoryGenerationService", () => {
 
   it("lists created tasks with defensive copies", async () => {
     const service = createService();
-    const task = await service.createTask(createImageRequest());
+    const task = await service.createTask(createImageRequest(), TEST_USER_ID);
     task.preset.parameters.quality = "mutated";
     task.preset.creditEstimate.credits = 999;
     task.resultPreview.title = "mutated";
 
-    const [listedTask] = await service.listTasks();
+    const [listedTask] = await service.listTasks(TEST_USER_ID);
     expect(listedTask).toMatchObject({
       preset: {
         parameters: {
@@ -339,7 +340,7 @@ describe("InMemoryGenerationService", () => {
     });
 
     listedTask!.preset.parameters.quality = "changed again";
-    expect((await service.listTasks())[0]!.preset.parameters.quality).toBe("high");
+    expect((await service.listTasks(TEST_USER_ID))[0]!.preset.parameters.quality).toBe("high");
   });
 
   it("rejects unsupported modes", async () => {
@@ -349,7 +350,7 @@ describe("InMemoryGenerationService", () => {
         service.createTask({
           ...createImageRequest(),
           mode: "audio" as "image"
-        }),
+        }, TEST_USER_ID),
       "Unsupported creation mode",
       400
     );
@@ -362,7 +363,7 @@ describe("InMemoryGenerationService", () => {
         service.createTask({
           ...createImageRequest(),
           prompt: " "
-        }),
+        }, TEST_USER_ID),
       "Prompt is required",
       400
     );
@@ -388,7 +389,7 @@ describe("InMemoryGenerationService", () => {
     ["null request", () => null as unknown as GenerationTaskRequest]
   ])("rejects %s", async (_label, createRequest) => {
     const service = createService();
-    await expectGenerationError(() => service.createTask(createRequest()), "Prompt is required", 400);
+    await expectGenerationError(() => service.createTask(createRequest(), TEST_USER_ID), "Prompt is required", 400);
   });
 
   it("rejects empty optimized prompts", async () => {
@@ -398,7 +399,7 @@ describe("InMemoryGenerationService", () => {
         service.createTask({
           ...createImageRequest(),
           optimizedPrompt: " "
-        }),
+        }, TEST_USER_ID),
       "Optimized prompt is required",
       400
     );
@@ -424,7 +425,7 @@ describe("InMemoryGenerationService", () => {
   ])("rejects %s", async (_label, createRequest) => {
     const service = createService();
     await expectGenerationError(
-      () => service.createTask(createRequest()),
+      () => service.createTask(createRequest(), TEST_USER_ID),
       "Optimized prompt is required",
       400
     );
@@ -441,7 +442,7 @@ describe("InMemoryGenerationService", () => {
             parameters: { quality: "high" },
             creditEstimate: { credits: 2, unit: "credit" }
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid preset suggestion",
       400
     );
@@ -465,9 +466,17 @@ describe("InMemoryGenerationService", () => {
               count: value
             }
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid preset suggestion",
       400
     );
+  });
+
+  it("lists only the requesting user's tasks", async () => {
+    const service = createService();
+    await service.createTask(createImageRequest(), "user-a");
+
+    expect(await service.listTasks("user-a")).toHaveLength(1);
+    expect(await service.listTasks("user-b")).toEqual([]);
   });
 });

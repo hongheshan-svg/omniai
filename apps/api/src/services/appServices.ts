@@ -30,7 +30,7 @@ export interface AppServices {
 export function createDbServices(
   db: AppDatabase,
   modelCatalog: ModelCatalog,
-  options: { authDevCodesEnabled: boolean; userId?: string }
+  options: { authDevCodesEnabled: boolean }
 ): { authService: AuthService; generationService: GenerationService; assetService: AssetService } {
   const authService = new AuthServiceImpl(
     {
@@ -43,13 +43,11 @@ export function createDbServices(
 
   const generationService = new GenerationServiceImpl(new DrizzleGenerationTaskRepository(db), {
     modelCatalog,
-    idGenerator: () => `generation_task_${randomUUID()}`,
-    userId: options.userId
+    idGenerator: () => `generation_task_${randomUUID()}`
   });
 
   const assetService = new AssetServiceImpl(new DrizzleAssetRepository(db), {
-    idGenerator: () => `creation_asset_${randomUUID()}`,
-    userId: options.userId
+    idGenerator: () => `creation_asset_${randomUUID()}`
   });
 
   return { authService, generationService, assetService };
