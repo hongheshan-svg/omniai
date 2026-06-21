@@ -142,3 +142,15 @@ generations are not charged. `GET /v1/credits/balance` exposes the balance.
 Charge basis is the server-side `creditUnitCost` (client `creditEstimate` is not
 trusted). Atomic concurrent deduction, real payment/top-up, and desktop balance
 UI / 402 handling remain later slices.
+
+## Desktop Credit Balance Slice
+
+The desktop closes the credit-foundation loop on the client. `apiClient` gains
+`getCreditBalance`, a framework-free `formatCreditBalance` renders "积分：N", and
+`App.tsx` loads the balance on login (in the same `Promise.all` as tasks/assets),
+refreshes it after each generation, clears it on sign-out, and maps an
+insufficient-credit `402` from `POST /v1/generations` to a friendly
+"积分不足，无法生成" message (reactive — no proactive button disabling, since the
+client's `creditEstimate` may differ from the server's authoritative
+`creditUnitCost`). No backend or shared-contract change. Top-up/payment and
+admin/mobile balance display remain later slices.
