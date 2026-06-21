@@ -472,6 +472,49 @@ describe("InMemoryGenerationService", () => {
     );
   });
 
+  it("stores the provider's succeeded text result", async () => {
+    const providerAdapter: ProviderAdapter = {
+      async submitGeneration() {
+        return {
+          status: "succeeded",
+          providerId: "openai-main",
+          providerProtocol: "openai-compatible",
+          providerModelId: "gpt-4.1-mini",
+          submittedAt: "2026-06-20T00:00:00.000Z",
+          result: { kind: "text", text: "生成的文案", format: "markdown" }
+        };
+      }
+    };
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_000001",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter
+    });
+
+    const task = await service.createTask(
+      {
+        mode: "text",
+        prompt: "帮我写一个新品发布文案",
+        optimizedPrompt: "请生成一段新品推广文案。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: { outputFormat: "markdown", tone: "clear" },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      },
+      "user-a"
+    );
+
+    expect(task.status).toBe("succeeded");
+    expect(task.result).toEqual({ kind: "text", text: "生成的文案", format: "markdown" });
+    expect((await service.listTasks("user-a"))[0]!.result).toEqual({
+      kind: "text",
+      text: "生成的文案",
+      format: "markdown"
+    });
+  });
+
   it("lists only the requesting user's tasks", async () => {
     const service = createService();
     await service.createTask(createImageRequest(), "user-a");

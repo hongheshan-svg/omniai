@@ -2,10 +2,11 @@ import type {
   CreationMode,
   GenerationTask,
   GenerationTaskRequest,
+  GenerationTaskResult,
   GenerationTaskResultPreview,
   PresetSuggestion
 } from "@gw-link-omniai/shared";
-import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter } from "./gatewayClient";
+import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter, type ProviderGenerationResult } from "./gatewayClient";
 import { ModelCatalogError, type ModelCatalog } from "./modelCatalog";
 import type { GenerationTaskRepository } from "../repositories/types";
 import { InMemoryGenerationTaskRepository } from "../repositories/memory";
@@ -115,8 +116,9 @@ export class GenerationServiceImpl implements GenerationService {
       throw new GenerationTaskError("Model is temporarily unavailable", 409);
     }
 
+    let providerResult: ProviderGenerationResult;
     try {
-      await this.providerAdapter.submitGeneration({
+      providerResult = await this.providerAdapter.submitGeneration({
         mode,
         productModelId: modelReference.product.id,
         provider: modelReference.provider,
@@ -137,11 +139,12 @@ export class GenerationServiceImpl implements GenerationService {
     const task: GenerationTask = {
       id: this.idGenerator(),
       mode,
-      status: "queued",
+      status: providerResult.status,
       prompt,
       optimizedPrompt,
       preset: clonePresetSuggestion(preset),
       resultPreview: cloneResultPreview(resultPreviews[mode]),
+      ...(providerResult.result ? { result: cloneGenerationTaskResult(providerResult.result) } : {}),
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -212,8 +215,13 @@ function cloneGenerationTask(task: GenerationTask): GenerationTask {
   return {
     ...task,
     preset: clonePresetSuggestion(task.preset),
-    resultPreview: cloneResultPreview(task.resultPreview)
+    resultPreview: cloneResultPreview(task.resultPreview),
+    ...(task.result ? { result: cloneGenerationTaskResult(task.result) } : {})
   };
+}
+
+function cloneGenerationTaskResult(result: GenerationTaskResult): GenerationTaskResult {
+  return { ...result };
 }
 
 function clonePresetSuggestion(preset: PresetSuggestion): PresetSuggestion {
