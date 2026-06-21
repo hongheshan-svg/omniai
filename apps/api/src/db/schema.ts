@@ -11,6 +11,7 @@ import type {
   CreationAssetContent,
   CreationAssetPreview,
   CreationAssetSource,
+  GenerationTaskResult,
   GenerationTaskResultPreview,
   PresetSuggestion
 } from "@gw-link-omniai/shared";
@@ -71,6 +72,7 @@ export const generationTasks = pgTable(
     optimizedPrompt: text("optimized_prompt").notNull(),
     preset: jsonb("preset").$type<PresetSuggestion>().notNull(),
     resultPreview: jsonb("result_preview").$type<GenerationTaskResultPreview>().notNull(),
+    result: jsonb("result").$type<GenerationTaskResult>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull()
   },

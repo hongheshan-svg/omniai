@@ -52,6 +52,7 @@ function mapTaskRow(row: typeof generationTasks.$inferSelect): GenerationTask {
     optimizedPrompt: row.optimizedPrompt,
     preset: row.preset,
     resultPreview: row.resultPreview,
+    ...(row.result ? { result: row.result } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };
@@ -198,6 +199,7 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
       optimizedPrompt: task.optimizedPrompt,
       preset: task.preset,
       resultPreview: task.resultPreview,
+      result: task.result ?? null,
       createdAt: new Date(task.createdAt),
       updatedAt: new Date(task.updatedAt)
     });

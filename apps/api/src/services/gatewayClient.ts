@@ -1,4 +1,4 @@
-import type { CreationMode, PresetSuggestion } from "@gw-link-omniai/shared";
+import type { CreationMode, GenerationTaskResult, GenerationTaskStatus, PresetSuggestion } from "@gw-link-omniai/shared";
 import type { CatalogProviderReference } from "./modelCatalog";
 
 export interface ProviderGenerationRequest {
@@ -12,11 +12,12 @@ export interface ProviderGenerationRequest {
 }
 
 export interface ProviderGenerationResult {
-  status: "queued";
+  status: GenerationTaskStatus;
   providerId: string;
   providerProtocol: CatalogProviderReference["protocol"];
   providerModelId: string;
   submittedAt: string;
+  result?: GenerationTaskResult;
 }
 
 export interface ProviderAdapter {

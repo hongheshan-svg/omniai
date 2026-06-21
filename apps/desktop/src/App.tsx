@@ -293,6 +293,7 @@ export function App({ client }: { client?: ApiClient } = {}) {
                     <p>
                       预计点数：{taskCredits} {taskCredits === 1 ? "credit" : "credits"}
                     </p>
+                    {task.result?.kind === "text" ? <p>{task.result.text}</p> : null}
                   </article>
                 </li>
               );

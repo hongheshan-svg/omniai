@@ -3,7 +3,11 @@ import { buildServer } from "../server";
 import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
+import { FakeProviderAdapter } from "../services/gatewayClient";
+import { ConfigModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalog } from "../services/modelCatalog";
+import type { ModelCatalogConfig } from "../services/modelConfig";
+import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -95,7 +99,7 @@ describe("product API", () => {
   }
 
   it("registers the generation routes", async () => {
-    const server = buildServer();
+    const server = buildServer({ providerAdapter: new FakeProviderAdapter() });
     const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",
@@ -162,6 +166,66 @@ describe("product API", () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("returns a succeeded text task with a result when a provider key is configured", async () => {
+    const modelConfig: ModelCatalogConfig = {
+      providers: [
+        {
+          id: "openai-main",
+          displayName: "OpenAI Main",
+          protocol: "openai-compatible",
+          baseUrl: "https://api.openai.com/v1",
+          apiKeyEnv: "OPENAI_API_KEY",
+          models: [
+            {
+              id: "gw-text-balanced",
+              providerModelId: "gpt-4.1-mini",
+              displayName: "OmniAI Text Balanced",
+              capability: "text",
+              tags: ["recommended", "balanced"],
+              visibility: "visible",
+              minimumPlan: "free",
+              creditUnitCost: 1
+            }
+          ]
+        }
+      ]
+    };
+    const fetchMock = async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "真实生成文案" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    const server = buildServer({
+      modelCatalog: new ConfigModelCatalog(modelConfig),
+      providerAdapter: new OpenAiCompatibleTextProvider({
+        fetch: fetchMock as unknown as typeof fetch,
+        env: { OPENAI_API_KEY: "sk-test" }
+      })
+    });
+    const token = await authenticate(server);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: "text",
+        prompt: "帮我写一个新品发布文案",
+        optimizedPrompt: "请生成一段新品推广文案。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: { outputFormat: "markdown", tone: "clear" },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      task: { status: "succeeded", result: { kind: "text", text: "真实生成文案" } }
+    });
   });
 
   it("registers the asset routes", async () => {

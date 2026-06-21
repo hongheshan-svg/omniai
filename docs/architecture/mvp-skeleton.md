@@ -100,3 +100,18 @@ Asset creation from the desktop is intentionally deferred: the API requires a
 succeeded source task, and tasks remain queued until a later task-status /
 real-provider slice, so the asset library is read-only here. Admin and mobile
 remain local; token persistence, real providers, and streaming are later slices.
+
+## Real Text Provider Slice
+
+The real text provider slice makes text generation produce actual content. The
+default provider adapter (`OpenAiCompatibleTextProvider`) calls an OpenAI-
+compatible `chat/completions` endpoint synchronously when a text model's
+`apiKeyEnv` is configured, returning a `succeeded` task with an optional
+`GenerationTask.result` (text). Without a key, or for image/video, it falls
+back to the prior `queued` placeholder, so existing behavior and tests are
+unchanged. Provider keys stay in env and are never exposed across the product
+boundary; provider failures return 502 without persisting a task.
+
+Generation is synchronous here — async queues/workers, streaming, image/video
+providers, the anthropic-compatible path, credit deduction, and saving a
+succeeded task as an asset remain later slices.

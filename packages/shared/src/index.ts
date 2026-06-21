@@ -18,6 +18,7 @@ export type {
   CreditAmount,
   GenerationTask,
   GenerationTaskRequest,
+  GenerationTaskResult,
   GenerationTaskResultPreview,
   GenerationTaskStatus,
   ModelCapability,

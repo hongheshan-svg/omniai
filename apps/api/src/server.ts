@@ -10,7 +10,8 @@ import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
 import { createServices } from "./services/appServices";
-import { FakeProviderAdapter, type ProviderAdapter } from "./services/gatewayClient";
+import { type ProviderAdapter } from "./services/gatewayClient";
+import { OpenAiCompatibleTextProvider } from "./services/openAiTextProvider";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
@@ -56,7 +57,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       devCodesEnabled: getConfig().authDevCodesEnabled
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
-  const providerAdapter = options.providerAdapter ?? new FakeProviderAdapter();
+  const providerAdapter = options.providerAdapter ?? new OpenAiCompatibleTextProvider();
   const generationService =
     options.generationService ??
     new InMemoryGenerationService({

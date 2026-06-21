@@ -15,8 +15,10 @@ import {
   InMemoryGenerationService,
   type GenerationService
 } from "./generationService";
+import type { ProviderAdapter } from "./gatewayClient";
 import { ConfigModelCatalog, type ModelCatalog } from "./modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./modelConfig";
+import { OpenAiCompatibleTextProvider } from "./openAiTextProvider";
 
 export interface AppServices {
   authService: AuthService;
@@ -30,7 +32,7 @@ export interface AppServices {
 export function createDbServices(
   db: AppDatabase,
   modelCatalog: ModelCatalog,
-  options: { authDevCodesEnabled: boolean }
+  options: { authDevCodesEnabled: boolean; providerAdapter?: ProviderAdapter }
 ): { authService: AuthService; generationService: GenerationService; assetService: AssetService } {
   const authService = new AuthServiceImpl(
     {
@@ -43,7 +45,8 @@ export function createDbServices(
 
   const generationService = new GenerationServiceImpl(new DrizzleGenerationTaskRepository(db), {
     modelCatalog,
-    idGenerator: () => `generation_task_${randomUUID()}`
+    idGenerator: () => `generation_task_${randomUUID()}`,
+    providerAdapter: options.providerAdapter ?? new OpenAiCompatibleTextProvider()
   });
 
   const assetService = new AssetServiceImpl(new DrizzleAssetRepository(db), {
@@ -61,7 +64,7 @@ export function createServices(config: ApiConfig): AppServices {
   if (!config.databaseUrl) {
     return {
       authService: new InMemoryAuthService({ devCodesEnabled: config.authDevCodesEnabled }),
-      generationService: new InMemoryGenerationService({ modelCatalog }),
+      generationService: new InMemoryGenerationService({ modelCatalog, providerAdapter: new OpenAiCompatibleTextProvider() }),
       assetService: new InMemoryAssetService(),
       modelCatalog,
       async verifyConnectivity() {},
