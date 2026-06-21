@@ -184,6 +184,21 @@ The seventh product-first slice connects the desktop app to the product API.
 - The API enables CORS (`GW_LINK_CORS_ORIGINS`, reflects the request origin when
   unset — set explicit origins in production).
 
+### Real Text Generation
+
+The eighth product-first slice makes text generation real.
+
+- Configure a provider API key (the env var named by `config/models.json`'s
+  `apiKeyEnv`, e.g. `OPENAI_API_KEY`). With a key, `POST /v1/generations` for a
+  text model calls the OpenAI-compatible provider synchronously and returns a
+  `succeeded` task carrying `result: { kind: "text", text, format }`.
+- Without a key, text generation falls back to today's `queued` placeholder
+  (no real call). Image and video remain placeholder/`queued`.
+- Generation is synchronous (no queue/worker); provider errors return `502`
+  without persisting a task. The API key is never exposed by `/v1/models` or
+  returned to clients.
+- The desktop task center shows the generated text when present.
+
 ## Validation
 
 ```bash
