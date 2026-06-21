@@ -115,3 +115,15 @@ boundary; provider failures return 502 without persisting a task.
 Generation is synchronous here — async queues/workers, streaming, image/video
 providers, the anthropic-compatible path, credit deduction, and saving a
 succeeded task as an asset remain later slices.
+
+## Desktop Asset Save Slice
+
+With real text generation producing `succeeded` tasks (Real Text Provider
+slice), the desktop can now save a generated text task as an asset. A
+framework-free `buildAssetRequestFromTask` maps a succeeded text task to a
+`CreationAssetRequest` (content from the task's text result, source
+`taskStatus: "succeeded"`), and the App posts it through `apiClient.createAsset`
+to the existing guarded `/v1/assets` route, then refreshes the per-user asset
+library. No backend or shared-contract change was needed. Image and video stay
+`queued` (no result) and are not yet saveable; object storage and saving
+image/video assets remain later slices.
