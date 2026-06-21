@@ -258,6 +258,23 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(second[0]!.preset.parameters.quality).toBe("high");
   });
 
+  it("round-trips a task result", async () => {
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await tasks.insert(
+      makeTask({
+        id: "task-result",
+        status: "succeeded",
+        result: { kind: "text", text: "生成的文案", format: "markdown" }
+      }),
+      "owner-a"
+    );
+
+    const [listed] = await tasks.list("owner-a");
+    expect(listed!.result).toEqual({ kind: "text", text: "生成的文案", format: "markdown" });
+    expect(listed!.status).toBe("succeeded");
+  });
+
   it("does not share mutable references with the inserted task (write isolation)", async () => {
     const { users, tasks } = context.bundle;
     await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
