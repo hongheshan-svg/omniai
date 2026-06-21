@@ -38,6 +38,7 @@ const authSession: AuthSession = {
 
 function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   let tasks: GenerationTask[] = [];
+  let assets: CreationAsset[] = [];
   const base: ApiClient = {
     startLogin: async (): Promise<LoginStartResponse> => ({
       challengeId: "c1",
@@ -66,8 +67,23 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return task;
     },
     listGenerations: async () => tasks,
-    listAssets: async (): Promise<CreationAsset[]> => [],
-    createAsset: async () => { throw new Error("createAsset not implemented in fake"); }
+    createAsset: async (request) => {
+      const asset: CreationAsset = {
+        id: `asset-${assets.length + 1}`,
+        mode: request.mode,
+        title: request.title,
+        content: request.content,
+        preview: { title: request.title, description: "已保存。" },
+        source: request.source,
+        prompt: request.prompt,
+        optimizedPrompt: request.optimizedPrompt,
+        preset: request.preset,
+        createdAt: "2026-06-21T00:00:00.000Z"
+      };
+      assets = [asset, ...assets];
+      return asset;
+    },
+    listAssets: async () => assets
   };
   return { ...base, ...overrides };
 }
@@ -134,6 +150,22 @@ describe("Desktop App", () => {
     const taskCenter = screen.getByLabelText("任务中心");
     await within(taskCenter).findByText("真实生成文案");
     expect(within(taskCenter).getByText("已完成")).toBeTruthy();
+  });
+
+  it("saves a succeeded text task to the asset library", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    await within(assetLibrary).findByText("文本资产");
+    expect(within(assetLibrary).getByText("已保存。")).toBeTruthy();
   });
 
   it("lists the user's assets read-only (no save button)", async () => {
