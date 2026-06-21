@@ -66,7 +66,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return task;
     },
     listGenerations: async () => tasks,
-    listAssets: async (): Promise<CreationAsset[]> => []
+    listAssets: async (): Promise<CreationAsset[]> => [],
+    createAsset: async () => { throw new Error("createAsset not implemented in fake"); }
   };
   return { ...base, ...overrides };
 }
