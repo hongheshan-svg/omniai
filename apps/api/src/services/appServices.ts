@@ -64,7 +64,7 @@ export function createServices(config: ApiConfig): AppServices {
   if (!config.databaseUrl) {
     return {
       authService: new InMemoryAuthService({ devCodesEnabled: config.authDevCodesEnabled }),
-      generationService: new InMemoryGenerationService({ modelCatalog }),
+      generationService: new InMemoryGenerationService({ modelCatalog, providerAdapter: new OpenAiCompatibleTextProvider() }),
       assetService: new InMemoryAssetService(),
       modelCatalog,
       async verifyConnectivity() {},
