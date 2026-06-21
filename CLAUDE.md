@@ -69,6 +69,7 @@ The product API is a boundary that **hides all provider/gateway detail behind pr
 - `/v1/models` returns **product fields only** — never `providerModelId`, `baseUrl`, or `apiKeyEnv`. `ConfigModelCatalog.listVisibleModels()` is the filter; keep it that way.
 - Clients send the product contract (`mode`, `prompt`, `optimizedPrompt`, `preset`); the API resolves `preset.modelId` through the catalog server-side. Model `visibility` is `visible` | `hidden` | `maintenance` (hidden/maintenance are not generatable).
 - Today the provider adapter (`FakeProviderAdapter`) does protocol dispatch (`openai-compatible` / `anthropic-compatible`) but reads no API keys and makes no network calls. Real HTTP clients, streaming, persistence, file storage, and credit mutation are explicitly later slices — don't pull them forward without a spec.
+- **Auth guard + per-user isolation**: `/v1/generations` and `/v1/assets` (POST + GET) are guarded by `createAuthGuard(authService)` (`src/routes/authGuard.ts`), which resolves the bearer token via `authService.getSession` and attaches `request.userId`; unauthenticated requests get `401 { error: "Authentication required" }`. Generation/asset services take a `userId` per call and persist/list by `owner_user_id` through the repositories. `/health`, `/v1/models`, `/v1/prompt/*`, and `/v1/auth/*` stay public. Isolation is enforced at the application layer (owner filter in the repositories), not yet via Postgres RLS.
 
 ## Frontend conventions (desktop / admin / mobile)
 

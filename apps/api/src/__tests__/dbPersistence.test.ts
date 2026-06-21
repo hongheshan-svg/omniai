@@ -71,6 +71,42 @@ describe("database-backed persistence", () => {
     await database.close();
   });
 
+  it("isolates tasks and assets between users", async () => {
+    const server = buildServerForDb(database);
+    const tokenA = await login(server, "alice@example.com");
+    const tokenB = await login(server, "bob@example.com");
+
+    await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenA}` },
+      payload: {
+        mode: "text",
+        prompt: "Alice 的任务",
+        optimizedPrompt: "Alice 的优化提示。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: { outputFormat: "markdown", tone: "clear" },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+
+    const aliceList = await server.inject({
+      method: "GET",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenA}` }
+    });
+    expect((aliceList.json() as { tasks: unknown[] }).tasks).toHaveLength(1);
+
+    const bobList = await server.inject({
+      method: "GET",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenB}` }
+    });
+    expect(bobList.json()).toEqual({ tasks: [] });
+  });
+
   it("persists sessions, tasks, and assets across service instances", async () => {
     const first = buildServerForDb(database);
     const token = await login(first, "creator@example.com");
