@@ -65,6 +65,8 @@ export interface GenerationTaskResultPreview {
   description: string;
 }
 
+export type GenerationTaskResult = { kind: "text"; text: string; format: "markdown" | "plain" };
+
 export interface GenerationTask {
   id: string;
   mode: CreationMode;
@@ -73,6 +75,7 @@ export interface GenerationTask {
   optimizedPrompt: string;
   preset: PresetSuggestion;
   resultPreview: GenerationTaskResultPreview;
+  result?: GenerationTaskResult;
   createdAt: string;
   updatedAt: string;
 }
