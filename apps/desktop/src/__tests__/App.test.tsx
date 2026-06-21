@@ -53,11 +53,12 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       const task: GenerationTask = {
         id: `task-${tasks.length + 1}`,
         mode: request.mode,
-        status: "queued",
+        status: "succeeded",
         prompt: request.prompt,
         optimizedPrompt: request.optimizedPrompt,
         preset: request.preset,
-        resultPreview: { title: "文本生成任务", description: "任务已排队。" },
+        resultPreview: { title: "文本生成任务", description: "已生成。" },
+        result: { kind: "text", text: "真实生成文案", format: "markdown" },
         createdAt: "2026-06-21T00:00:00.000Z",
         updatedAt: "2026-06-21T00:00:00.000Z"
       };
@@ -117,8 +118,21 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
 
     const taskCenter = screen.getByLabelText("任务中心");
-    await within(taskCenter).findByText("排队中");
+    await within(taskCenter).findByText("已完成");
     expect(within(taskCenter).getByText("gw-text-balanced")).toBeTruthy();
+  });
+
+  it("shows the generated text in the task center", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    await within(taskCenter).findByText("真实生成文案");
+    expect(within(taskCenter).getByText("已完成")).toBeTruthy();
   });
 
   it("lists the user's assets read-only (no save button)", async () => {
