@@ -188,12 +188,10 @@ export class DrizzleChallengeRepository implements ChallengeRepository {
 export class DrizzleGenerationTaskRepository implements GenerationTaskRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  async insert(task: GenerationTask): Promise<void> {
+  async insert(task: GenerationTask, ownerUserId: string): Promise<void> {
     await this.db.insert(generationTasks).values({
       id: task.id,
-      // Reserved for later per-user isolation; intentionally NOT populated in
-      // this slice (do not wire the service userId option through here yet).
-      ownerUserId: null,
+      ownerUserId,
       mode: task.mode,
       status: task.status,
       prompt: task.prompt,
@@ -205,8 +203,12 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
     });
   }
 
-  async list(): Promise<GenerationTask[]> {
-    const rows = await this.db.select().from(generationTasks).orderBy(generationTasks.createdAt);
+  async list(ownerUserId: string): Promise<GenerationTask[]> {
+    const rows = await this.db
+      .select()
+      .from(generationTasks)
+      .where(eq(generationTasks.ownerUserId, ownerUserId))
+      .orderBy(generationTasks.createdAt);
     return rows.map(mapTaskRow);
   }
 }
@@ -214,12 +216,10 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
 export class DrizzleAssetRepository implements AssetRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  async insert(asset: CreationAsset): Promise<void> {
+  async insert(asset: CreationAsset, ownerUserId: string): Promise<void> {
     await this.db.insert(assets).values({
       id: asset.id,
-      // Reserved for later per-user isolation; intentionally NOT populated in
-      // this slice (do not wire the service userId option through here yet).
-      ownerUserId: null,
+      ownerUserId,
       mode: asset.mode,
       title: asset.title,
       content: asset.content,
@@ -232,8 +232,12 @@ export class DrizzleAssetRepository implements AssetRepository {
     });
   }
 
-  async list(): Promise<CreationAsset[]> {
-    const rows = await this.db.select().from(assets).orderBy(assets.createdAt);
+  async list(ownerUserId: string): Promise<CreationAsset[]> {
+    const rows = await this.db
+      .select()
+      .from(assets)
+      .where(eq(assets.ownerUserId, ownerUserId))
+      .orderBy(assets.createdAt);
     return rows.map(mapAssetRow);
   }
 }

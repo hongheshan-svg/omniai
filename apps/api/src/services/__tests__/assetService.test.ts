@@ -3,6 +3,7 @@ import type { CreationAssetRequest } from "@gw-link-omniai/shared";
 import { AssetError, InMemoryAssetService } from "../assetService";
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
+const TEST_USER_ID = "user_email_testowner000000";
 
 function createService() {
   return new InMemoryAssetService({
@@ -54,7 +55,7 @@ describe("InMemoryAssetService", () => {
   it("creates an image asset", async () => {
     const service = createService();
 
-    expect(await service.createAsset(createImageRequest())).toEqual({
+    expect(await service.createAsset(createImageRequest(), TEST_USER_ID)).toEqual({
       id: "creation_asset_000001",
       mode: "image",
       title: "图片资产",
@@ -98,9 +99,9 @@ describe("InMemoryAssetService", () => {
       });
 
       const ids = [
-        (await first.createAsset(createImageRequest())).id,
-        (await second.createAsset(createImageRequest())).id,
-        (await first.createAsset(createImageRequest())).id
+        (await first.createAsset(createImageRequest(), TEST_USER_ID)).id,
+        (await second.createAsset(createImageRequest(), TEST_USER_ID)).id,
+        (await first.createAsset(createImageRequest(), TEST_USER_ID)).id
       ];
       expect(ids).toEqual([
         "creation_asset_000001",
@@ -133,7 +134,7 @@ describe("InMemoryAssetService", () => {
         parameters: { outputFormat: "markdown", tone: "warm" },
         creditEstimate: { credits: 1, unit: "credit" }
       }
-    });
+    }, TEST_USER_ID);
     const videoAsset = await service.createAsset({
       mode: "video",
       title: "视频资产",
@@ -154,7 +155,7 @@ describe("InMemoryAssetService", () => {
         parameters: { durationSeconds: 6, aspectRatio: "16:9", resolution: "1080p" },
         creditEstimate: { credits: 18, unit: "credit" }
       }
-    });
+    }, TEST_USER_ID);
 
     expect(textAsset.preview).toEqual({
       title: "文本资产",
@@ -168,7 +169,7 @@ describe("InMemoryAssetService", () => {
 
   it("lists created assets with defensive copies", async () => {
     const service = createService();
-    const asset = await service.createAsset(createImageRequest());
+    const asset = await service.createAsset(createImageRequest(), TEST_USER_ID);
     asset.preset.parameters.quality = "mutated";
     asset.preset.creditEstimate.credits = 999;
     asset.preview.title = "mutated";
@@ -176,7 +177,7 @@ describe("InMemoryAssetService", () => {
       asset.content.alt = "mutated";
     }
 
-    const [listedAsset] = await service.listAssets();
+    const [listedAsset] = await service.listAssets(TEST_USER_ID);
     expect(listedAsset).toMatchObject({
       preset: {
         parameters: {
@@ -200,7 +201,7 @@ describe("InMemoryAssetService", () => {
       listedAsset!.content.alt = "changed again";
     }
 
-    expect((await service.listAssets())[0]).toMatchObject({
+    expect((await service.listAssets(TEST_USER_ID))[0]).toMatchObject({
       preset: {
         parameters: {
           quality: "high"
@@ -229,7 +230,7 @@ describe("InMemoryAssetService", () => {
       }
     } as unknown as CreationAssetRequest;
 
-    const asset = await service.createAsset(request);
+    const asset = await service.createAsset(request, TEST_USER_ID);
     expect(asset.content).toEqual({
       kind: "image",
       url: "https://assets.gw-link.local/placeholders/image-generation.png",
@@ -241,7 +242,7 @@ describe("InMemoryAssetService", () => {
       "mutated"
     );
 
-    const [listedAsset] = await service.listAssets();
+    const [listedAsset] = await service.listAssets(TEST_USER_ID);
     expect(listedAsset!.content).toEqual({
       kind: "image",
       url: "https://assets.gw-link.local/placeholders/image-generation.png",
@@ -257,7 +258,7 @@ describe("InMemoryAssetService", () => {
         service.createAsset({
           ...createImageRequest(),
           mode: "audio" as "image"
-        }),
+        }, TEST_USER_ID),
       "Unsupported asset mode",
       400
     );
@@ -266,17 +267,17 @@ describe("InMemoryAssetService", () => {
   it("rejects empty titles, prompts, and optimized prompts", async () => {
     const service = createService();
     await expectAssetError(
-      () => service.createAsset({ ...createImageRequest(), title: " " }),
+      () => service.createAsset({ ...createImageRequest(), title: " " }, TEST_USER_ID),
       "Asset title is required",
       400
     );
     await expectAssetError(
-      () => service.createAsset({ ...createImageRequest(), prompt: " " }),
+      () => service.createAsset({ ...createImageRequest(), prompt: " " }, TEST_USER_ID),
       "Prompt is required",
       400
     );
     await expectAssetError(
-      () => service.createAsset({ ...createImageRequest(), optimizedPrompt: " " }),
+      () => service.createAsset({ ...createImageRequest(), optimizedPrompt: " " }, TEST_USER_ID),
       "Optimized prompt is required",
       400
     );
@@ -295,7 +296,7 @@ describe("InMemoryAssetService", () => {
             parameters: {},
             creditEstimate: { credits: 2, unit: "credit" }
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid preset suggestion",
       400
     );
@@ -307,7 +308,7 @@ describe("InMemoryAssetService", () => {
             ...request.preset,
             parameters: { quality: Number.POSITIVE_INFINITY }
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid preset suggestion",
       400
     );
@@ -319,7 +320,7 @@ describe("InMemoryAssetService", () => {
             ...request.preset,
             creditEstimate: { credits: 0, unit: "credit" }
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid preset suggestion",
       400
     );
@@ -336,7 +337,7 @@ describe("InMemoryAssetService", () => {
             text: "wrong mode",
             format: "plain"
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid asset content",
       400
     );
@@ -349,7 +350,7 @@ describe("InMemoryAssetService", () => {
             url: "",
             alt: "missing url"
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid asset content",
       400
     );
@@ -365,7 +366,7 @@ describe("InMemoryAssetService", () => {
             taskId: "",
             taskStatus: "succeeded"
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid asset source",
       400
     );
@@ -377,7 +378,7 @@ describe("InMemoryAssetService", () => {
             taskId: "generation_task_000001",
             taskStatus: "queued"
           }
-        }),
+        }, TEST_USER_ID),
       "Invalid asset source",
       400
     );
@@ -386,9 +387,17 @@ describe("InMemoryAssetService", () => {
   it("rejects non-object asset requests without TypeError", async () => {
     const service = createService();
     await expectAssetError(
-      () => service.createAsset(null as unknown as CreationAssetRequest),
+      () => service.createAsset(null as unknown as CreationAssetRequest, TEST_USER_ID),
       "Invalid asset request",
       400
     );
+  });
+
+  it("lists only the requesting user's assets", async () => {
+    const service = createService();
+    await service.createAsset(createImageRequest(), "user-a");
+
+    expect(await service.listAssets("user-a")).toHaveLength(1);
+    expect(await service.listAssets("user-b")).toEqual([]);
   });
 });

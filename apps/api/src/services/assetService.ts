@@ -31,8 +31,8 @@ export interface AssetServiceOptions {
 }
 
 export interface AssetService {
-  createAsset(request: CreationAssetRequest): CreationAsset | Promise<CreationAsset>;
-  listAssets(): CreationAsset[] | Promise<CreationAsset[]>;
+  createAsset(request: CreationAssetRequest, userId: string): CreationAsset | Promise<CreationAsset>;
+  listAssets(userId: string): CreationAsset[] | Promise<CreationAsset[]>;
 }
 
 const previews: Record<CreationMode, CreationAssetPreview> = {
@@ -62,7 +62,7 @@ export class AssetServiceImpl implements AssetService {
     this.idGenerator = options.idGenerator ?? (() => this.createAssetId());
   }
 
-  async createAsset(request: CreationAssetRequest): Promise<CreationAsset> {
+  async createAsset(request: CreationAssetRequest, userId: string): Promise<CreationAsset> {
     const value: unknown = request;
 
     if (!isRecord(value)) {
@@ -117,12 +117,12 @@ export class AssetServiceImpl implements AssetService {
       createdAt: this.clock.now().toISOString()
     };
 
-    await this.assets.insert(asset);
+    await this.assets.insert(asset, userId);
     return cloneAsset(asset);
   }
 
-  async listAssets(): Promise<CreationAsset[]> {
-    return this.assets.list();
+  async listAssets(userId: string): Promise<CreationAsset[]> {
+    return this.assets.list(userId);
   }
 
   private createAssetId(): string {

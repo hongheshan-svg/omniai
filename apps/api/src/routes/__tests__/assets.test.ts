@@ -4,13 +4,36 @@ import { AssetError, InMemoryAssetService, type AssetService } from "../../servi
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
 
+const testConfig = {
+  port: 8787,
+  gatewayBaseUrl: "https://gateway.gw-link.local",
+  authDevCodesEnabled: true,
+  modelConfigPath: "config/models.json"
+};
+
 function buildAssetTestServer() {
   return buildServer({
+    config: testConfig,
     assetService: new InMemoryAssetService({
       clock: { now: () => fixedNow },
       idGenerator: () => "creation_asset_000001"
     })
   });
+}
+
+async function authenticate(server: ReturnType<typeof buildAssetTestServer>): Promise<string> {
+  const start = await server.inject({
+    method: "POST",
+    url: "/v1/auth/start-login",
+    payload: { destination: "creator@example.com" }
+  });
+  const { challengeId, devCode } = start.json() as { challengeId: string; devCode: string };
+  const verify = await server.inject({
+    method: "POST",
+    url: "/v1/auth/verify-login",
+    payload: { challengeId, code: devCode }
+  });
+  return (verify.json() as { token: string }).token;
 }
 
 function createImagePayload() {
@@ -43,9 +66,11 @@ function createImagePayload() {
 describe("asset routes", () => {
   it("creates and lists creation assets", async () => {
     const server = buildAssetTestServer();
+    const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -85,7 +110,8 @@ describe("asset routes", () => {
 
     const listResponse = await server.inject({
       method: "GET",
-      url: "/v1/assets"
+      url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(listResponse.statusCode).toBe(200);
@@ -96,6 +122,7 @@ describe("asset routes", () => {
 
   it("rejects malformed asset requests", async () => {
     const server = buildAssetTestServer();
+    const token = await authenticate(server);
     const valid = createImagePayload();
     const invalidPayloads = [
       {},
@@ -113,6 +140,7 @@ describe("asset routes", () => {
       const response = await server.inject({
         method: "POST",
         url: "/v1/assets",
+        headers: { authorization: `Bearer ${token}` },
         payload
       });
 
@@ -125,9 +153,11 @@ describe("asset routes", () => {
 
   it("maps asset domain errors to HTTP responses", async () => {
     const server = buildAssetTestServer();
+    const token = await authenticate(server);
     const unsupportedMode = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         mode: "audio"
@@ -136,6 +166,7 @@ describe("asset routes", () => {
     const emptyTitle = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         title: " "
@@ -144,6 +175,7 @@ describe("asset routes", () => {
     const invalidContent = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         content: {
@@ -156,6 +188,7 @@ describe("asset routes", () => {
     const invalidSource = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: {
         ...createImagePayload(),
         source: {
@@ -177,15 +210,17 @@ describe("asset routes", () => {
 
   it("maps unexpected asset service errors to a 500 response", async () => {
     const assetService = {
-      createAsset: () => {
+      createAsset: (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listAssets: () => []
+      listAssets: (_userId: string) => []
     } satisfies AssetService;
-    const server = buildServer({ assetService });
+    const server = buildServer({ config: testConfig, assetService });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -197,15 +232,17 @@ describe("asset routes", () => {
 
   it("maps async rejected asset creation errors to a 500 response", async () => {
     const assetService = {
-      createAsset: async () => {
+      createAsset: async (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listAssets: () => []
+      listAssets: (_userId: string) => []
     } as unknown as AssetService;
-    const server = buildServer({ assetService });
+    const server = buildServer({ config: testConfig, assetService });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -217,15 +254,17 @@ describe("asset routes", () => {
 
   it("maps asset errors from injected services", async () => {
     const assetService = {
-      createAsset: () => {
+      createAsset: (_request: unknown, _userId: string) => {
         throw new AssetError("Invalid asset source", 422);
       },
-      listAssets: () => []
+      listAssets: (_userId: string) => []
     } satisfies AssetService;
-    const server = buildServer({ assetService });
+    const server = buildServer({ config: testConfig, assetService });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` },
       payload: createImagePayload()
     });
 
@@ -237,17 +276,19 @@ describe("asset routes", () => {
 
   it("maps unexpected asset list errors to a 500 response", async () => {
     const assetService = {
-      createAsset: () => {
+      createAsset: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listAssets: () => {
+      listAssets: (_userId: string) => {
         throw new Error("boom");
       }
     } satisfies AssetService;
-    const server = buildServer({ assetService });
+    const server = buildServer({ config: testConfig, assetService });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "GET",
-      url: "/v1/assets"
+      url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(response.statusCode).toBe(500);
@@ -258,17 +299,19 @@ describe("asset routes", () => {
 
   it("maps asset list errors from injected services", async () => {
     const assetService = {
-      createAsset: () => {
+      createAsset: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listAssets: () => {
+      listAssets: (_userId: string) => {
         throw new AssetError("Asset library unavailable", 503);
       }
     } satisfies AssetService;
-    const server = buildServer({ assetService });
+    const server = buildServer({ config: testConfig, assetService });
+    const token = await authenticate(server);
     const response = await server.inject({
       method: "GET",
-      url: "/v1/assets"
+      url: "/v1/assets",
+      headers: { authorization: `Bearer ${token}` }
     });
 
     expect(response.statusCode).toBe(503);

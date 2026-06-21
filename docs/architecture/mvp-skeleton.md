@@ -70,3 +70,18 @@ reserves a nullable `owner_user_id` column on tasks and assets for later
 per-user isolation but does not populate or filter on it — `listTasks` and
 `listAssets` still return everything, matching prior behavior. Real provider
 calls, object storage, billing, and per-user access control remain later slices.
+
+## Per-User Isolation Slice
+
+The per-user isolation slice scopes generation tasks and assets to the
+authenticated user without changing product contracts, route paths, or
+response shapes. A Fastify `preHandler` auth guard resolves the bearer token
+through the existing auth session service and attaches the user id to the
+request; `/v1/generations` and `/v1/assets` (read and write) require it, while
+the model catalog, prompt optimizer, auth, and health routes stay public.
+
+The services thread the authenticated user id into the repositories, which
+write `owner_user_id` and filter lists by it. No database migration is needed —
+the `owner_user_id` columns were reserved in the Persistence Foundation slice.
+Isolation is enforced at the application layer; Postgres row-level security,
+refresh tokens, roles, and admin cross-user access remain later slices.

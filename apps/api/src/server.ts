@@ -64,8 +64,8 @@ export function buildServer(options: BuildServerOptions = {}) {
     getModelReference: (modelId, mode) => getModelCatalog().getModelReference(modelId, mode)
   });
   registerPromptRoutes(server, promptOptimizer);
-  registerGenerationRoutes(server, generationService);
-  registerAssetRoutes(server, assetService);
+  registerGenerationRoutes(server, generationService, authService);
+  registerAssetRoutes(server, assetService, authService);
   registerAuthRoutes(server, authService);
 
   return server;

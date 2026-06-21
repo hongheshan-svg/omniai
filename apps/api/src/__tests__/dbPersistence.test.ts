@@ -53,6 +53,13 @@ function buildServerForDb(database: PgliteDatabase) {
   });
 }
 
+async function login(server: ReturnType<typeof buildServerForDb>, destination: string): Promise<string> {
+  const start = await server.inject({ method: "POST", url: "/v1/auth/start-login", payload: { destination } });
+  const { challengeId, devCode } = start.json() as { challengeId: string; devCode: string };
+  const verify = await server.inject({ method: "POST", url: "/v1/auth/verify-login", payload: { challengeId, code: devCode } });
+  return (verify.json() as { token: string }).token;
+}
+
 describe("database-backed persistence", () => {
   let database: PgliteDatabase;
 
@@ -64,26 +71,51 @@ describe("database-backed persistence", () => {
     await database.close();
   });
 
+  it("isolates tasks and assets between users", async () => {
+    const server = buildServerForDb(database);
+    const tokenA = await login(server, "alice@example.com");
+    const tokenB = await login(server, "bob@example.com");
+
+    await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenA}` },
+      payload: {
+        mode: "text",
+        prompt: "Alice 的任务",
+        optimizedPrompt: "Alice 的优化提示。",
+        preset: {
+          modelId: "gw-text-balanced",
+          parameters: { outputFormat: "markdown", tone: "clear" },
+          creditEstimate: { credits: 1, unit: "credit" }
+        }
+      }
+    });
+
+    const aliceList = await server.inject({
+      method: "GET",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenA}` }
+    });
+    expect((aliceList.json() as { tasks: unknown[] }).tasks).toHaveLength(1);
+
+    const bobList = await server.inject({
+      method: "GET",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${tokenB}` }
+    });
+    expect(bobList.json()).toEqual({ tasks: [] });
+  });
+
   it("persists sessions, tasks, and assets across service instances", async () => {
     const first = buildServerForDb(database);
-
-    const startResponse = await first.inject({
-      method: "POST",
-      url: "/v1/auth/start-login",
-      payload: { destination: "creator@example.com" }
-    });
-    const { challengeId, devCode } = startResponse.json() as { challengeId: string; devCode: string };
-
-    const verifyResponse = await first.inject({
-      method: "POST",
-      url: "/v1/auth/verify-login",
-      payload: { challengeId, code: devCode }
-    });
-    const { token } = verifyResponse.json() as { token: string };
+    const token = await login(first, "creator@example.com");
+    const auth = { authorization: `Bearer ${token}` };
 
     await first.inject({
       method: "POST",
       url: "/v1/generations",
+      headers: auth,
       payload: {
         mode: "text",
         prompt: "帮我写一个新品发布文案",
@@ -99,6 +131,7 @@ describe("database-backed persistence", () => {
     await first.inject({
       method: "POST",
       url: "/v1/assets",
+      headers: auth,
       payload: {
         mode: "text",
         title: "文本资产",
@@ -114,25 +147,16 @@ describe("database-backed persistence", () => {
       }
     });
 
-    // Simulate a process restart: brand-new server + services over the SAME database.
     const second = buildServerForDb(database);
+    const sessionResponse = await second.inject({ method: "GET", url: "/v1/auth/session", headers: auth });
+    expect(sessionResponse.json()).toMatchObject({ authenticated: true, user: { destination: "creator@example.com" } });
 
-    const sessionResponse = await second.inject({
-      method: "GET",
-      url: "/v1/auth/session",
-      headers: { authorization: `Bearer ${token}` }
-    });
-    expect(sessionResponse.json()).toMatchObject({
-      authenticated: true,
-      user: { destination: "creator@example.com" }
-    });
-
-    const tasksResponse = await second.inject({ method: "GET", url: "/v1/generations" });
+    const tasksResponse = await second.inject({ method: "GET", url: "/v1/generations", headers: auth });
     expect(tasksResponse.json()).toMatchObject({
       tasks: [{ mode: "text", status: "queued", prompt: "帮我写一个新品发布文案" }]
     });
 
-    const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets" });
+    const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets", headers: auth });
     expect(assetsResponse.json()).toMatchObject({
       assets: [{ mode: "text", title: "文本资产" }]
     });

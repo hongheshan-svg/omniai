@@ -42,11 +42,11 @@ export interface ChallengeRepository {
 }
 
 export interface GenerationTaskRepository {
-  insert(task: GenerationTask): Promise<void>;
-  list(): Promise<GenerationTask[]>;
+  insert(task: GenerationTask, ownerUserId: string): Promise<void>;
+  list(ownerUserId: string): Promise<GenerationTask[]>;
 }
 
 export interface AssetRepository {
-  insert(asset: CreationAsset): Promise<void>;
-  list(): Promise<CreationAsset[]>;
+  insert(asset: CreationAsset, ownerUserId: string): Promise<void>;
+  list(ownerUserId: string): Promise<CreationAsset[]>;
 }

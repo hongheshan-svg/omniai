@@ -1,9 +1,17 @@
 import type { CreationAssetRequest } from "@gw-link-omniai/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { AssetError, type AssetService } from "../services/assetService";
+import type { AuthService } from "../services/authService";
+import { createAuthGuard } from "./authGuard";
 
-export function registerAssetRoutes(server: FastifyInstance, assetService: AssetService): void {
-  server.post("/v1/assets", async (request, reply) => {
+export function registerAssetRoutes(
+  server: FastifyInstance,
+  assetService: AssetService,
+  authService: AuthService
+): void {
+  const preHandler = createAuthGuard(authService);
+
+  server.post("/v1/assets", { preHandler }, async (request, reply) => {
     const assetRequest = readCreationAssetRequest(request.body);
 
     if (!assetRequest) {
@@ -11,16 +19,16 @@ export function registerAssetRoutes(server: FastifyInstance, assetService: Asset
     }
 
     try {
-      const asset = await assetService.createAsset(assetRequest);
+      const asset = await assetService.createAsset(assetRequest, request.userId!);
       return { asset };
     } catch (error) {
       return sendAssetError(reply, error);
     }
   });
 
-  server.get("/v1/assets", async (_request, reply) => {
+  server.get("/v1/assets", { preHandler }, async (request, reply) => {
     try {
-      const assets = await assetService.listAssets();
+      const assets = await assetService.listAssets(request.userId!);
       return { assets };
     } catch (error) {
       return sendAssetError(reply, error);

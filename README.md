@@ -141,6 +141,32 @@ DATABASE_URL=postgresql://... pnpm --filter @gw-link-omniai/api db:migrate
   auth, and global (non-per-user) list semantics. A nullable `owner_user_id`
   column is reserved for later per-user isolation.
 
+### Per-User Isolation
+
+The sixth product-first slice scopes generation tasks and assets to the
+authenticated user and guards the protected routes.
+
+- `/v1/generations` and `/v1/assets` (POST and GET) now require a bearer token;
+  missing or invalid tokens get `401 { "error": "Authentication required" }`.
+- `/health`, `/v1/models`, `/v1/prompt/*`, and `/v1/auth/*` stay public.
+- List endpoints return only the calling user's items; new rows are written
+  under the user's `owner_user_id`.
+- No database migration — this reuses the `owner_user_id` columns reserved in
+  the Persistence Foundation slice.
+
+Obtain a token via the passwordless login flow, then call a protected route:
+
+```bash
+# 1) start-login returns a devCode in local development
+curl -s -X POST http://localhost:8787/v1/auth/start-login \
+  -H 'content-type: application/json' -d '{"destination":"creator@example.com"}'
+# 2) verify-login returns a token
+curl -s -X POST http://localhost:8787/v1/auth/verify-login \
+  -H 'content-type: application/json' -d '{"challengeId":"<id>","code":"<devCode>"}'
+# 3) call a protected route with the token
+curl -s http://localhost:8787/v1/generations -H 'authorization: Bearer <token>'
+```
+
 ## Validation
 
 ```bash
