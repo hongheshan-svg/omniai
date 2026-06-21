@@ -225,4 +225,14 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     const second = await tasks.list();
     expect(second[0]!.preset.parameters.quality).toBe("high");
   });
+
+  it("does not share mutable references with the inserted task (write isolation)", async () => {
+    const { tasks } = context.bundle;
+    const task = makeTask({ id: "task-a" });
+    await tasks.insert(task);
+    task.preset.parameters.quality = "mutated";
+
+    const listed = await tasks.list();
+    expect(listed[0]!.preset.parameters.quality).toBe("high");
+  });
 });
