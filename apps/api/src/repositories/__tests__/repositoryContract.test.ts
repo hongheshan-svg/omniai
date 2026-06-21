@@ -3,6 +3,7 @@ import type { CreationAsset, GenerationTask, UserProfile } from "@gw-link-omniai
 import {
   InMemoryAssetRepository,
   InMemoryChallengeRepository,
+  InMemoryCreditTransactionRepository,
   InMemoryGenerationTaskRepository,
   InMemorySessionRepository,
   InMemoryUserRepository
@@ -10,6 +11,7 @@ import {
 import type {
   AssetRepository,
   ChallengeRepository,
+  CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
   SessionRecord,
@@ -19,6 +21,7 @@ import type {
 import {
   DrizzleAssetRepository,
   DrizzleChallengeRepository,
+  DrizzleCreditTransactionRepository,
   DrizzleGenerationTaskRepository,
   DrizzleSessionRepository,
   DrizzleUserRepository
@@ -31,6 +34,7 @@ interface RepositoryBundle {
   challenges: ChallengeRepository;
   tasks: GenerationTaskRepository;
   assets: AssetRepository;
+  credits: CreditTransactionRepository;
 }
 
 interface BackendContext {
@@ -45,7 +49,8 @@ async function setupMemory(): Promise<BackendContext> {
       sessions: new InMemorySessionRepository(),
       challenges: new InMemoryChallengeRepository(),
       tasks: new InMemoryGenerationTaskRepository(),
-      assets: new InMemoryAssetRepository()
+      assets: new InMemoryAssetRepository(),
+      credits: new InMemoryCreditTransactionRepository()
     },
     async close() {}
   };
@@ -59,7 +64,8 @@ async function setupPglite(): Promise<BackendContext> {
       sessions: new DrizzleSessionRepository(db),
       challenges: new DrizzleChallengeRepository(db),
       tasks: new DrizzleGenerationTaskRepository(db),
-      assets: new DrizzleAssetRepository(db)
+      assets: new DrizzleAssetRepository(db),
+      credits: new DrizzleCreditTransactionRepository(db)
     },
     close
   };
@@ -284,5 +290,29 @@ describe.each(backends)("$name repositories", ({ setup }) => {
 
     const listed = await tasks.list("owner-a");
     expect(listed[0]!.preset.parameters.quality).toBe("high");
+  });
+
+  it("starts a credit balance at zero", async () => {
+    const { users, credits } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    expect(await credits.balance("owner-a")).toBe(0);
+  });
+
+  it("sums credit transactions into a balance scoped to the owner", async () => {
+    const { users, credits } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+
+    await credits.insert(
+      { id: "tx-1", amount: 100, reason: "signup_grant", reference: null, createdAt: "2026-06-20T00:00:00.000Z" },
+      "owner-a"
+    );
+    await credits.insert(
+      { id: "tx-2", amount: -2, reason: "generation", reference: "task-1", createdAt: "2026-06-20T00:00:01.000Z" },
+      "owner-a"
+    );
+
+    expect(await credits.balance("owner-a")).toBe(98);
+    expect(await credits.balance("owner-b")).toBe(0);
   });
 });
