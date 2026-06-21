@@ -58,7 +58,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   const authService =
     options.authService ??
     new InMemoryAuthService({
-      devCodesEnabled: getConfig().authDevCodesEnabled
+      devCodesEnabled: getConfig().authDevCodesEnabled,
+      creditGranter: creditService
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
   const providerAdapter = options.providerAdapter ?? new OpenAiCompatibleTextProvider();
@@ -100,7 +101,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     modelCatalog: services.modelCatalog,
     authService: services.authService,
     generationService: services.generationService,
-    assetService: services.assetService
+    assetService: services.assetService,
+    creditService: services.creditService
   });
 
   const shutdown = async (signal: string) => {

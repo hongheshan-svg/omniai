@@ -39,6 +39,10 @@ export interface AuthClock {
   now(): Date;
 }
 
+export interface CreditGranter {
+  grantInitial(userId: string): Promise<void> | void;
+}
+
 export interface AuthServiceOptions {
   challengeTtlMs?: number;
   sessionTtlMs?: number;
@@ -48,6 +52,7 @@ export interface AuthServiceOptions {
   challengeIdGenerator?: () => string;
   devCodesEnabled?: boolean;
   maxFailedAttempts?: number;
+  creditGranter?: CreditGranter;
 }
 
 export interface AuthService {
@@ -72,6 +77,7 @@ export class AuthServiceImpl implements AuthService {
   private readonly challengeIdGenerator: () => string;
   private readonly devCodesEnabled: boolean;
   private readonly maxFailedAttempts: number;
+  private readonly creditGranter?: CreditGranter;
   private readonly users: UserRepository;
   private readonly sessions: SessionRepository;
   private readonly challenges: ChallengeRepository;
@@ -88,6 +94,7 @@ export class AuthServiceImpl implements AuthService {
     this.challengeIdGenerator = options.challengeIdGenerator ?? randomUUID;
     this.devCodesEnabled = options.devCodesEnabled ?? false;
     this.maxFailedAttempts = options.maxFailedAttempts ?? DEFAULT_MAX_FAILED_ATTEMPTS;
+    this.creditGranter = options.creditGranter;
   }
 
   async startLogin(request: LoginStartRequest): Promise<LoginStartResponse> {
@@ -211,6 +218,11 @@ export class AuthServiceImpl implements AuthService {
     };
 
     await this.users.insert(user);
+
+    if (this.creditGranter) {
+      await this.creditGranter.grantInitial(user.id);
+    }
+
     return user;
   }
 }

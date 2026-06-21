@@ -4,12 +4,14 @@ import { createDbClient, type AppDatabase } from "../db/client";
 import {
   DrizzleAssetRepository,
   DrizzleChallengeRepository,
+  DrizzleCreditTransactionRepository,
   DrizzleGenerationTaskRepository,
   DrizzleSessionRepository,
   DrizzleUserRepository
 } from "../repositories/drizzle";
 import { AssetServiceImpl, InMemoryAssetService, type AssetService } from "./assetService";
 import { AuthServiceImpl, InMemoryAuthService, type AuthService } from "./authService";
+import { CreditServiceImpl, InMemoryCreditService, type CreditService } from "./creditService";
 import {
   GenerationServiceImpl,
   InMemoryGenerationService,
@@ -24,6 +26,7 @@ export interface AppServices {
   authService: AuthService;
   generationService: GenerationService;
   assetService: AssetService;
+  creditService: CreditService;
   modelCatalog: ModelCatalog;
   verifyConnectivity(): Promise<void>;
   closeDb(): Promise<void>;
@@ -32,15 +35,25 @@ export interface AppServices {
 export function createDbServices(
   db: AppDatabase,
   modelCatalog: ModelCatalog,
-  options: { authDevCodesEnabled: boolean; providerAdapter?: ProviderAdapter }
-): { authService: AuthService; generationService: GenerationService; assetService: AssetService } {
+  options: { authDevCodesEnabled: boolean; initialCredits: number; providerAdapter?: ProviderAdapter }
+): {
+  authService: AuthService;
+  generationService: GenerationService;
+  assetService: AssetService;
+  creditService: CreditService;
+} {
+  const creditService = new CreditServiceImpl(new DrizzleCreditTransactionRepository(db), {
+    initialCredits: options.initialCredits,
+    idGenerator: () => `credit_transaction_${randomUUID()}`
+  });
+
   const authService = new AuthServiceImpl(
     {
       users: new DrizzleUserRepository(db),
       sessions: new DrizzleSessionRepository(db),
       challenges: new DrizzleChallengeRepository(db)
     },
-    { devCodesEnabled: options.authDevCodesEnabled }
+    { devCodesEnabled: options.authDevCodesEnabled, creditGranter: creditService }
   );
 
   const generationService = new GenerationServiceImpl(new DrizzleGenerationTaskRepository(db), {
@@ -53,7 +66,7 @@ export function createDbServices(
     idGenerator: () => `creation_asset_${randomUUID()}`
   });
 
-  return { authService, generationService, assetService };
+  return { authService, generationService, assetService, creditService };
 }
 
 export function createServices(config: ApiConfig): AppServices {
@@ -62,10 +75,15 @@ export function createServices(config: ApiConfig): AppServices {
   );
 
   if (!config.databaseUrl) {
+    const creditService = new InMemoryCreditService({ initialCredits: config.initialCredits });
     return {
-      authService: new InMemoryAuthService({ devCodesEnabled: config.authDevCodesEnabled }),
+      authService: new InMemoryAuthService({
+        devCodesEnabled: config.authDevCodesEnabled,
+        creditGranter: creditService
+      }),
       generationService: new InMemoryGenerationService({ modelCatalog, providerAdapter: new OpenAiCompatibleTextProvider() }),
       assetService: new InMemoryAssetService(),
+      creditService,
       modelCatalog,
       async verifyConnectivity() {},
       async closeDb() {}
@@ -74,7 +92,8 @@ export function createServices(config: ApiConfig): AppServices {
 
   const client = createDbClient(config.databaseUrl);
   const services = createDbServices(client.db, modelCatalog, {
-    authDevCodesEnabled: config.authDevCodesEnabled
+    authDevCodesEnabled: config.authDevCodesEnabled,
+    initialCredits: config.initialCredits
   });
 
   return {

@@ -47,6 +47,7 @@ function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
   const services = createDbServices(database.db, modelCatalog, {
     authDevCodesEnabled: true,
+    initialCredits: 100,
     providerAdapter: new FakeProviderAdapter()
   });
   return buildServer({

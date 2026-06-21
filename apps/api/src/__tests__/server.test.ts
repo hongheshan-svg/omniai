@@ -311,7 +311,7 @@ describe("product API", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ balance: { credits: 0, unit: "credit" } });
+    expect(response.json()).toEqual({ balance: { credits: 100, unit: "credit" } });
   });
 
   it("rejects unauthenticated credit balance requests", async () => {
