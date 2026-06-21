@@ -4,6 +4,7 @@ export interface ApiConfig {
   authDevCodesEnabled: boolean;
   modelConfigPath: string;
   databaseUrl?: string;
+  corsOrigins?: string[];
 }
 
 function parsePort(value: string | undefined): number {
@@ -38,12 +39,26 @@ function parseAuthDevCodesEnabled(env: NodeJS.ProcessEnv): boolean {
   throw new Error('GW_LINK_AUTH_DEV_CODES_ENABLED must be "true" or "false"');
 }
 
+function parseCorsOrigins(value: string | undefined): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const origins = value
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
+  return origins.length > 0 ? origins : undefined;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   return {
     port: parsePort(env.PORT),
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
     authDevCodesEnabled: parseAuthDevCodesEnabled(env),
     modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json",
-    databaseUrl: env.DATABASE_URL
+    databaseUrl: env.DATABASE_URL,
+    corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS)
   };
 }

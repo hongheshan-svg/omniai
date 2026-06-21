@@ -237,6 +237,18 @@ describe("product API", () => {
     expect(response.json()).toEqual({ error: "Authentication required" });
   });
 
+  it("reflects the request origin via CORS headers", async () => {
+    const server = buildServer();
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/models",
+      headers: { origin: "http://localhost:1420" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:1420");
+  });
+
   it("does not load environment config when an auth service is injected", () => {
     const originalPort = process.env.PORT;
     const fakeAuthService = {
