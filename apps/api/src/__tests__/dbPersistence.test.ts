@@ -12,7 +12,8 @@ function smokeConfig(): ApiConfig {
     port: 8787,
     gatewayBaseUrl: "https://gateway.gw-link.local",
     authDevCodesEnabled: true,
-    modelConfigPath: "config/models.json"
+    modelConfigPath: "config/models.json",
+    initialCredits: 100
   };
 }
 
@@ -46,6 +47,7 @@ function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
   const services = createDbServices(database.db, modelCatalog, {
     authDevCodesEnabled: true,
+    initialCredits: 100,
     providerAdapter: new FakeProviderAdapter()
   });
   return buildServer({

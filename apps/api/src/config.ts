@@ -3,6 +3,7 @@ export interface ApiConfig {
   gatewayBaseUrl: string;
   authDevCodesEnabled: boolean;
   modelConfigPath: string;
+  initialCredits: number;
   databaseUrl?: string;
   corsOrigins?: string[];
 }
@@ -39,6 +40,20 @@ function parseAuthDevCodesEnabled(env: NodeJS.ProcessEnv): boolean {
   throw new Error('GW_LINK_AUTH_DEV_CODES_ENABLED must be "true" or "false"');
 }
 
+function parseInitialCredits(value: string | undefined): number {
+  if (value === undefined) {
+    return 100;
+  }
+
+  const credits = Number(value);
+
+  if (!Number.isInteger(credits) || credits < 0) {
+    throw new Error("GW_LINK_INITIAL_CREDITS must be a non-negative integer");
+  }
+
+  return credits;
+}
+
 function parseCorsOrigins(value: string | undefined): string[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -58,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
     authDevCodesEnabled: parseAuthDevCodesEnabled(env),
     modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json",
+    initialCredits: parseInitialCredits(env.GW_LINK_INITIAL_CREDITS),
     databaseUrl: env.DATABASE_URL,
     corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS)
   };

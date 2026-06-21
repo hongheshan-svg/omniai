@@ -199,6 +199,22 @@ The eighth product-first slice makes text generation real.
   returned to clients.
 - The desktop task center shows the generated text when present.
 
+### Credit Foundation
+
+The ninth product-first slice adds a server-side credit ledger.
+
+- New users receive an initial credit grant (`GW_LINK_INITIAL_CREDITS`, default
+  100) recorded in an append-only `credit_transactions` ledger; balance is the
+  sum of transactions.
+- `POST /v1/generations` pre-checks the balance against the model's
+  `creditUnitCost` (text=1 / image=2 / video=3) and returns `402` without calling
+  the provider or persisting a task when the balance is insufficient. A
+  `succeeded` generation deducts the cost; a `queued` one does not.
+- `GET /v1/credits/balance` returns the authenticated user's balance
+  (`{ balance: { credits, unit } }`).
+- Concurrent deduction is not yet atomic, and the desktop balance display / 402
+  handling are later slices.
+
 ## Validation
 
 ```bash

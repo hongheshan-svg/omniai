@@ -6,10 +6,12 @@ import type {
   UserProfile
 } from "@gw-link-omniai/shared";
 import type { AppDatabase } from "../db/client";
-import { assets, generationTasks, loginChallenges, sessions, users } from "../db/schema";
+import { assets, creditTransactions, generationTasks, loginChallenges, sessions, users } from "../db/schema";
 import type {
   AssetRepository,
   ChallengeRepository,
+  CreditTransactionRecord,
+  CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
   SessionRecord,
@@ -241,5 +243,28 @@ export class DrizzleAssetRepository implements AssetRepository {
       .where(eq(assets.ownerUserId, ownerUserId))
       .orderBy(assets.createdAt);
     return rows.map(mapAssetRow);
+  }
+}
+
+export class DrizzleCreditTransactionRepository implements CreditTransactionRepository {
+  constructor(private readonly db: AppDatabase) {}
+
+  async insert(record: CreditTransactionRecord, ownerUserId: string): Promise<void> {
+    await this.db.insert(creditTransactions).values({
+      id: record.id,
+      ownerUserId,
+      amount: record.amount,
+      reason: record.reason,
+      reference: record.reference,
+      createdAt: new Date(record.createdAt)
+    });
+  }
+
+  async balance(ownerUserId: string): Promise<number> {
+    const rows = await this.db
+      .select({ amount: creditTransactions.amount })
+      .from(creditTransactions)
+      .where(eq(creditTransactions.ownerUserId, ownerUserId));
+    return rows.reduce((sum, row) => sum + row.amount, 0);
   }
 }

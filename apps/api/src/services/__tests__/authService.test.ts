@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { AuthError, InMemoryAuthService } from "../authService";
 
+describe("AuthService initial credit grant", () => {
+  it("grants initial credits only when a new user is created", async () => {
+    const granted: string[] = [];
+    const service = new InMemoryAuthService({
+      devCodesEnabled: true,
+      creditGranter: {
+        grantInitial: async (userId: string) => {
+          granted.push(userId);
+        }
+      }
+    });
+
+    const first = await service.startLogin({ destination: "grantee@example.com" });
+    const firstSession = await service.verifyLogin({ challengeId: first.challengeId, code: first.devCode! });
+    const second = await service.startLogin({ destination: "grantee@example.com" });
+    await service.verifyLogin({ challengeId: second.challengeId, code: second.devCode! });
+
+    expect(granted).toEqual([firstSession.user.id]);
+  });
+});
+
 const fixedNow = new Date("2026-06-19T12:00:00.000Z");
 const hashedEmailUserId = /^user_email_[a-f0-9]{16}$/;
 const hashedPhoneUserId = /^user_phone_[a-f0-9]{16}$/;

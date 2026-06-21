@@ -50,3 +50,16 @@ export interface AssetRepository {
   insert(asset: CreationAsset, ownerUserId: string): Promise<void>;
   list(ownerUserId: string): Promise<CreationAsset[]>;
 }
+
+export interface CreditTransactionRecord {
+  id: string;
+  amount: number;
+  reason: string;
+  reference: string | null;
+  createdAt: string;
+}
+
+export interface CreditTransactionRepository {
+  insert(record: CreditTransactionRecord, ownerUserId: string): Promise<void>;
+  balance(ownerUserId: string): Promise<number>;
+}

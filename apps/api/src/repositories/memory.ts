@@ -7,6 +7,8 @@ import type {
 import type {
   AssetRepository,
   ChallengeRepository,
+  CreditTransactionRecord,
+  CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
   SessionRecord,
@@ -121,5 +123,19 @@ export class InMemoryAssetRepository implements AssetRepository {
     return this.assets
       .filter((row) => row.ownerUserId === ownerUserId)
       .map((row) => structuredClone(row.asset));
+  }
+}
+
+export class InMemoryCreditTransactionRepository implements CreditTransactionRepository {
+  private readonly rows: Array<{ ownerUserId: string; record: CreditTransactionRecord }> = [];
+
+  async insert(record: CreditTransactionRecord, ownerUserId: string): Promise<void> {
+    this.rows.push({ ownerUserId, record: structuredClone(record) });
+  }
+
+  async balance(ownerUserId: string): Promise<number> {
+    return this.rows
+      .filter((row) => row.ownerUserId === ownerUserId)
+      .reduce((sum, row) => sum + row.record.amount, 0);
   }
 }

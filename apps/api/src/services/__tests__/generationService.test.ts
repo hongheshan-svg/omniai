@@ -1,9 +1,40 @@
 import { describe, expect, it } from "vitest";
-import type { GenerationTaskRequest } from "@gw-link-omniai/shared";
+import type { CreationMode, GenerationTaskRequest } from "@gw-link-omniai/shared";
 import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter } from "../gatewayClient";
 import { GenerationTaskError, InMemoryGenerationService } from "../generationService";
+import type { CreditService } from "../creditService";
 import { ConfigModelCatalog, type ModelCatalog } from "../modelCatalog";
 import type { ModelCatalogConfig } from "../modelConfig";
+
+class StubCreditService implements CreditService {
+  public readonly deductions: Array<{ userId: string; amount: number; reference: string }> = [];
+
+  constructor(private readonly creditsByUser: Record<string, number> = {}) {}
+
+  async getBalance(userId: string) {
+    return { credits: this.creditsByUser[userId] ?? 0, unit: "credit" as const };
+  }
+
+  async grantInitial() {}
+
+  async deduct(userId: string, amount: number, reference: string) {
+    this.deductions.push({ userId, amount, reference });
+    this.creditsByUser[userId] = (this.creditsByUser[userId] ?? 0) - amount;
+  }
+}
+
+function createTextRequest(modelId = "gw-text-balanced"): GenerationTaskRequest {
+  return {
+    mode: "text" as CreationMode,
+    prompt: "帮我写一个新品发布文案",
+    optimizedPrompt: "请生成一段新品推广文案。",
+    preset: {
+      modelId,
+      parameters: { outputFormat: "markdown", tone: "clear" },
+      creditEstimate: { credits: 1, unit: "credit" as const }
+    }
+  };
+}
 
 const fixedNow = new Date("2026-06-20T00:00:00.000Z");
 const TEST_USER_ID = "user_email_testowner000000";
@@ -521,5 +552,79 @@ describe("InMemoryGenerationService", () => {
 
     expect(await service.listTasks("user-a")).toHaveLength(1);
     expect(await service.listTasks("user-b")).toEqual([]);
+  });
+
+  it("rejects generation when the balance is below the model cost", async () => {
+    const credit = new StubCreditService({ "user-a": 0 });
+    let submitted = false;
+    const spyAdapter: ProviderAdapter = {
+      async submitGeneration(req) {
+        submitted = true;
+        return new FakeProviderAdapter().submitGeneration(req);
+      }
+    };
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_000001",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter: spyAdapter,
+      creditService: credit
+    });
+
+    await expect(service.createTask(createImageRequest(), "user-a")).rejects.toMatchObject({
+      message: "Insufficient credits",
+      statusCode: 402
+    });
+    expect(submitted).toBe(false);
+    expect(await service.listTasks("user-a")).toEqual([]);
+    expect(credit.deductions).toEqual([]);
+  });
+
+  it("deducts the model credit cost after a succeeded generation", async () => {
+    const credit = new StubCreditService({ "user-a": 100 });
+    const providerAdapter: ProviderAdapter = {
+      async submitGeneration() {
+        return {
+          status: "succeeded",
+          providerId: "openai-main",
+          providerProtocol: "openai-compatible",
+          providerModelId: "gpt-4.1-mini",
+          submittedAt: "2026-06-20T00:00:00.000Z",
+          result: { kind: "text", text: "生成的文案", format: "markdown" }
+        };
+      }
+    };
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_000001",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter,
+      creditService: credit
+    });
+
+    const task = await service.createTask(createTextRequest(), "user-a");
+
+    expect(task.status).toBe("succeeded");
+    expect(credit.deductions).toEqual([
+      { userId: "user-a", amount: 1, reference: "generation_task_000001" }
+    ]);
+    expect((await credit.getBalance("user-a")).credits).toBe(99);
+  });
+
+  it("does not deduct when the provider keeps the task queued", async () => {
+    const credit = new StubCreditService({ "user-a": 100 });
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_000001",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter: new FakeProviderAdapter(),
+      creditService: credit
+    });
+
+    const task = await service.createTask(createImageRequest(), "user-a");
+
+    expect(task.status).toBe("queued");
+    expect(credit.deductions).toEqual([]);
+    expect((await credit.getBalance("user-a")).credits).toBe(100);
   });
 });
