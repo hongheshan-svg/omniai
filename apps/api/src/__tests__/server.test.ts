@@ -3,6 +3,7 @@ import { buildServer } from "../server";
 import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
+import { FakeProviderAdapter } from "../services/gatewayClient";
 import { ConfigModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalogConfig } from "../services/modelConfig";
@@ -98,7 +99,7 @@ describe("product API", () => {
   }
 
   it("registers the generation routes", async () => {
-    const server = buildServer();
+    const server = buildServer({ providerAdapter: new FakeProviderAdapter() });
     const token = await authenticate(server);
     const createResponse = await server.inject({
       method: "POST",

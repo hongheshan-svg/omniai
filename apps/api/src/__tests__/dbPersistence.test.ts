@@ -3,6 +3,7 @@ import type { ApiConfig } from "../config";
 import type { ModelCatalogConfig } from "../services/modelConfig";
 import { buildServer } from "../server";
 import { createDbServices } from "../services/appServices";
+import { FakeProviderAdapter } from "../services/gatewayClient";
 import { ConfigModelCatalog } from "../services/modelCatalog";
 import { createPgliteDatabase, type PgliteDatabase } from "../testSupport/pglite";
 
@@ -43,7 +44,10 @@ function modelConfig(): ModelCatalogConfig {
 
 function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
-  const services = createDbServices(database.db, modelCatalog, { authDevCodesEnabled: true });
+  const services = createDbServices(database.db, modelCatalog, {
+    authDevCodesEnabled: true,
+    providerAdapter: new FakeProviderAdapter()
+  });
   return buildServer({
     config: smokeConfig(),
     modelCatalog,
