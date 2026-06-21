@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
+  CreditAmount,
   GenerationTask,
   PromptOptimization,
   SessionResponse
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "./apiClient";
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "./assetModel";
+import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
@@ -42,6 +44,7 @@ export function App({ client }: { client?: ApiClient } = {}) {
   const [optimization, setOptimization] = useState<PromptOptimization | undefined>(undefined);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<CreationAsset[]>([]);
+  const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
@@ -57,6 +60,7 @@ export function App({ client }: { client?: ApiClient } = {}) {
     setSession(anonymousSession);
     setTasks([]);
     setAssets([]);
+    setBalance(undefined);
     setOptimization(undefined);
     if (message) {
       setAuthError(message);
@@ -87,12 +91,14 @@ export function App({ client }: { client?: ApiClient } = {}) {
       setChallengeId(undefined);
       setDevCode(undefined);
       setCode("");
-      const [loadedTasks, loadedAssets] = await Promise.all([
+      const [loadedTasks, loadedAssets, loadedBalance] = await Promise.all([
         api.listGenerations(authSession.token),
-        api.listAssets(authSession.token)
+        api.listAssets(authSession.token),
+        api.getCreditBalance(authSession.token)
       ]);
       setTasks(loadedTasks);
       setAssets(loadedAssets);
+      setBalance(loadedBalance);
     } catch (error) {
       setAuthError(errorMessage(error));
     }
@@ -151,9 +157,14 @@ export function App({ client }: { client?: ApiClient } = {}) {
         token
       );
       setTasks(await api.listGenerations(token));
+      setBalance(await api.getCreditBalance(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
+      if (error instanceof ApiError && error.status === 402) {
+        setActionError("积分不足，无法生成");
         return;
       }
       setActionError(errorMessage(error));
@@ -211,6 +222,7 @@ export function App({ client }: { client?: ApiClient } = {}) {
       <header>
         <h1>GW-LINK OmniAI</h1>
         <button type="button">{getDesktopSessionCta(session)}</button>
+        {balance ? <p>{formatCreditBalance(balance)}</p> : null}
         <button type="button" onClick={handleLogout}>
           登出
         </button>
