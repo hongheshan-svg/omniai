@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   AuthSession,
   CreationAsset,
@@ -86,7 +86,23 @@ describe("Desktop App", () => {
   });
 
   it("completes the passwordless login flow", async () => {
-    await signIn(createFakeClient());
+    const startLogin = vi.fn(async () => ({
+      challengeId: "c1",
+      channel: "email" as const,
+      maskedDestination: "c***@example.com",
+      expiresAt: "2026-06-21T00:05:00.000Z",
+      devCode: "123456"
+    }));
+    const client = createFakeClient({ startLogin });
+    render(<App client={client} />);
+    fireEvent.change(screen.getByLabelText("登录邮箱或手机号"), {
+      target: { value: "creator@example.com" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByText("开发验证码：123456");
+    expect(startLogin).toHaveBeenCalledWith({ destination: "creator@example.com" });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await screen.findByRole("button", { name: "Signed in as creator" });
     expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
     const modeNavigation = screen.getByRole("navigation", { name: "Studio modes" });
     expect(within(modeNavigation).getByRole("button", { name: "文本创作" })).toBeTruthy();
