@@ -59,7 +59,8 @@ export function createDbServices(
   const generationService = new GenerationServiceImpl(new DrizzleGenerationTaskRepository(db), {
     modelCatalog,
     idGenerator: () => `generation_task_${randomUUID()}`,
-    providerAdapter: options.providerAdapter ?? new OpenAiCompatibleTextProvider()
+    providerAdapter: options.providerAdapter ?? new OpenAiCompatibleTextProvider(),
+    creditService
   });
 
   const assetService = new AssetServiceImpl(new DrizzleAssetRepository(db), {
@@ -81,7 +82,11 @@ export function createServices(config: ApiConfig): AppServices {
         devCodesEnabled: config.authDevCodesEnabled,
         creditGranter: creditService
       }),
-      generationService: new InMemoryGenerationService({ modelCatalog, providerAdapter: new OpenAiCompatibleTextProvider() }),
+      generationService: new InMemoryGenerationService({
+        modelCatalog,
+        providerAdapter: new OpenAiCompatibleTextProvider(),
+        creditService
+      }),
       assetService: new InMemoryAssetService(),
       creditService,
       modelCatalog,

@@ -7,6 +7,7 @@ import type {
   PresetSuggestion
 } from "@gw-link-omniai/shared";
 import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter, type ProviderGenerationResult } from "./gatewayClient";
+import type { CreditService } from "./creditService";
 import { ModelCatalogError, type ModelCatalog } from "./modelCatalog";
 import type { GenerationTaskRepository } from "../repositories/types";
 import { InMemoryGenerationTaskRepository } from "../repositories/memory";
@@ -30,6 +31,7 @@ export interface GenerationServiceOptions {
   idGenerator?: () => string;
   modelCatalog?: ModelCatalog;
   providerAdapter?: ProviderAdapter;
+  creditService?: CreditService;
 }
 
 export interface GenerationService {
@@ -57,6 +59,7 @@ export class GenerationServiceImpl implements GenerationService {
   private readonly idGenerator: () => string;
   private readonly modelCatalog?: ModelCatalog;
   private readonly providerAdapter: ProviderAdapter;
+  private readonly creditService?: CreditService;
   private readonly tasks: GenerationTaskRepository;
 
   constructor(taskRepository: GenerationTaskRepository, options: GenerationServiceOptions = {}) {
@@ -65,6 +68,7 @@ export class GenerationServiceImpl implements GenerationService {
     this.idGenerator = options.idGenerator ?? createGenerationTaskId;
     this.modelCatalog = options.modelCatalog;
     this.providerAdapter = options.providerAdapter ?? new FakeProviderAdapter();
+    this.creditService = options.creditService;
   }
 
   async createTask(request: GenerationTaskRequest, userId: string): Promise<GenerationTask> {
@@ -116,6 +120,14 @@ export class GenerationServiceImpl implements GenerationService {
       throw new GenerationTaskError("Model is temporarily unavailable", 409);
     }
 
+    const creditCost = modelReference.product.creditUnitCost;
+    if (this.creditService) {
+      const balance = await this.creditService.getBalance(userId);
+      if (balance.credits < creditCost) {
+        throw new GenerationTaskError("Insufficient credits", 402);
+      }
+    }
+
     let providerResult: ProviderGenerationResult;
     try {
       providerResult = await this.providerAdapter.submitGeneration({
@@ -150,6 +162,11 @@ export class GenerationServiceImpl implements GenerationService {
     };
 
     await this.tasks.insert(task, userId);
+
+    if (this.creditService && providerResult.status === "succeeded") {
+      await this.creditService.deduct(userId, creditCost, task.id);
+    }
+
     return cloneGenerationTask(task);
   }
 

@@ -67,7 +67,8 @@ export function buildServer(options: BuildServerOptions = {}) {
     options.generationService ??
     new InMemoryGenerationService({
       modelCatalog: getModelCatalog(),
-      providerAdapter
+      providerAdapter,
+      creditService
     });
 
   registerHealthRoute(server);
