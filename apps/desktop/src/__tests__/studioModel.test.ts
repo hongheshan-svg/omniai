@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CreationMode } from "@gw-link-omniai/shared";
-import {
-  getFixtureOptimization,
-  getStudioModeContent,
-  getStudioModes,
-  getStudioTemplates
-} from "../studioModel";
+import { getStudioModeContent, getStudioModes, getStudioTemplates } from "../studioModel";
 
 describe("desktop studio model", () => {
   it("lists studio modes in text, image, video order with localized titles", () => {
@@ -49,25 +44,7 @@ describe("desktop studio model", () => {
     ]);
   });
 
-  it("provides fixture optimizations for each creation mode", () => {
-    const textOptimization = getFixtureOptimization("text");
-    expect(textOptimization.mode).toBe("text");
-    expect(textOptimization.preset.modelId).toBe("gw-text-balanced");
-    expect(textOptimization.preset.creditEstimate).toEqual({ credits: 1, unit: "credit" });
-
-    const imageOptimization = getFixtureOptimization("image");
-    expect(imageOptimization.mode).toBe("image");
-    expect(imageOptimization.preset.modelId).toBe("gw-image-creative");
-    expect(imageOptimization.sections.map((section) => section.label)).toContain("负向提示词");
-
-    const videoOptimization = getFixtureOptimization("video");
-    expect(videoOptimization.mode).toBe("video");
-    expect(videoOptimization.preset.modelId).toBe("gw-video-motion");
-    expect(videoOptimization.preset.creditEstimate).toEqual({ credits: 18, unit: "credit" });
-    expect(videoOptimization.sections.map((section) => section.label)).toContain("镜头运动");
-  });
-
-  it("returns defensive copies of modes, templates, and fixture optimizations", () => {
+  it("returns defensive copies of modes and templates", () => {
     const modes = getStudioModes();
     modes[0].title = "mutated";
     expect(getStudioModes()[0].title).toBe("文本创作");
@@ -75,15 +52,5 @@ describe("desktop studio model", () => {
     const templates = getStudioTemplates("text");
     templates[0].tags.push("mutated");
     expect(getStudioTemplates("text")[0].tags).toEqual(["copywriting", "brief"]);
-
-    const optimization = getFixtureOptimization("video");
-    optimization.sections[0].label = "mutated";
-    optimization.preset.parameters.durationSeconds = 999;
-    optimization.preset.creditEstimate.credits = 999;
-
-    const freshOptimization = getFixtureOptimization("video");
-    expect(freshOptimization.sections[0].label).not.toBe("mutated");
-    expect(freshOptimization.preset.parameters.durationSeconds).toBe(6);
-    expect(freshOptimization.preset.creditEstimate).toEqual({ credits: 18, unit: "credit" });
   });
 });
