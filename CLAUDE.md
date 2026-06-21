@@ -75,6 +75,8 @@ The product API is a boundary that **hides all provider/gateway detail behind pr
 
 Presentation and state logic live in framework-free `*Model.ts` modules (`studioModel.ts`, `generationModel.ts`, `assetModel.ts`, `sessionModel.ts`) that import contracts from `@gw-link-omniai/shared` and are unit-tested directly with vitest. React components (`App.tsx`, etc.) stay thin and call into these models. The client apps are currently **self-contained/local** — they use fixtures and local task/asset state, not the HTTP API yet.
 
+Desktop now talks to the HTTP API: `apps/desktop/src/apiClient.ts` is a framework-free, fetch-injectable typed client (`createApiClient({ baseUrl?, fetch? })` → `ApiClient`; throws `ApiError`), and `App.tsx` takes an injected `client` (default `createApiClient()`), runs the passwordless login flow, and drives optimize/submit/list against the API with a bearer token held in React memory. Admin and mobile remain local/fixture-based. The API enables CORS (`@fastify/cors`, `GW_LINK_CORS_ORIGINS`).
+
 ## Development process
 
 Work proceeds as spec-driven vertical slices. Design specs live in `docs/superpowers/specs/` and implementation plans in `docs/superpowers/plans/` (dated filenames); `docs/architecture/mvp-skeleton.md` records the cumulative architecture. The repo follows a brainstorm → spec → plan → TDD-implement flow (the superpowers skills). When adding a feature, check for an existing spec/plan and keep `mvp-skeleton.md` consistent.

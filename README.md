@@ -167,6 +167,23 @@ curl -s -X POST http://localhost:8787/v1/auth/verify-login \
 curl -s http://localhost:8787/v1/generations -H 'authorization: Bearer <token>'
 ```
 
+### Desktop ↔ API
+
+The seventh product-first slice connects the desktop app to the product API.
+
+- Start the API first (`pnpm dev:api`), then the desktop app (`pnpm dev:desktop`).
+- Desktop reads `VITE_API_BASE_URL` (default `http://localhost:8787`).
+- Passwordless login: enter an email/phone, the start-login response returns a
+  `devCode` in local development, enter it to receive a bearer session (held in
+  memory — re-login after restart).
+- Optimize a prompt, submit a generation, and view your own task list and asset
+  library (per-user, via the guarded API).
+- Asset *creation* from the desktop is deferred: the API requires a succeeded
+  source task and tasks remain queued until a later task-status/real-provider
+  slice, so the asset library is read-only for now.
+- The API enables CORS (`GW_LINK_CORS_ORIGINS`, reflects the request origin when
+  unset — set explicit origins in production).
+
 ## Validation
 
 ```bash

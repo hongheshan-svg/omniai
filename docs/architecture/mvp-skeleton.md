@@ -85,3 +85,18 @@ write `owner_user_id` and filter lists by it. No database migration is needed â€
 the `owner_user_id` columns were reserved in the Persistence Foundation slice.
 Isolation is enforced at the application layer; Postgres row-level security,
 refresh tokens, roles, and admin cross-user access remain later slices.
+
+## Desktop â†” API Integration Slice
+
+The desktop integration slice connects the primary creation workspace to the
+product API. A framework-free, fetch-injectable API client (`apiClient.ts`)
+wraps the product endpoints; `App.tsx` takes an injected client and runs the
+passwordless login flow, then optimizes prompts, submits generations, and lists
+the user's tasks and assets through the guarded API with a bearer token held in
+React memory. The API enables CORS so the Tauri webview / Vite dev server can
+call it across origins.
+
+Asset creation from the desktop is intentionally deferred: the API requires a
+succeeded source task, and tasks remain queued until a later task-status /
+real-provider slice, so the asset library is read-only here. Admin and mobile
+remain local; token persistence, real providers, and streaming are later slices.
