@@ -16,6 +16,14 @@ import type {
   SessionRepository,
   UserRepository
 } from "../types";
+import {
+  DrizzleAssetRepository,
+  DrizzleChallengeRepository,
+  DrizzleGenerationTaskRepository,
+  DrizzleSessionRepository,
+  DrizzleUserRepository
+} from "../drizzle";
+import { createPgliteDatabase } from "../../testSupport/pglite";
 
 interface RepositoryBundle {
   users: UserRepository;
@@ -40,6 +48,20 @@ async function setupMemory(): Promise<BackendContext> {
       assets: new InMemoryAssetRepository()
     },
     async close() {}
+  };
+}
+
+async function setupPglite(): Promise<BackendContext> {
+  const { db, close } = await createPgliteDatabase();
+  return {
+    bundle: {
+      users: new DrizzleUserRepository(db),
+      sessions: new DrizzleSessionRepository(db),
+      challenges: new DrizzleChallengeRepository(db),
+      tasks: new DrizzleGenerationTaskRepository(db),
+      assets: new DrizzleAssetRepository(db)
+    },
+    close
   };
 }
 
@@ -119,7 +141,10 @@ function makeAsset(overrides: Partial<CreationAsset> = {}): CreationAsset {
   };
 }
 
-const backends = [{ name: "memory", setup: setupMemory }];
+const backends = [
+  { name: "memory", setup: setupMemory },
+  { name: "pglite", setup: setupPglite }
+];
 
 describe.each(backends)("$name repositories", ({ setup }) => {
   let context: BackendContext;
