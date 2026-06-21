@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { LoginStartRequest, LoginVerifyRequest } from "@gw-link-omniai/shared";
 import { AuthError, type AuthService } from "../services/authService";
+import { readBearerToken } from "./bearer";
 
 export function registerAuthRoutes(server: FastifyInstance, authService: AuthService): void {
   server.post("/v1/auth/start-login", async (request, reply) => {
@@ -79,14 +80,6 @@ function readLoginVerifyRequest(body: unknown): LoginVerifyRequest | undefined {
 
 function isRequestBody(body: unknown): body is Record<string, unknown> {
   return typeof body === "object" && body !== null && !Array.isArray(body);
-}
-
-function readBearerToken(header: string | undefined): string | undefined {
-  if (!header?.startsWith("Bearer ")) {
-    return undefined;
-  }
-
-  return header.slice("Bearer ".length).trim() || undefined;
 }
 
 function sendBadRequest(reply: FastifyReply, error: string) {
