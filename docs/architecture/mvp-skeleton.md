@@ -127,3 +127,18 @@ to the existing guarded `/v1/assets` route, then refreshes the per-user asset
 library. No backend or shared-contract change was needed. Image and video stay
 `queued` (no result) and are not yet saveable; object storage and saving
 image/video assets remain later slices.
+
+## Credit Foundation Slice
+
+A server-side credit ledger (`credit_transactions`, append-only, balance =
+`SUM(amount)`) backs billing. A `CreditService` (`getBalance` / `grantInitial` /
+`deduct`) wraps a `CreditTransactionRepository` (in-memory + Drizzle, locked by
+the cross-backend contract test). The auth service grants `initialCredits`
+(config `GW_LINK_INITIAL_CREDITS`, default 100) once on user creation via an
+injected granter. The generation service pre-checks balance against the model's
+`creditUnitCost` before calling the provider (`402` on insufficient funds, no
+task persisted) and deducts the cost after a `succeeded` result; `queued`
+generations are not charged. `GET /v1/credits/balance` exposes the balance.
+Charge basis is the server-side `creditUnitCost` (client `creditEstimate` is not
+trusted). Atomic concurrent deduction, real payment/top-up, and desktop balance
+UI / 402 handling remain later slices.
