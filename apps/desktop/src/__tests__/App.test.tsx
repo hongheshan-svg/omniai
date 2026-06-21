@@ -83,7 +83,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       assets = [asset, ...assets];
       return asset;
     },
-    listAssets: async () => assets
+    listAssets: async () => assets,
+    getCreditBalance: async () => ({ credits: 100, unit: "credit" as const })
   };
   return { ...base, ...overrides };
 }

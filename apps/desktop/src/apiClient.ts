@@ -2,6 +2,7 @@ import type {
   AuthSession,
   CreationAsset,
   CreationAssetRequest,
+  CreditAmount,
   GenerationTask,
   GenerationTaskRequest,
   LoginStartRequest,
@@ -35,6 +36,7 @@ export interface ApiClient {
   listGenerations(token: string): Promise<GenerationTask[]>;
   listAssets(token: string): Promise<CreationAsset[]>;
   createAsset(request: CreationAssetRequest, token: string): Promise<CreationAsset>;
+  getCreditBalance(token: string): Promise<CreditAmount>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -126,6 +128,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         token
       });
       return asset;
+    },
+    async getCreditBalance(token) {
+      const { balance } = await send<{ balance: CreditAmount }>("/v1/credits/balance", { token });
+      return balance;
     }
   };
 }
