@@ -4,12 +4,14 @@ import { loadConfig, type ApiConfig } from "./config";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAssetRoutes } from "./routes/assets";
 import { registerGenerationRoutes } from "./routes/generations";
+import { registerCreditRoutes } from "./routes/credits";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
 import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
 import { createServices } from "./services/appServices";
+import { InMemoryCreditService, type CreditService } from "./services/creditService";
 import { type ProviderAdapter } from "./services/gatewayClient";
 import { OpenAiCompatibleTextProvider } from "./services/openAiTextProvider";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
@@ -21,6 +23,7 @@ export interface BuildServerOptions {
   assetService?: AssetService;
   authService?: AuthService;
   config?: ApiConfig;
+  creditService?: CreditService;
   generationService?: GenerationService;
   modelCatalog?: ModelCatalog;
   promptOptimizer?: PromptOptimizer;
@@ -51,6 +54,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   }
 
   const assetService = options.assetService ?? new InMemoryAssetService();
+  const creditService = options.creditService ?? new InMemoryCreditService();
   const authService =
     options.authService ??
     new InMemoryAuthService({
@@ -73,6 +77,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
+  registerCreditRoutes(server, creditService, authService);
   registerAuthRoutes(server, authService);
 
   return server;

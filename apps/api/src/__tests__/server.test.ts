@@ -301,6 +301,27 @@ describe("product API", () => {
     expect(response.json()).toEqual({ error: "Authentication required" });
   });
 
+  it("returns the authenticated user's credit balance", async () => {
+    const server = buildServer();
+    const token = await authenticate(server);
+    const response = await server.inject({
+      method: "GET",
+      url: "/v1/credits/balance",
+      headers: { authorization: `Bearer ${token}` }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ balance: { credits: 0, unit: "credit" } });
+  });
+
+  it("rejects unauthenticated credit balance requests", async () => {
+    const server = buildServer();
+    const response = await server.inject({ method: "GET", url: "/v1/credits/balance" });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "Authentication required" });
+  });
+
   it("reflects the request origin via CORS headers", async () => {
     const server = buildServer();
     const response = await server.inject({
