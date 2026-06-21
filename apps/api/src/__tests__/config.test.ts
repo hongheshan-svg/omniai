@@ -73,4 +73,14 @@ describe("loadConfig", () => {
       "PORT must be an integer between 1 and 65535"
     );
   });
+
+  it("includes the database URL when provided", () => {
+    expect(loadConfig({ DATABASE_URL: "postgres://localhost:5432/omni" })).toMatchObject({
+      databaseUrl: "postgres://localhost:5432/omni"
+    });
+  });
+
+  it("omits the database URL when not provided", () => {
+    expect(loadConfig({}).databaseUrl).toBeUndefined();
+  });
 });
