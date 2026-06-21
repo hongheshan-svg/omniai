@@ -212,8 +212,11 @@ The ninth product-first slice adds a server-side credit ledger.
   `succeeded` generation deducts the cost; a `queued` one does not.
 - `GET /v1/credits/balance` returns the authenticated user's balance
   (`{ balance: { credits, unit } }`).
-- Concurrent deduction is not yet atomic, and the desktop balance display / 402
-  handling are later slices.
+- The desktop shows the balance in the header (loaded on login, refreshed after
+  each generation) and shows a friendly "积分不足，无法生成" message when a
+  generation is rejected for insufficient credits (`402`).
+- Concurrent deduction is not yet atomic; real payment/top-up and admin/mobile
+  balance display are later slices.
 
 ## Validation
 

@@ -8,7 +8,7 @@ import type {
   PromptOptimization
 } from "@gw-link-omniai/shared";
 import { App } from "../App";
-import type { ApiClient } from "../apiClient";
+import { ApiError, type ApiClient } from "../apiClient";
 import { getDesktopSessionCta } from "../sessionModel";
 
 afterEach(cleanup);
@@ -39,6 +39,7 @@ const authSession: AuthSession = {
 function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   let tasks: GenerationTask[] = [];
   let assets: CreationAsset[] = [];
+  let balance = 100;
   const base: ApiClient = {
     startLogin: async (): Promise<LoginStartResponse> => ({
       challengeId: "c1",
@@ -64,6 +65,9 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         updatedAt: "2026-06-21T00:00:00.000Z"
       };
       tasks = [task, ...tasks];
+      if (task.status === "succeeded" && task.result?.kind === "text") {
+        balance -= 1;
+      }
       return task;
     },
     listGenerations: async () => tasks,
@@ -83,7 +87,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       assets = [asset, ...assets];
       return asset;
     },
-    listAssets: async () => assets
+    listAssets: async () => assets,
+    getCreditBalance: async () => ({ credits: balance, unit: "credit" as const })
   };
   return { ...base, ...overrides };
 }
@@ -199,6 +204,41 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
     await screen.findByRole("alert");
     expect(screen.getByRole("alert").textContent).toContain("Login destination is required");
+  });
+
+  it("shows the credit balance in the header after login", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    expect(await screen.findByText("积分：100")).toBeTruthy();
+  });
+
+  it("refreshes the balance after a generation", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    await screen.findByText("积分：100");
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    expect(await screen.findByText("积分：99")).toBeTruthy();
+  });
+
+  it("shows a friendly message when generation is rejected for insufficient credits", async () => {
+    const client = createFakeClient({
+      createGeneration: async () => {
+        throw new ApiError("Insufficient credits", 402);
+      }
+    });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    expect(await screen.findByText("积分不足，无法生成")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
   });
 
   it("summarizes authenticated desktop sessions", () => {

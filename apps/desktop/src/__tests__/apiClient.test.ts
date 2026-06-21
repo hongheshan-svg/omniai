@@ -34,6 +34,20 @@ it("posts start-login and returns the response body", async () => {
   expect((init.headers as Record<string, string>)["content-type"]).toBe("application/json");
 });
 
+it("fetches the credit balance with the bearer token and unwraps the envelope", async () => {
+  const balance = { credits: 100, unit: "credit" };
+  const fetchMock = vi.fn(async () => jsonResponse({ balance }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const result = await client.getCreditBalance("tok-1");
+
+  expect(result).toEqual(balance);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/credits/balance");
+  expect(init.method ?? "GET").toBe("GET");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
 it("unwraps the generation task envelope and sends the bearer token", async () => {
   const task: GenerationTask = {
     id: "t1",
