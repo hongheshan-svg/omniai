@@ -97,25 +97,29 @@ export class InMemoryChallengeRepository implements ChallengeRepository {
 }
 
 export class InMemoryGenerationTaskRepository implements GenerationTaskRepository {
-  private readonly tasks: GenerationTask[] = [];
+  private readonly tasks: Array<{ ownerUserId: string; task: GenerationTask }> = [];
 
-  async insert(task: GenerationTask): Promise<void> {
-    this.tasks.push(structuredClone(task));
+  async insert(task: GenerationTask, ownerUserId: string): Promise<void> {
+    this.tasks.push({ ownerUserId, task: structuredClone(task) });
   }
 
-  async list(): Promise<GenerationTask[]> {
-    return this.tasks.map((task) => structuredClone(task));
+  async list(ownerUserId: string): Promise<GenerationTask[]> {
+    return this.tasks
+      .filter((row) => row.ownerUserId === ownerUserId)
+      .map((row) => structuredClone(row.task));
   }
 }
 
 export class InMemoryAssetRepository implements AssetRepository {
-  private readonly assets: CreationAsset[] = [];
+  private readonly assets: Array<{ ownerUserId: string; asset: CreationAsset }> = [];
 
-  async insert(asset: CreationAsset): Promise<void> {
-    this.assets.push(structuredClone(asset));
+  async insert(asset: CreationAsset, ownerUserId: string): Promise<void> {
+    this.assets.push({ ownerUserId, asset: structuredClone(asset) });
   }
 
-  async list(): Promise<CreationAsset[]> {
-    return this.assets.map((asset) => structuredClone(asset));
+  async list(ownerUserId: string): Promise<CreationAsset[]> {
+    return this.assets
+      .filter((row) => row.ownerUserId === ownerUserId)
+      .map((row) => structuredClone(row.asset));
   }
 }

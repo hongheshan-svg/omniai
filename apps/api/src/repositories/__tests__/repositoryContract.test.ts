@@ -218,46 +218,54 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(await challenges.findById("active")).toBeDefined();
   });
 
-  it("inserts and lists generation tasks preserving jsonb and ordering", async () => {
-    const { tasks } = context.bundle;
-    await tasks.insert(makeTask({ id: "task-a", createdAt: "2026-06-20T00:00:00.000Z" }));
-    await tasks.insert(makeTask({ id: "task-b", createdAt: "2026-06-20T00:00:01.000Z" }));
+  it("inserts and lists generation tasks scoped to the owner", async () => {
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+    await tasks.insert(makeTask({ id: "task-a", createdAt: "2026-06-20T00:00:00.000Z" }), "owner-a");
+    await tasks.insert(makeTask({ id: "task-b", createdAt: "2026-06-20T00:00:01.000Z" }), "owner-a");
 
-    const listed = await tasks.list();
+    const listed = await tasks.list("owner-a");
     expect(listed.map((task) => task.id)).toEqual(["task-a", "task-b"]);
     expect(listed[0]!.preset).toEqual(makeTask().preset);
     expect(listed[0]!.resultPreview).toEqual(makeTask().resultPreview);
+    expect(await tasks.list("owner-b")).toEqual([]);
   });
 
-  it("inserts and lists assets preserving the content discriminated union", async () => {
-    const { assets } = context.bundle;
-    await assets.insert(makeAsset({ id: "asset-a", createdAt: "2026-06-20T00:00:00.000Z" }));
-    await assets.insert(makeAsset({ id: "asset-b", createdAt: "2026-06-20T00:00:01.000Z" }));
+  it("inserts and lists assets scoped to the owner", async () => {
+    const { users, assets } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+    await assets.insert(makeAsset({ id: "asset-a", createdAt: "2026-06-20T00:00:00.000Z" }), "owner-a");
+    await assets.insert(makeAsset({ id: "asset-b", createdAt: "2026-06-20T00:00:01.000Z" }), "owner-a");
 
-    const listed = await assets.list();
+    const listed = await assets.list("owner-a");
     expect(listed.map((asset) => asset.id)).toEqual(["asset-a", "asset-b"]);
     expect(listed[0]!.content).toEqual(makeAsset().content);
     expect(listed[0]!.source).toEqual(makeAsset().source);
+    expect(await assets.list("owner-b")).toEqual([]);
   });
 
   it("does not share mutable references with stored task state", async () => {
-    const { tasks } = context.bundle;
-    await tasks.insert(makeTask({ id: "task-a" }));
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await tasks.insert(makeTask({ id: "task-a" }), "owner-a");
 
-    const first = await tasks.list();
+    const first = await tasks.list("owner-a");
     first[0]!.preset.parameters.quality = "mutated";
 
-    const second = await tasks.list();
+    const second = await tasks.list("owner-a");
     expect(second[0]!.preset.parameters.quality).toBe("high");
   });
 
   it("does not share mutable references with the inserted task (write isolation)", async () => {
-    const { tasks } = context.bundle;
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
     const task = makeTask({ id: "task-a" });
-    await tasks.insert(task);
+    await tasks.insert(task, "owner-a");
     task.preset.parameters.quality = "mutated";
 
-    const listed = await tasks.list();
+    const listed = await tasks.list("owner-a");
     expect(listed[0]!.preset.parameters.quality).toBe("high");
   });
 });

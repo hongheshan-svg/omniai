@@ -41,9 +41,9 @@ function modelConfig(): ModelCatalogConfig {
   };
 }
 
-function buildServerForDb(database: PgliteDatabase) {
+function buildServerForDb(database: PgliteDatabase, userId?: string) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
-  const services = createDbServices(database.db, modelCatalog, { authDevCodesEnabled: true });
+  const services = createDbServices(database.db, modelCatalog, { authDevCodesEnabled: true, userId });
   return buildServer({
     config: smokeConfig(),
     modelCatalog,
@@ -65,21 +65,30 @@ describe("database-backed persistence", () => {
   });
 
   it("persists sessions, tasks, and assets across service instances", async () => {
-    const first = buildServerForDb(database);
+    const authServer = buildServerForDb(database);
 
-    const startResponse = await first.inject({
+    const startResponse = await authServer.inject({
       method: "POST",
       url: "/v1/auth/start-login",
       payload: { destination: "creator@example.com" }
     });
     const { challengeId, devCode } = startResponse.json() as { challengeId: string; devCode: string };
 
-    const verifyResponse = await first.inject({
+    const verifyResponse = await authServer.inject({
       method: "POST",
       url: "/v1/auth/verify-login",
       payload: { challengeId, code: devCode }
     });
     const { token } = verifyResponse.json() as { token: string };
+
+    const sessionResponse0 = await authServer.inject({
+      method: "GET",
+      url: "/v1/auth/session",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    const { user } = sessionResponse0.json() as { user: { id: string } };
+
+    const first = buildServerForDb(database, user.id);
 
     await first.inject({
       method: "POST",
@@ -115,7 +124,7 @@ describe("database-backed persistence", () => {
     });
 
     // Simulate a process restart: brand-new server + services over the SAME database.
-    const second = buildServerForDb(database);
+    const second = buildServerForDb(database, user.id);
 
     const sessionResponse = await second.inject({
       method: "GET",

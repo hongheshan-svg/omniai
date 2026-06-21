@@ -28,6 +28,7 @@ export interface AssetServiceClock {
 export interface AssetServiceOptions {
   clock?: AssetServiceClock;
   idGenerator?: () => string;
+  userId?: string;
 }
 
 export interface AssetService {
@@ -54,12 +55,14 @@ export class AssetServiceImpl implements AssetService {
   private readonly clock: AssetServiceClock;
   private readonly idGenerator: () => string;
   private readonly assets: AssetRepository;
+  private readonly userId: string;
   private nextAssetId = 1;
 
   constructor(assetRepository: AssetRepository, options: AssetServiceOptions = {}) {
     this.assets = assetRepository;
     this.clock = options.clock ?? { now: () => new Date() };
     this.idGenerator = options.idGenerator ?? (() => this.createAssetId());
+    this.userId = options.userId ?? "development-user";
   }
 
   async createAsset(request: CreationAssetRequest): Promise<CreationAsset> {
@@ -117,12 +120,12 @@ export class AssetServiceImpl implements AssetService {
       createdAt: this.clock.now().toISOString()
     };
 
-    await this.assets.insert(asset);
+    await this.assets.insert(asset, this.userId);
     return cloneAsset(asset);
   }
 
   async listAssets(): Promise<CreationAsset[]> {
-    return this.assets.list();
+    return this.assets.list(this.userId);
   }
 
   private createAssetId(): string {

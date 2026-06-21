@@ -149,12 +149,12 @@ export class GenerationServiceImpl implements GenerationService {
       updatedAt: timestamp
     };
 
-    await this.tasks.insert(task);
+    await this.tasks.insert(task, this.userId);
     return cloneGenerationTask(task);
   }
 
   async listTasks(): Promise<GenerationTask[]> {
-    return this.tasks.list();
+    return this.tasks.list(this.userId);
   }
 }
 
