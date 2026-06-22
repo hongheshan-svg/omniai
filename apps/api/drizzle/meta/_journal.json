@@ -22,6 +22,13 @@
       "when": 1782049261905,
       "tag": "0002_massive_leo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782142370992,
+      "tag": "0003_eager_tyrannus",
+      "breakpoints": true
     }
   ]
 }

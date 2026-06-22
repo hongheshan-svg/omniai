@@ -191,7 +191,7 @@ export class DrizzleChallengeRepository implements ChallengeRepository {
 export class DrizzleGenerationTaskRepository implements GenerationTaskRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  async insert(task: GenerationTask, ownerUserId: string): Promise<void> {
+  async insert(task: GenerationTask, ownerUserId: string, providerRef: string | null = null): Promise<void> {
     await this.db.insert(generationTasks).values({
       id: task.id,
       ownerUserId,
@@ -202,6 +202,7 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
       preset: task.preset,
       resultPreview: task.resultPreview,
       result: task.result ?? null,
+      providerRef,
       createdAt: new Date(task.createdAt),
       updatedAt: new Date(task.updatedAt)
     });
@@ -214,6 +215,31 @@ export class DrizzleGenerationTaskRepository implements GenerationTaskRepository
       .where(eq(generationTasks.ownerUserId, ownerUserId))
       .orderBy(generationTasks.createdAt);
     return rows.map(mapTaskRow);
+  }
+
+  async get(
+    ownerUserId: string,
+    id: string
+  ): Promise<{ task: GenerationTask; providerRef: string | null } | undefined> {
+    const rows = await this.db
+      .select()
+      .from(generationTasks)
+      .where(and(eq(generationTasks.id, id), eq(generationTasks.ownerUserId, ownerUserId)))
+      .limit(1);
+    const row = rows[0];
+    return row ? { task: mapTaskRow(row), providerRef: row.providerRef ?? null } : undefined;
+  }
+
+  async update(task: GenerationTask, ownerUserId: string, providerRef: string | null = null): Promise<void> {
+    await this.db
+      .update(generationTasks)
+      .set({
+        status: task.status,
+        result: task.result ?? null,
+        providerRef,
+        updatedAt: new Date(task.updatedAt)
+      })
+      .where(and(eq(generationTasks.id, task.id), eq(generationTasks.ownerUserId, ownerUserId)));
   }
 }
 

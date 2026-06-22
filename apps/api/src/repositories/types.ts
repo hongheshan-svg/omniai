@@ -42,8 +42,13 @@ export interface ChallengeRepository {
 }
 
 export interface GenerationTaskRepository {
-  insert(task: GenerationTask, ownerUserId: string): Promise<void>;
+  insert(task: GenerationTask, ownerUserId: string, providerRef?: string | null): Promise<void>;
   list(ownerUserId: string): Promise<GenerationTask[]>;
+  get(
+    ownerUserId: string,
+    id: string
+  ): Promise<{ task: GenerationTask; providerRef: string | null } | undefined>;
+  update(task: GenerationTask, ownerUserId: string, providerRef?: string | null): Promise<void>;
 }
 
 export interface AssetRepository {

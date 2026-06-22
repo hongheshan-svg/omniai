@@ -1,0 +1,1 @@
+ALTER TABLE "generation_tasks" ADD COLUMN "provider_ref" text;
