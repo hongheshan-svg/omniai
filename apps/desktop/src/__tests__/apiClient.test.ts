@@ -34,6 +34,30 @@ it("posts start-login and returns the response body", async () => {
   expect((init.headers as Record<string, string>)["content-type"]).toBe("application/json");
 });
 
+it("fetches one generation by id with the bearer token", async () => {
+  const task = {
+    id: "task-v",
+    mode: "video",
+    status: "succeeded",
+    prompt: "p",
+    optimizedPrompt: "op",
+    preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+    resultPreview: { title: "视频生成任务", description: "已生成。" },
+    result: { kind: "image", url: "data:image/png;base64,dmlkZW8=", alt: "video" },
+    createdAt: "2026-06-22T00:00:00.000Z",
+    updatedAt: "2026-06-22T00:00:00.000Z"
+  };
+  const fetchMock = vi.fn(async () => jsonResponse({ task }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const result = await client.getGeneration("task-v", "tok-1");
+
+  expect(result).toEqual(task);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/generations/task-v");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
 it("fetches the session with the bearer token", async () => {
   const session = {
     authenticated: true,

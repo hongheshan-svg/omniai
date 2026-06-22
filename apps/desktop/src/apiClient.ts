@@ -39,6 +39,7 @@ export interface ApiClient {
   createAsset(request: CreationAssetRequest, token: string): Promise<CreationAsset>;
   getCreditBalance(token: string): Promise<CreditAmount>;
   getSession(token: string): Promise<SessionResponse>;
+  getGeneration(id: string, token: string): Promise<GenerationTask>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -137,6 +138,13 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     },
     getSession(token) {
       return send<SessionResponse>("/v1/auth/session", { token });
+    },
+    async getGeneration(id, token) {
+      const { task } = await send<{ task: GenerationTask }>(
+        `/v1/generations/${encodeURIComponent(id)}`,
+        { token }
+      );
+      return task;
     }
   };
 }

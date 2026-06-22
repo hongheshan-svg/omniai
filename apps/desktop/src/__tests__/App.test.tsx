@@ -103,7 +103,14 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     },
     listAssets: async () => assets,
     getCreditBalance: async () => ({ credits: balance, unit: "credit" as const }),
-    getSession: async () => ({ authenticated: false, user: null, expiresAt: null })
+    getSession: async () => ({ authenticated: false, user: null, expiresAt: null }),
+    getGeneration: async (id: string) => {
+      const found = tasks.find((task) => task.id === id);
+      if (!found) {
+        throw new ApiError("Generation task was not found", 404);
+      }
+      return found;
+    }
   };
   return { ...base, ...overrides };
 }
@@ -336,6 +343,36 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "登出" }));
     await screen.findByRole("button", { name: "发送验证码" });
     expect(store.load()).toBeUndefined();
+  });
+
+  it("refreshes a running task from the task center", async () => {
+    const runningTask: GenerationTask = {
+      id: "task-v",
+      mode: "video",
+      status: "running",
+      prompt: "一段短视频",
+      optimizedPrompt: "生成一段短视频。",
+      preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+      resultPreview: { title: "视频生成任务", description: "生成中。" },
+      createdAt: "2026-06-22T00:00:00.000Z",
+      updatedAt: "2026-06-22T00:00:00.000Z"
+    };
+    const succeededTask: GenerationTask = {
+      ...runningTask,
+      status: "succeeded",
+      result: { kind: "image", url: "data:image/png;base64,dmlkZW8=", alt: "video" }
+    };
+    const client = createFakeClient({
+      listGenerations: async () => [runningTask],
+      getGeneration: async () => succeededTask
+    });
+    await signIn(client);
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    expect(within(taskCenter).getByText("生成中")).toBeTruthy();
+    fireEvent.click(within(taskCenter).getByRole("button", { name: "刷新状态" }));
+
+    expect(await within(taskCenter).findByText("已完成")).toBeTruthy();
   });
 
   it("summarizes authenticated desktop sessions", () => {
