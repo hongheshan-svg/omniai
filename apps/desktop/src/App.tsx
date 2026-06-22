@@ -80,15 +80,20 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
         if (cancelled) {
           return;
         }
-        if (restored.authenticated && restored.user) {
-          setToken(stored);
-          setSession({ authenticated: true, user: restored.user, expiresAt: restored.expiresAt });
-          await loadUserData(stored);
-        } else {
+        if (!restored.authenticated || !restored.user) {
           store.clear();
+          return;
         }
+        setToken(stored);
+        setSession({ authenticated: true, user: restored.user, expiresAt: restored.expiresAt });
       } catch {
         store.clear();
+        return;
+      }
+      try {
+        await loadUserData(stored);
+      } catch {
+        // Session is restored; a transient data-load failure must not clear the token.
       }
     }
     void restoreSession();
