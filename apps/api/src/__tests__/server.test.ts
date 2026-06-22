@@ -471,7 +471,8 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
-        initialCredits: 100
+        initialCredits: 100,
+        publicBaseUrl: "http://localhost:8787"
       }
     });
     const response = await server.inject({
@@ -499,7 +500,8 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: false,
         modelConfigPath: "config/models.json",
-        initialCredits: 100
+        initialCredits: 100,
+        publicBaseUrl: "http://localhost:8787"
       }
     });
     const response = await server.inject({
