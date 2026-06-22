@@ -8,6 +8,8 @@ import { ConfigModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalogConfig } from "../services/modelConfig";
 import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
+import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
+import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -226,6 +228,76 @@ describe("product API", () => {
     expect(response.json()).toMatchObject({
       task: { status: "succeeded", result: { kind: "text", text: "真实生成文案" } }
     });
+  });
+
+  it("returns a succeeded image task with a data-url result when a provider key is configured", async () => {
+    const modelConfig: ModelCatalogConfig = {
+      providers: [
+        {
+          id: "openai-main",
+          displayName: "OpenAI Main",
+          protocol: "openai-compatible",
+          baseUrl: "https://api.openai.com/v1",
+          apiKeyEnv: "OPENAI_API_KEY",
+          models: [
+            {
+              id: "gw-image-creative",
+              providerModelId: "gpt-image-1",
+              displayName: "OmniAI Image Creative",
+              capability: "image",
+              tags: ["creative"],
+              visibility: "visible",
+              minimumPlan: "free",
+              creditUnitCost: 2
+            }
+          ]
+        }
+      ]
+    };
+    const imageFetch = async () =>
+      new Response(JSON.stringify({ data: [{ b64_json: "aGVsbG8=" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    const server = buildServer({
+      modelCatalog: new ConfigModelCatalog(modelConfig),
+      providerAdapter: new CompositeProviderAdapter({
+        text: new OpenAiCompatibleTextProvider(),
+        image: new OpenAiCompatibleImageProvider({
+          fetch: imageFetch as unknown as typeof fetch,
+          env: { OPENAI_API_KEY: "sk-test" }
+        })
+      })
+    });
+    const token = await authenticate(server);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: "image",
+        prompt: "一只猫",
+        optimizedPrompt: "一只在霓虹城市里的猫",
+        preset: {
+          modelId: "gw-image-creative",
+          parameters: { quality: "high" },
+          creditEstimate: { credits: 2, unit: "credit" }
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      task: { status: "succeeded", result: { kind: "image", url: "data:image/png;base64,aGVsbG8=" } }
+    });
+
+    const balanceResponse = await server.inject({
+      method: "GET",
+      url: "/v1/credits/balance",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(balanceResponse.json()).toEqual({ balance: { credits: 98, unit: "credit" } });
   });
 
   it("registers the asset routes", async () => {
