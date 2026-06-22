@@ -243,9 +243,12 @@ internal job reference (never exposed in the product contract). `GET
 /v1/generations/:id` re-polls a `running` task via the stored reference,
 persists the new status/result, and charges the model's `creditUnitCost` once,
 on the `running → succeeded` transition. The desktop shows a "刷新状态" button on
-running tasks that fetches the latest state. This is proven with a deterministic
-`FakeAsyncProvider`; production video stays `queued` until a real async video
-provider is added. No background worker — advancement happens on read.
+running tasks that fetches the latest state. No background worker — advancement
+happens on read.
+- Video generation uses `AsyncVideoProvider` (the real async provider plugged
+  into this lifecycle): with a configured video service key it submits a job and
+  polls to a `result.kind === "video"` (service-hosted URL); the desktop renders
+  `<video>` and saves it as an asset. Without a key, video stays `queued`.
 
 ## Validation
 

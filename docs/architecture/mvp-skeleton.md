@@ -210,3 +210,19 @@ A `FakeAsyncProvider` (submit→running, poll→succeeds after N) proves it
 end-to-end; production video stays `queued`. The real async video provider, a
 video-specific result variant, background polling, and a desktop auto-poll
 remain slice 11b / later.
+
+## Real Video Provider Slice
+
+`AsyncVideoProvider` is the real async video provider (slice 11b), plugged into
+the async lifecycle as the default composite `video` slot. It submits to
+`POST {baseUrl}/videos/generations` (→ running + job ref) and polls
+`GET {baseUrl}/videos/generations/{id}` (completed → `succeeded` + a `video`
+`GenerationTaskResult` variant `{ url, durationSeconds, posterUrl }`, identical
+to the asset video content; failed → `failed`; else → running). The video URL is
+the service-hosted URL passed through (no object storage). The generation
+service, `refreshTask`, persistence, and credits are unchanged (charge
+`creditUnitCost` = 3 once on `running → succeeded`). The desktop renders
+`<video>` and saves video assets. The provider targets a generic async
+video-job shape; production points the video model's provider at a real service.
+Object storage for video bytes, a specific vendor integration, and thumbnail
+generation remain later work.

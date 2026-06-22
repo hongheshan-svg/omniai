@@ -40,7 +40,9 @@ export function buildAssetRequestFromTask(task: GenerationTask): CreationAssetRe
   const content: CreationAssetRequest["content"] =
     result.kind === "image"
       ? { kind: "image", url: result.url, alt: result.alt }
-      : { kind: "text", text: result.text, format: result.format };
+      : result.kind === "video"
+        ? { kind: "video", url: result.url, durationSeconds: result.durationSeconds, posterUrl: result.posterUrl }
+        : { kind: "text", text: result.text, format: result.format };
 
   return {
     mode: task.mode,

@@ -15,6 +15,7 @@ import { createServices } from "./services/appServices";
 import { CompositeProviderAdapter } from "./services/compositeProviderAdapter";
 import { InMemoryCreditService, type CreditService } from "./services/creditService";
 import { type ProviderAdapter } from "./services/gatewayClient";
+import { AsyncVideoProvider } from "./services/asyncVideoProvider";
 import { OpenAiCompatibleImageProvider } from "./services/openAiImageProvider";
 import { OpenAiCompatibleTextProvider } from "./services/openAiTextProvider";
 import { InMemoryObjectStore, type ObjectStore } from "./services/objectStore";
@@ -74,7 +75,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     new CompositeProviderAdapter({
       text: textProvider,
       image: new OpenAiCompatibleImageProvider({ objectStore }),
-      video: textProvider
+      video: new AsyncVideoProvider()
     });
   const generationService =
     options.generationService ??

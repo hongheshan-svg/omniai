@@ -375,6 +375,32 @@ describe("Desktop App", () => {
     expect(await within(taskCenter).findByText("已完成")).toBeTruthy();
   });
 
+  it("renders and saves a generated video", async () => {
+    const videoTask: GenerationTask = {
+      id: "task-vid",
+      mode: "video",
+      status: "succeeded",
+      prompt: "一段海边日落短视频",
+      optimizedPrompt: "生成一段海边日落短视频。",
+      preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+      resultPreview: { title: "视频生成任务", description: "已生成。" },
+      result: { kind: "video", url: "https://cdn/v.mp4", durationSeconds: 8, posterUrl: "https://cdn/p.jpg" },
+      createdAt: "2026-06-23T00:00:00.000Z",
+      updatedAt: "2026-06-23T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [videoTask] });
+    await signIn(client);
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    expect(taskCenter.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+
+    fireEvent.click(within(taskCenter).getByRole("button", { name: "保存到资产库" }));
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    await within(assetLibrary).findByText("视频资产");
+    expect(assetLibrary.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+  });
+
   it("summarizes authenticated desktop sessions", () => {
     expect(
       getDesktopSessionCta({ authenticated: true, expiresAt: authSession.expiresAt, user: authSession.user })

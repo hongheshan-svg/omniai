@@ -12,6 +12,7 @@ import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
 import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
 import { InMemoryObjectStore } from "../services/objectStore";
 import { FakeAsyncProvider } from "../services/fakeAsyncProvider";
+import { AsyncVideoProvider } from "../services/asyncVideoProvider";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -465,6 +466,81 @@ describe("product API", () => {
     expect(fileResponse.statusCode).toBe(200);
     expect(fileResponse.headers["content-type"]).toContain("image/png");
     expect(fileResponse.body).toBe("hello");
+  });
+
+  it("generates a video end-to-end via the async lifecycle", async () => {
+    const modelConfig: ModelCatalogConfig = {
+      providers: [
+        {
+          id: "video-main",
+          displayName: "Video Main",
+          protocol: "openai-compatible",
+          baseUrl: "https://api.video.test/v1",
+          apiKeyEnv: "VIDEO_KEY",
+          models: [
+            {
+              id: "gw-video-motion",
+              providerModelId: "video-1",
+              displayName: "OmniAI Video Motion",
+              capability: "video",
+              tags: ["motion"],
+              visibility: "visible",
+              minimumPlan: "free",
+              creditUnitCost: 3
+            }
+          ]
+        }
+      ]
+    };
+    const videoFetch = async (_url: string, init?: { method?: string }) =>
+      new Response(
+        JSON.stringify(
+          (init?.method ?? "GET") === "POST"
+            ? { id: "job-1" }
+            : { status: "completed", url: "https://cdn/v.mp4", poster_url: "https://cdn/p.jpg", duration_seconds: 8 }
+        ),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    const textProvider = new OpenAiCompatibleTextProvider();
+    const server = buildServer({
+      modelCatalog: new ConfigModelCatalog(modelConfig),
+      providerAdapter: new CompositeProviderAdapter({
+        text: textProvider,
+        image: textProvider,
+        video: new AsyncVideoProvider({ fetch: videoFetch as unknown as typeof fetch, env: { VIDEO_KEY: "k" } })
+      })
+    });
+    const token = await authenticate(server);
+
+    const create = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: "video",
+        prompt: "一段海边日落短视频",
+        optimizedPrompt: "生成一段海边日落短视频。",
+        preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } }
+      }
+    });
+    expect(create.json()).toMatchObject({ task: { status: "running" } });
+    const id = (create.json() as { task: { id: string } }).task.id;
+
+    const done = await server.inject({
+      method: "GET",
+      url: `/v1/generations/${id}`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(done.json()).toMatchObject({
+      task: { status: "succeeded", result: { kind: "video", url: "https://cdn/v.mp4" } }
+    });
+
+    const balance = await server.inject({
+      method: "GET",
+      url: "/v1/credits/balance",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(balance.json()).toEqual({ balance: { credits: 97, unit: "credit" } });
   });
 
   it("advances a running task to succeeded via GET /v1/generations/:id", async () => {
