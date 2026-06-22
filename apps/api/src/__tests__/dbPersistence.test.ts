@@ -4,6 +4,7 @@ import type { ModelCatalogConfig } from "../services/modelConfig";
 import { buildServer } from "../server";
 import { createDbServices } from "../services/appServices";
 import { FakeProviderAdapter } from "../services/gatewayClient";
+import { InMemoryObjectStore } from "../services/objectStore";
 import { ConfigModelCatalog } from "../services/modelCatalog";
 import { createPgliteDatabase, type PgliteDatabase } from "../testSupport/pglite";
 
@@ -49,6 +50,7 @@ function buildServerForDb(database: PgliteDatabase) {
   const services = createDbServices(database.db, modelCatalog, {
     authDevCodesEnabled: true,
     initialCredits: 100,
+    objectStore: new InMemoryObjectStore(),
     providerAdapter: new FakeProviderAdapter()
   });
   return buildServer({

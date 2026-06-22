@@ -14,6 +14,7 @@ import { AuthServiceImpl, InMemoryAuthService, type AuthService } from "./authSe
 import { CompositeProviderAdapter } from "./compositeProviderAdapter";
 import { CreditServiceImpl, InMemoryCreditService, type CreditService } from "./creditService";
 import { OpenAiCompatibleImageProvider } from "./openAiImageProvider";
+import { InMemoryObjectStore, LocalFileObjectStore, type ObjectStore } from "./objectStore";
 import {
   GenerationServiceImpl,
   InMemoryGenerationService,
@@ -29,6 +30,7 @@ export interface AppServices {
   generationService: GenerationService;
   assetService: AssetService;
   creditService: CreditService;
+  objectStore: ObjectStore;
   modelCatalog: ModelCatalog;
   verifyConnectivity(): Promise<void>;
   closeDb(): Promise<void>;
@@ -37,12 +39,18 @@ export interface AppServices {
 export function createDbServices(
   db: AppDatabase,
   modelCatalog: ModelCatalog,
-  options: { authDevCodesEnabled: boolean; initialCredits: number; providerAdapter?: ProviderAdapter }
+  options: {
+    authDevCodesEnabled: boolean;
+    initialCredits: number;
+    objectStore: ObjectStore;
+    providerAdapter?: ProviderAdapter;
+  }
 ): {
   authService: AuthService;
   generationService: GenerationService;
   assetService: AssetService;
   creditService: CreditService;
+  objectStore: ObjectStore;
 } {
   const creditService = new CreditServiceImpl(new DrizzleCreditTransactionRepository(db), {
     initialCredits: options.initialCredits,
@@ -65,7 +73,7 @@ export function createDbServices(
       options.providerAdapter ??
       new CompositeProviderAdapter({
         text: new OpenAiCompatibleTextProvider(),
-        image: new OpenAiCompatibleImageProvider()
+        image: new OpenAiCompatibleImageProvider({ objectStore: options.objectStore })
       }),
     creditService
   });
@@ -74,13 +82,21 @@ export function createDbServices(
     idGenerator: () => `creation_asset_${randomUUID()}`
   });
 
-  return { authService, generationService, assetService, creditService };
+  return { authService, generationService, assetService, creditService, objectStore: options.objectStore };
+}
+
+function createObjectStore(config: ApiConfig): ObjectStore {
+  return config.objectStoreDir
+    ? new LocalFileObjectStore(config.objectStoreDir, { publicBaseUrl: config.publicBaseUrl })
+    : new InMemoryObjectStore({ publicBaseUrl: config.publicBaseUrl });
 }
 
 export function createServices(config: ApiConfig): AppServices {
   const modelCatalog = new ConfigModelCatalog(
     loadModelCatalogConfig(resolveConfigPath(config.modelConfigPath))
   );
+
+  const objectStore = createObjectStore(config);
 
   if (!config.databaseUrl) {
     const creditService = new InMemoryCreditService({ initialCredits: config.initialCredits });
@@ -93,12 +109,13 @@ export function createServices(config: ApiConfig): AppServices {
         modelCatalog,
         providerAdapter: new CompositeProviderAdapter({
           text: new OpenAiCompatibleTextProvider(),
-          image: new OpenAiCompatibleImageProvider()
+          image: new OpenAiCompatibleImageProvider({ objectStore })
         }),
         creditService
       }),
       assetService: new InMemoryAssetService(),
       creditService,
+      objectStore,
       modelCatalog,
       async verifyConnectivity() {},
       async closeDb() {}
@@ -108,7 +125,8 @@ export function createServices(config: ApiConfig): AppServices {
   const client = createDbClient(config.databaseUrl);
   const services = createDbServices(client.db, modelCatalog, {
     authDevCodesEnabled: config.authDevCodesEnabled,
-    initialCredits: config.initialCredits
+    initialCredits: config.initialCredits,
+    objectStore
   });
 
   return {
