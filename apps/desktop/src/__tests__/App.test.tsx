@@ -9,9 +9,11 @@ import type {
 } from "@gw-link-omniai/shared";
 import { App } from "../App";
 import { ApiError, type ApiClient } from "../apiClient";
+import type { TokenStore } from "../tokenStore";
 import { getDesktopSessionCta } from "../sessionModel";
 
 afterEach(cleanup);
+afterEach(() => localStorage.clear());
 
 const textOptimization: PromptOptimization = {
   id: "o1",
@@ -100,9 +102,23 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return asset;
     },
     listAssets: async () => assets,
-    getCreditBalance: async () => ({ credits: balance, unit: "credit" as const })
+    getCreditBalance: async () => ({ credits: balance, unit: "credit" as const }),
+    getSession: async () => ({ authenticated: false, user: null, expiresAt: null })
   };
   return { ...base, ...overrides };
+}
+
+function createFakeTokenStore(initial?: string): TokenStore {
+  let token = initial;
+  return {
+    load: () => token,
+    save: (value: string) => {
+      token = value;
+    },
+    clear: () => {
+      token = undefined;
+    }
+  };
 }
 
 async function signIn(client: ApiClient) {
@@ -280,6 +296,46 @@ describe("Desktop App", () => {
 
     expect(await screen.findByText("积分不足，无法生成")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
+  });
+
+  it("restores the session on startup from a stored token", async () => {
+    const client = createFakeClient({
+      getSession: async () => ({ authenticated: true, user: authSession.user, expiresAt: authSession.expiresAt })
+    });
+    const store = createFakeTokenStore("tok-1");
+
+    render(<App client={client} tokenStore={store} />);
+
+    expect(await screen.findByRole("button", { name: "Signed in as creator" })).toBeTruthy();
+    expect(await screen.findByText("积分：100")).toBeTruthy();
+  });
+
+  it("clears a stored token that no longer authenticates", async () => {
+    const client = createFakeClient({
+      getSession: async () => ({ authenticated: false, user: null, expiresAt: null })
+    });
+    const store = createFakeTokenStore("stale");
+
+    render(<App client={client} tokenStore={store} />);
+
+    expect(await screen.findByRole("button", { name: "发送验证码" })).toBeTruthy();
+    expect(store.load()).toBeUndefined();
+  });
+
+  it("saves the token on login and clears it on logout", async () => {
+    const client = createFakeClient();
+    const store = createFakeTokenStore();
+    render(<App client={client} tokenStore={store} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByText("开发验证码：123456");
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await screen.findByRole("button", { name: "Signed in as creator" });
+    expect(store.load()).toBe("tok-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "登出" }));
+    await screen.findByRole("button", { name: "发送验证码" });
+    expect(store.load()).toBeUndefined();
   });
 
   it("summarizes authenticated desktop sessions", () => {

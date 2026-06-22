@@ -9,7 +9,8 @@ import type {
   LoginStartResponse,
   LoginVerifyRequest,
   PromptOptimization,
-  PromptOptimizationRequest
+  PromptOptimizationRequest,
+  SessionResponse
 } from "@gw-link-omniai/shared";
 
 export class ApiError extends Error {
@@ -37,6 +38,7 @@ export interface ApiClient {
   listAssets(token: string): Promise<CreationAsset[]>;
   createAsset(request: CreationAssetRequest, token: string): Promise<CreationAsset>;
   getCreditBalance(token: string): Promise<CreditAmount>;
+  getSession(token: string): Promise<SessionResponse>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -132,6 +134,9 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     async getCreditBalance(token) {
       const { balance } = await send<{ balance: CreditAmount }>("/v1/credits/balance", { token });
       return balance;
+    },
+    getSession(token) {
+      return send<SessionResponse>("/v1/auth/session", { token });
     }
   };
 }
