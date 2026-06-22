@@ -715,7 +715,8 @@ describe("product API", () => {
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
         initialCredits: 100,
-        publicBaseUrl: "http://localhost:8787"
+        publicBaseUrl: "http://localhost:8787",
+        devTopupEnabled: true
       }
     });
     const response = await server.inject({
@@ -744,7 +745,8 @@ describe("product API", () => {
         authDevCodesEnabled: false,
         modelConfigPath: "config/models.json",
         initialCredits: 100,
-        publicBaseUrl: "http://localhost:8787"
+        publicBaseUrl: "http://localhost:8787",
+        devTopupEnabled: true
       }
     });
     const response = await server.inject({
