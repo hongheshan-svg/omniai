@@ -34,6 +34,31 @@ it("posts start-login and returns the response body", async () => {
   expect((init.headers as Record<string, string>)["content-type"]).toBe("application/json");
 });
 
+it("fetches the session with the bearer token", async () => {
+  const session = {
+    authenticated: true,
+    user: {
+      id: "user_email_creator",
+      displayName: "creator",
+      destination: "creator@example.com",
+      channel: "email",
+      plan: "free",
+      createdAt: "2026-06-22T00:00:00.000Z"
+    },
+    expiresAt: "2026-06-29T00:00:00.000Z"
+  };
+  const fetchMock = vi.fn(async () => jsonResponse(session));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const result = await client.getSession("tok-1");
+
+  expect(result).toEqual(session);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/auth/session");
+  expect(init.method ?? "GET").toBe("GET");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
 it("fetches the credit balance with the bearer token and unwraps the envelope", async () => {
   const balance = { credits: 100, unit: "credit" };
   const fetchMock = vi.fn(async () => jsonResponse({ balance }));

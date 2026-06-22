@@ -100,7 +100,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return asset;
     },
     listAssets: async () => assets,
-    getCreditBalance: async () => ({ credits: balance, unit: "credit" as const })
+    getCreditBalance: async () => ({ credits: balance, unit: "credit" as const }),
+    getSession: async () => ({ authenticated: false, user: null, expiresAt: null })
   };
   return { ...base, ...overrides };
 }
