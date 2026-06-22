@@ -11,8 +11,10 @@ import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
 import { createServices } from "./services/appServices";
+import { CompositeProviderAdapter } from "./services/compositeProviderAdapter";
 import { InMemoryCreditService, type CreditService } from "./services/creditService";
 import { type ProviderAdapter } from "./services/gatewayClient";
+import { OpenAiCompatibleImageProvider } from "./services/openAiImageProvider";
 import { OpenAiCompatibleTextProvider } from "./services/openAiTextProvider";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
@@ -62,7 +64,12 @@ export function buildServer(options: BuildServerOptions = {}) {
       creditGranter: creditService
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
-  const providerAdapter = options.providerAdapter ?? new OpenAiCompatibleTextProvider();
+  const providerAdapter =
+    options.providerAdapter ??
+    new CompositeProviderAdapter({
+      text: new OpenAiCompatibleTextProvider(),
+      image: new OpenAiCompatibleImageProvider()
+    });
   const generationService =
     options.generationService ??
     new InMemoryGenerationService({

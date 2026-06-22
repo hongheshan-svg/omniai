@@ -11,7 +11,9 @@ import {
 } from "../repositories/drizzle";
 import { AssetServiceImpl, InMemoryAssetService, type AssetService } from "./assetService";
 import { AuthServiceImpl, InMemoryAuthService, type AuthService } from "./authService";
+import { CompositeProviderAdapter } from "./compositeProviderAdapter";
 import { CreditServiceImpl, InMemoryCreditService, type CreditService } from "./creditService";
+import { OpenAiCompatibleImageProvider } from "./openAiImageProvider";
 import {
   GenerationServiceImpl,
   InMemoryGenerationService,
@@ -59,7 +61,12 @@ export function createDbServices(
   const generationService = new GenerationServiceImpl(new DrizzleGenerationTaskRepository(db), {
     modelCatalog,
     idGenerator: () => `generation_task_${randomUUID()}`,
-    providerAdapter: options.providerAdapter ?? new OpenAiCompatibleTextProvider(),
+    providerAdapter:
+      options.providerAdapter ??
+      new CompositeProviderAdapter({
+        text: new OpenAiCompatibleTextProvider(),
+        image: new OpenAiCompatibleImageProvider()
+      }),
     creditService
   });
 
@@ -84,7 +91,10 @@ export function createServices(config: ApiConfig): AppServices {
       }),
       generationService: new InMemoryGenerationService({
         modelCatalog,
-        providerAdapter: new OpenAiCompatibleTextProvider(),
+        providerAdapter: new CompositeProviderAdapter({
+          text: new OpenAiCompatibleTextProvider(),
+          image: new OpenAiCompatibleImageProvider()
+        }),
         creditService
       }),
       assetService: new InMemoryAssetService(),
