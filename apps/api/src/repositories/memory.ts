@@ -99,16 +99,32 @@ export class InMemoryChallengeRepository implements ChallengeRepository {
 }
 
 export class InMemoryGenerationTaskRepository implements GenerationTaskRepository {
-  private readonly tasks: Array<{ ownerUserId: string; task: GenerationTask }> = [];
+  private readonly tasks: Array<{ ownerUserId: string; task: GenerationTask; providerRef: string | null }> = [];
 
-  async insert(task: GenerationTask, ownerUserId: string): Promise<void> {
-    this.tasks.push({ ownerUserId, task: structuredClone(task) });
+  async insert(task: GenerationTask, ownerUserId: string, providerRef: string | null = null): Promise<void> {
+    this.tasks.push({ ownerUserId, task: structuredClone(task), providerRef });
   }
 
   async list(ownerUserId: string): Promise<GenerationTask[]> {
     return this.tasks
       .filter((row) => row.ownerUserId === ownerUserId)
       .map((row) => structuredClone(row.task));
+  }
+
+  async get(
+    ownerUserId: string,
+    id: string
+  ): Promise<{ task: GenerationTask; providerRef: string | null } | undefined> {
+    const row = this.tasks.find((entry) => entry.ownerUserId === ownerUserId && entry.task.id === id);
+    return row ? { task: structuredClone(row.task), providerRef: row.providerRef } : undefined;
+  }
+
+  async update(task: GenerationTask, ownerUserId: string, providerRef: string | null = null): Promise<void> {
+    const row = this.tasks.find((entry) => entry.ownerUserId === ownerUserId && entry.task.id === task.id);
+    if (row) {
+      row.task = structuredClone(task);
+      row.providerRef = providerRef;
+    }
   }
 }
 

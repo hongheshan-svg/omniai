@@ -73,7 +73,8 @@ export function createDbServices(
       options.providerAdapter ??
       new CompositeProviderAdapter({
         text: new OpenAiCompatibleTextProvider(),
-        image: new OpenAiCompatibleImageProvider({ objectStore: options.objectStore })
+        image: new OpenAiCompatibleImageProvider({ objectStore: options.objectStore }),
+        video: new OpenAiCompatibleTextProvider()
       }),
     creditService
   });
@@ -109,7 +110,8 @@ export function createServices(config: ApiConfig): AppServices {
         modelCatalog,
         providerAdapter: new CompositeProviderAdapter({
           text: new OpenAiCompatibleTextProvider(),
-          image: new OpenAiCompatibleImageProvider({ objectStore })
+          image: new OpenAiCompatibleImageProvider({ objectStore }),
+          video: new OpenAiCompatibleTextProvider()
         }),
         creditService
       }),

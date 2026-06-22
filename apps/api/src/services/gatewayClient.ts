@@ -18,10 +18,19 @@ export interface ProviderGenerationResult {
   providerModelId: string;
   submittedAt: string;
   result?: GenerationTaskResult;
+  providerRef?: string;
+}
+
+export interface ProviderPollRequest {
+  mode: CreationMode;
+  provider: CatalogProviderReference;
+  providerModelId: string;
+  providerRef: string;
 }
 
 export interface ProviderAdapter {
   submitGeneration(request: ProviderGenerationRequest): Promise<ProviderGenerationResult>;
+  pollGeneration?(request: ProviderPollRequest): Promise<ProviderGenerationResult>;
 }
 
 export class ProviderAdapterError extends Error {

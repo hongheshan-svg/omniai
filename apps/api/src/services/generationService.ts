@@ -37,6 +37,7 @@ export interface GenerationServiceOptions {
 export interface GenerationService {
   createTask(request: GenerationTaskRequest, userId: string): GenerationTask | Promise<GenerationTask>;
   listTasks(userId: string): GenerationTask[] | Promise<GenerationTask[]>;
+  refreshTask(id: string, userId: string): GenerationTask | Promise<GenerationTask>;
 }
 
 const resultPreviews: Record<CreationMode, GenerationTaskResultPreview> = {
@@ -161,7 +162,7 @@ export class GenerationServiceImpl implements GenerationService {
       updatedAt: timestamp
     };
 
-    await this.tasks.insert(task, userId);
+    await this.tasks.insert(task, userId, providerResult.providerRef ?? null);
 
     if (this.creditService && providerResult.status === "succeeded") {
       await this.creditService.deduct(userId, creditCost, task.id);
@@ -172,6 +173,65 @@ export class GenerationServiceImpl implements GenerationService {
 
   async listTasks(userId: string): Promise<GenerationTask[]> {
     return this.tasks.list(userId);
+  }
+
+  async refreshTask(id: string, userId: string): Promise<GenerationTask> {
+    const stored = await this.tasks.get(userId, id);
+    if (!stored) {
+      throw new GenerationTaskError("Generation task was not found", 404);
+    }
+
+    const { task, providerRef } = stored;
+    if (task.status !== "running" || !providerRef || !this.providerAdapter.pollGeneration) {
+      return cloneGenerationTask(task);
+    }
+
+    if (this.modelCatalog === undefined) {
+      throw new GenerationTaskError("Model catalog is not configured", 500);
+    }
+
+    let modelReference: ReturnType<ModelCatalog["getModelReference"]>;
+    try {
+      modelReference = this.modelCatalog.getModelReference(task.preset.modelId, task.mode);
+    } catch (error) {
+      if (error instanceof ModelCatalogError) {
+        throw new GenerationTaskError(error.message, error.statusCode);
+      }
+      throw error;
+    }
+
+    let pollResult: ProviderGenerationResult;
+    try {
+      pollResult = await this.providerAdapter.pollGeneration!({
+        mode: task.mode,
+        provider: modelReference.provider,
+        providerModelId: modelReference.providerModelId,
+        providerRef
+      });
+    } catch (error) {
+      if (error instanceof ProviderAdapterError) {
+        throw new GenerationTaskError(error.message, error.statusCode);
+      }
+      throw new GenerationTaskError("Provider adapter failed", 502);
+    }
+
+    if (pollResult.status === "running") {
+      return cloneGenerationTask(task);
+    }
+
+    const updated: GenerationTask = {
+      ...task,
+      status: pollResult.status,
+      ...(pollResult.result ? { result: cloneGenerationTaskResult(pollResult.result) } : {}),
+      updatedAt: this.clock.now().toISOString()
+    };
+    await this.tasks.update(updated, userId, providerRef);
+
+    if (this.creditService && pollResult.status === "succeeded") {
+      await this.creditService.deduct(userId, modelReference.product.creditUnitCost, updated.id);
+    }
+
+    return cloneGenerationTask(updated);
   }
 }
 

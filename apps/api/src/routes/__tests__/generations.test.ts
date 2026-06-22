@@ -268,7 +268,10 @@ describe("generation routes", () => {
       createTask: (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listTasks: (_userId: string) => []
+      listTasks: (_userId: string) => [],
+      refreshTask: (_id: string, _userId: string) => {
+        throw new Error("not implemented");
+      }
     } satisfies GenerationService;
     const server = buildServer({
       config: {
@@ -300,7 +303,10 @@ describe("generation routes", () => {
       createTask: async (_request: unknown, _userId: string) => {
         throw new Error("boom");
       },
-      listTasks: (_userId: string) => []
+      listTasks: (_userId: string) => [],
+      refreshTask: (_id: string, _userId: string) => {
+        throw new Error("not implemented");
+      }
     } satisfies GenerationService;
     const server = buildServer({
       config: {

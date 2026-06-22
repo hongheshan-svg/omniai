@@ -184,6 +184,23 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     }
   }
 
+  async function handleRefreshTask(task: GenerationTask) {
+    if (!token) {
+      return;
+    }
+    setActionError(undefined);
+    try {
+      const updated = await api.getGeneration(task.id, token);
+      setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
+      setActionError(errorMessage(error));
+    }
+  }
+
   async function handleSubmitGeneration() {
     if (!optimization || !token) {
       return;
@@ -372,6 +389,11 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
                     {task.status === "succeeded" && task.result ? (
                       <button type="button" onClick={() => handleSaveAsset(task)}>
                         保存到资产库
+                      </button>
+                    ) : null}
+                    {task.status === "running" ? (
+                      <button type="button" onClick={() => handleRefreshTask(task)}>
+                        刷新状态
                       </button>
                     ) : null}
                   </article>

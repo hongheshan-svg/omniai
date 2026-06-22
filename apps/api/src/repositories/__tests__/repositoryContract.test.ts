@@ -297,6 +297,40 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(listed!.result).toEqual({ kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "一只猫" });
   });
 
+  it("gets a task with its provider ref scoped to the owner", async () => {
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+    await tasks.insert(makeTask({ id: "task-a", status: "running" }), "owner-a", "job-1");
+
+    const got = await tasks.get("owner-a", "task-a");
+    expect(got?.task.status).toBe("running");
+    expect(got?.providerRef).toBe("job-1");
+    expect(await tasks.get("owner-b", "task-a")).toBeUndefined();
+    expect(await tasks.get("owner-a", "missing")).toBeUndefined();
+  });
+
+  it("updates a task status, result, and provider ref", async () => {
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await tasks.insert(makeTask({ id: "task-a", status: "running" }), "owner-a", "job-1");
+
+    await tasks.update(
+      makeTask({
+        id: "task-a",
+        status: "succeeded",
+        result: { kind: "image", url: "data:image/png;base64,dmlkZW8=", alt: "video" }
+      }),
+      "owner-a",
+      null
+    );
+
+    const got = await tasks.get("owner-a", "task-a");
+    expect(got?.task.status).toBe("succeeded");
+    expect(got?.task.result).toEqual({ kind: "image", url: "data:image/png;base64,dmlkZW8=", alt: "video" });
+    expect(got?.providerRef).toBeNull();
+  });
+
   it("does not share mutable references with the inserted task (write isolation)", async () => {
     const { users, tasks } = context.bundle;
     await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));

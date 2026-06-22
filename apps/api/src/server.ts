@@ -68,11 +68,13 @@ export function buildServer(options: BuildServerOptions = {}) {
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
   const objectStore = options.objectStore ?? new InMemoryObjectStore();
+  const textProvider = new OpenAiCompatibleTextProvider();
   const providerAdapter =
     options.providerAdapter ??
     new CompositeProviderAdapter({
-      text: new OpenAiCompatibleTextProvider(),
-      image: new OpenAiCompatibleImageProvider({ objectStore })
+      text: textProvider,
+      image: new OpenAiCompatibleImageProvider({ objectStore }),
+      video: textProvider
     });
   const generationService =
     options.generationService ??

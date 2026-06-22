@@ -73,6 +73,7 @@ export const generationTasks = pgTable(
     preset: jsonb("preset").$type<PresetSuggestion>().notNull(),
     resultPreview: jsonb("result_preview").$type<GenerationTaskResultPreview>().notNull(),
     result: jsonb("result").$type<GenerationTaskResult>(),
+    providerRef: text("provider_ref"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull()
   },

@@ -11,6 +11,7 @@ import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
 import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
 import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
 import { InMemoryObjectStore } from "../services/objectStore";
+import { FakeAsyncProvider } from "../services/fakeAsyncProvider";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -267,7 +268,8 @@ describe("product API", () => {
         image: new OpenAiCompatibleImageProvider({
           fetch: imageFetch as unknown as typeof fetch,
           env: { OPENAI_API_KEY: "sk-test" }
-        })
+        }),
+        video: new OpenAiCompatibleTextProvider()
       })
     });
     const token = await authenticate(server);
@@ -434,7 +436,8 @@ describe("product API", () => {
           fetch: imageFetch as unknown as typeof fetch,
           env: { OPENAI_API_KEY: "sk-test" },
           objectStore
-        })
+        }),
+        video: new OpenAiCompatibleTextProvider()
       })
     });
     const token = await authenticate(server);
@@ -462,6 +465,77 @@ describe("product API", () => {
     expect(fileResponse.statusCode).toBe(200);
     expect(fileResponse.headers["content-type"]).toContain("image/png");
     expect(fileResponse.body).toBe("hello");
+  });
+
+  it("advances a running task to succeeded via GET /v1/generations/:id", async () => {
+    const modelConfig: ModelCatalogConfig = {
+      providers: [
+        {
+          id: "video-main",
+          displayName: "Video Main",
+          protocol: "anthropic-compatible",
+          baseUrl: "https://video",
+          apiKeyEnv: "VIDEO_KEY",
+          models: [
+            {
+              id: "gw-video-motion",
+              providerModelId: "claude-video",
+              displayName: "OmniAI Video Motion",
+              capability: "video",
+              tags: ["motion"],
+              visibility: "visible",
+              minimumPlan: "free",
+              creditUnitCost: 3
+            }
+          ]
+        }
+      ]
+    };
+    const textProvider = new OpenAiCompatibleTextProvider();
+    const server = buildServer({
+      modelCatalog: new ConfigModelCatalog(modelConfig),
+      providerAdapter: new CompositeProviderAdapter({
+        text: textProvider,
+        image: textProvider,
+        video: new FakeAsyncProvider({ pollsUntilDone: 1 })
+      })
+    });
+    const token = await authenticate(server);
+
+    const create = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: "video",
+        prompt: "一段短视频",
+        optimizedPrompt: "生成一段短视频。",
+        preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } }
+      }
+    });
+    expect(create.json()).toMatchObject({ task: { status: "running" } });
+    const id = (create.json() as { task: { id: string } }).task.id;
+
+    const running = await server.inject({
+      method: "GET",
+      url: `/v1/generations/${id}`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(running.json()).toMatchObject({ task: { status: "running" } });
+
+    const done = await server.inject({
+      method: "GET",
+      url: `/v1/generations/${id}`,
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(done.json()).toMatchObject({ task: { status: "succeeded", result: { kind: "image" } } });
+
+    const balance = await server.inject({
+      method: "GET",
+      url: "/v1/credits/balance",
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(balance.json()).toEqual({ balance: { credits: 97, unit: "credit" } });
   });
 
   it("serves a stored file at /files/:id", async () => {
@@ -519,7 +593,10 @@ describe("product API", () => {
       createTask: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listTasks: (_userId: string) => []
+      listTasks: (_userId: string) => [],
+      refreshTask: (_id: string, _userId: string) => {
+        throw new Error("not implemented");
+      }
     } satisfies GenerationService;
     const fakeAssetService = {
       createAsset: (_request: unknown, _userId: string) => {
