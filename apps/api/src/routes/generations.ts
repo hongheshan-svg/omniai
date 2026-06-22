@@ -29,6 +29,21 @@ export function registerGenerationRoutes(
   server.get("/v1/generations", { preHandler }, async (request) => ({
     tasks: await generationService.listTasks(request.userId!)
   }))
+
+  server.get("/v1/generations/:id", { preHandler }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    if (typeof id !== "string" || id.length === 0) {
+      return reply.status(400).send({ error: "Invalid generation task id" })
+    }
+
+    try {
+      const task = await generationService.refreshTask(id, request.userId!)
+      return { task }
+    } catch (error) {
+      return sendGenerationTaskError(reply, error)
+    }
+  })
 }
 
 function readGenerationTaskRequest(body: unknown): GenerationTaskRequest | undefined {
