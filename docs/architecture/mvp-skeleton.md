@@ -183,3 +183,15 @@ the image provider and the file route. The generation service, persistence,
 credits, desktop, and shared contracts are unchanged. Cloud backends (Supabase
 Storage / S3) behind the same interface, per-user ACL / signed URLs, and
 non-image files remain later slices.
+
+## Session Token Persistence Slice
+
+The desktop bearer token survives restarts. An injectable `TokenStore`
+(interface + `createLocalStorageTokenStore` default, a no-op when `localStorage`
+is absent) holds the token; `apiClient` gains `getSession` (`GET /v1/auth/session`).
+On mount, `App` loads any stored token and validates it via `getSession`:
+authenticated → restore the session and load tasks/assets/balance; otherwise
+(not authenticated or error) → clear the token and stay signed out. The token is
+saved on login and cleared on logout/401. No backend or shared-contract change.
+An OS keychain / Tauri secure store behind the same `TokenStore` interface, and
+refresh-token/session renewal, remain later slices.

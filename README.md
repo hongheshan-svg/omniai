@@ -174,8 +174,11 @@ The seventh product-first slice connects the desktop app to the product API.
 - Start the API first (`pnpm dev:api`), then the desktop app (`pnpm dev:desktop`).
 - Desktop reads `VITE_API_BASE_URL` (default `http://localhost:8787`).
 - Passwordless login: enter an email/phone, the start-login response returns a
-  `devCode` in local development, enter it to receive a bearer session (held in
-  memory — re-login after restart).
+  `devCode` in local development, enter it to receive a bearer session.
+- The bearer session is persisted via an injectable `TokenStore` (default
+  `localStorage`); on startup the desktop validates the stored token with
+  `GET /v1/auth/session` and restores the session, so a restart no longer
+  requires re-login (invalid/expired tokens are cleared).
 - Optimize a prompt, submit a generation, and view your own task list and asset
   library (per-user, via the guarded API).
 - Save a `succeeded` text generation as an asset ("保存到资产库") — the desktop
