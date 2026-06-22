@@ -40,6 +40,7 @@ export interface ApiClient {
   getCreditBalance(token: string): Promise<CreditAmount>;
   getSession(token: string): Promise<SessionResponse>;
   getGeneration(id: string, token: string): Promise<GenerationTask>;
+  topUpCredits(amount: number, token: string): Promise<CreditAmount>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -145,6 +146,14 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         { token }
       );
       return task;
+    },
+    async topUpCredits(amount, token) {
+      const { balance } = await send<{ balance: CreditAmount }>("/v1/credits/topup", {
+        method: "POST",
+        body: { amount },
+        token
+      });
+      return balance;
     }
   };
 }

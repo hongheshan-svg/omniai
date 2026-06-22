@@ -110,6 +110,10 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         throw new ApiError("Generation task was not found", 404);
       }
       return found;
+    },
+    topUpCredits: async (amount: number) => {
+      balance += amount;
+      return { credits: balance, unit: "credit" as const };
     }
   };
   return { ...base, ...overrides };
@@ -399,6 +403,16 @@ describe("Desktop App", () => {
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("视频资产");
     expect(assetLibrary.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+  });
+
+  it("tops up the balance from the header", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    await screen.findByText("积分：100");
+
+    fireEvent.click(screen.getByRole("button", { name: "充值" }));
+
+    expect(await screen.findByText("积分：200")).toBeTruthy();
   });
 
   it("summarizes authenticated desktop sessions", () => {
