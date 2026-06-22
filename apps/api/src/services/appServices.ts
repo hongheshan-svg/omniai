@@ -11,6 +11,7 @@ import {
 } from "../repositories/drizzle";
 import { AssetServiceImpl, InMemoryAssetService, type AssetService } from "./assetService";
 import { AuthServiceImpl, InMemoryAuthService, type AuthService } from "./authService";
+import { AsyncVideoProvider } from "./asyncVideoProvider";
 import { CompositeProviderAdapter } from "./compositeProviderAdapter";
 import { CreditServiceImpl, InMemoryCreditService, type CreditService } from "./creditService";
 import { OpenAiCompatibleImageProvider } from "./openAiImageProvider";
@@ -74,7 +75,7 @@ export function createDbServices(
       new CompositeProviderAdapter({
         text: new OpenAiCompatibleTextProvider(),
         image: new OpenAiCompatibleImageProvider({ objectStore: options.objectStore }),
-        video: new OpenAiCompatibleTextProvider()
+        video: new AsyncVideoProvider()
       }),
     creditService
   });
@@ -111,7 +112,7 @@ export function createServices(config: ApiConfig): AppServices {
         providerAdapter: new CompositeProviderAdapter({
           text: new OpenAiCompatibleTextProvider(),
           image: new OpenAiCompatibleImageProvider({ objectStore }),
-          video: new OpenAiCompatibleTextProvider()
+          video: new AsyncVideoProvider()
         }),
         creditService
       }),
