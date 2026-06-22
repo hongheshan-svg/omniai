@@ -154,3 +154,17 @@ insufficient-credit `402` from `POST /v1/generations` to a friendly
 client's `creditEstimate` may differ from the server's authoritative
 `creditUnitCost`). No backend or shared-contract change. Top-up/payment and
 admin/mobile balance display remain later slices.
+
+## Real Image Provider Slice
+
+Image generation produces actual images. `GenerationTaskResult` gains an
+`image` variant (`{ kind, url, alt }`, identical to the image asset content).
+`OpenAiCompatibleImageProvider` calls the OpenAI-compatible `images/generations`
+endpoint and returns the image as an inline `data:` URL (b64 → data URL, or a
+passed-through provider URL); a `CompositeProviderAdapter` routes generation by
+mode (image → image provider, else → text provider) and is the default adapter.
+The generation service, persistence, and credit deduction are unchanged (the
+result passes through generically; image costs `creditUnitCost` = 2). The
+desktop renders generated images and saves them as assets. Object storage (real
+file URLs instead of inline base64), image parameters, and real video generation
+remain later slices.

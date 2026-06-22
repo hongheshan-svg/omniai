@@ -218,6 +218,19 @@ The ninth product-first slice adds a server-side credit ledger.
 - Concurrent deduction is not yet atomic; real payment/top-up and admin/mobile
   balance display are later slices.
 
+### Real Image Generation
+
+The tenth product-first slice makes image generation real.
+
+- With a provider key, `POST /v1/generations` for an image model calls the
+  OpenAI-compatible `images/generations` endpoint and returns a `succeeded`
+  task carrying `result: { kind: "image", url, alt }`, where `url` is an inline
+  `data:image/png;base64,...` URL (object storage is a later slice).
+- Without a key, image generation falls back to the `queued` placeholder.
+  Generation routes by mode (`CompositeProviderAdapter`); video stays `queued`.
+- The desktop renders the generated image in the task center and can save it to
+  the asset library (image assets render in the library too).
+
 ## Validation
 
 ```bash
