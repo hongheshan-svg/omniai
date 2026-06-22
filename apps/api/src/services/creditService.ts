@@ -19,6 +19,7 @@ export interface CreditService {
   getBalance(userId: string): Promise<CreditAmount>;
   grantInitial(userId: string): Promise<void>;
   deduct(userId: string, amount: number, reference: string): Promise<void>;
+  topUp(userId: string, amount: number, reference?: string): Promise<void>;
 }
 
 export class CreditServiceImpl implements CreditService {
@@ -62,6 +63,19 @@ export class CreditServiceImpl implements CreditService {
         amount: -amount,
         reason: "generation",
         reference,
+        createdAt: this.clock.now().toISOString()
+      },
+      userId
+    );
+  }
+
+  async topUp(userId: string, amount: number, reference?: string): Promise<void> {
+    await this.transactions.insert(
+      {
+        id: this.idGenerator(),
+        amount,
+        reason: "topup",
+        reference: reference ?? null,
         createdAt: this.clock.now().toISOString()
       },
       userId

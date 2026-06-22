@@ -21,6 +21,10 @@ class StubCreditService implements CreditService {
     this.deductions.push({ userId, amount, reference });
     this.creditsByUser[userId] = (this.creditsByUser[userId] ?? 0) - amount;
   }
+
+  async topUp(userId: string, amount: number) {
+    this.creditsByUser[userId] = (this.creditsByUser[userId] ?? 0) + amount;
+  }
 }
 
 function createTextRequest(modelId = "gw-text-balanced"): GenerationTaskRequest {

@@ -39,4 +39,19 @@ describe("InMemoryCreditService", () => {
     await service.grantInitial("user-a");
     expect((await service.getBalance("user-a")).credits).toBe(0);
   });
+
+  it("tops up the balance", async () => {
+    const service = createService(100);
+    await service.grantInitial("user-a");
+    await service.topUp("user-a", 50);
+    expect((await service.getBalance("user-a")).credits).toBe(150);
+  });
+
+  it("sums multiple top-ups and deductions", async () => {
+    const service = createService(0);
+    await service.topUp("user-a", 100);
+    await service.topUp("user-a", 25);
+    await service.deduct("user-a", 10, "task-1");
+    expect((await service.getBalance("user-a")).credits).toBe(115);
+  });
 });
