@@ -65,7 +65,9 @@ export interface GenerationTaskResultPreview {
   description: string;
 }
 
-export type GenerationTaskResult = { kind: "text"; text: string; format: "markdown" | "plain" };
+export type GenerationTaskResult =
+  | { kind: "text"; text: string; format: "markdown" | "plain" }
+  | { kind: "image"; url: string; alt: string };
 
 export interface GenerationTask {
   id: string;

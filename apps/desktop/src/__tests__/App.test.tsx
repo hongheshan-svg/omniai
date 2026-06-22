@@ -23,6 +23,16 @@ const textOptimization: PromptOptimization = {
   createdAt: "2026-06-21T00:00:00.000Z"
 };
 
+const imageOptimization: PromptOptimization = {
+  id: "o2",
+  mode: "image",
+  originalPrompt: "一只猫",
+  optimizedPrompt: "一只在霓虹城市里的猫",
+  sections: [{ label: "画面", value: "霓虹城市" }],
+  preset: { modelId: "gw-image-creative", parameters: { quality: "high" }, creditEstimate: { credits: 2, unit: "credit" } },
+  createdAt: "2026-06-22T00:00:00.000Z"
+};
+
 const authSession: AuthSession = {
   token: "tok-1",
   user: {
@@ -52,6 +62,10 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     logout: async () => undefined,
     optimizePrompt: async () => textOptimization,
     createGeneration: async (request) => {
+      const result =
+        request.mode === "image"
+          ? { kind: "image" as const, url: "data:image/png;base64,aGVsbG8=", alt: request.optimizedPrompt }
+          : { kind: "text" as const, text: "真实生成文案", format: "markdown" as const };
       const task: GenerationTask = {
         id: `task-${tasks.length + 1}`,
         mode: request.mode,
@@ -59,15 +73,13 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         prompt: request.prompt,
         optimizedPrompt: request.optimizedPrompt,
         preset: request.preset,
-        resultPreview: { title: "文本生成任务", description: "已生成。" },
-        result: { kind: "text", text: "真实生成文案", format: "markdown" },
+        resultPreview: { title: "生成任务", description: "已生成。" },
+        result,
         createdAt: "2026-06-21T00:00:00.000Z",
         updatedAt: "2026-06-21T00:00:00.000Z"
       };
       tasks = [task, ...tasks];
-      if (task.status === "succeeded" && task.result?.kind === "text") {
-        balance -= 1;
-      }
+      balance -= request.mode === "image" ? 2 : 1;
       return task;
     },
     listGenerations: async () => tasks,
@@ -171,6 +183,35 @@ describe("Desktop App", () => {
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("文本资产");
     expect(within(assetLibrary).getByText("已保存。")).toBeTruthy();
+  });
+
+  it("renders a generated image in the task center", async () => {
+    const client = createFakeClient({ optimizePrompt: async () => imageOptimization });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    const img = await within(taskCenter).findByRole("img");
+    expect((img as HTMLImageElement).getAttribute("src")).toBe("data:image/png;base64,aGVsbG8=");
+  });
+
+  it("saves a succeeded image task to the asset library", async () => {
+    const client = createFakeClient({ optimizePrompt: async () => imageOptimization });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+
+    const taskCenter = screen.getByLabelText("任务中心");
+    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+
+    const assetLibrary = screen.getByLabelText("资产库");
+    await within(assetLibrary).findByText("图片资产");
+    expect(within(assetLibrary).getByRole("img")).toBeTruthy();
   });
 
   it("lists the user's assets read-only (no save button)", async () => {

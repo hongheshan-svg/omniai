@@ -281,6 +281,22 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(listed!.status).toBe("succeeded");
   });
 
+  it("round-trips an image task result", async () => {
+    const { users, tasks } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await tasks.insert(
+      makeTask({
+        id: "task-image",
+        status: "succeeded",
+        result: { kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "一只猫" }
+      }),
+      "owner-a"
+    );
+
+    const [listed] = await tasks.list("owner-a");
+    expect(listed!.result).toEqual({ kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "一只猫" });
+  });
+
   it("does not share mutable references with the inserted task (write isolation)", async () => {
     const { users, tasks } = context.bundle;
     await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));

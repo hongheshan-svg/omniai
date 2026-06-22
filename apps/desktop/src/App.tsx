@@ -323,7 +323,10 @@ export function App({ client }: { client?: ApiClient } = {}) {
                       预计点数：{taskCredits} {taskCredits === 1 ? "credit" : "credits"}
                     </p>
                     {task.result?.kind === "text" ? <p>{task.result.text}</p> : null}
-                    {task.status === "succeeded" && task.result?.kind === "text" ? (
+                    {task.result?.kind === "image" ? (
+                      <img src={task.result.url} alt={task.result.alt} />
+                    ) : null}
+                    {task.status === "succeeded" && task.result ? (
                       <button type="button" onClick={() => handleSaveAsset(task)}>
                         保存到资产库
                       </button>
@@ -359,6 +362,9 @@ export function App({ client }: { client?: ApiClient } = {}) {
                 <article>
                   <h3>{asset.title}</h3>
                   <p>{asset.preview.description}</p>
+                  {asset.content.kind === "image" ? (
+                    <img src={asset.content.url} alt={asset.content.alt} />
+                  ) : null}
                   <p>{summarizeAssetPrompt(asset)}</p>
                   <p>{asset.preset.modelId}</p>
                 </article>
