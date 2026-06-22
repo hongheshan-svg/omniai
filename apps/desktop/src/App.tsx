@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
@@ -13,6 +13,7 @@ import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
+import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
 
 const anonymousSession: SessionResponse = { authenticated: false, user: null, expiresAt: null };
 
@@ -26,8 +27,9 @@ function errorMessage(error: unknown): string {
   return "请求失败，请稍后再试";
 }
 
-export function App({ client }: { client?: ApiClient } = {}) {
+export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: TokenStore } = {}) {
   const api = useMemo(() => client ?? createApiClient(), [client]);
+  const store = useMemo(() => tokenStore ?? createLocalStorageTokenStore(), [tokenStore]);
 
   const [session, setSession] = useState<SessionResponse>(anonymousSession);
   const [token, setToken] = useState<string | undefined>(undefined);
@@ -55,7 +57,49 @@ export function App({ client }: { client?: ApiClient } = {}) {
   const filteredAssets = useMemo(() => filterCreationAssets(assets, assetFilter), [assets, assetFilter]);
   const promptInputId = `${selectedMode}-studio-prompt`;
 
+  async function loadUserData(authToken: string) {
+    const [loadedTasks, loadedAssets, loadedBalance] = await Promise.all([
+      api.listGenerations(authToken),
+      api.listAssets(authToken),
+      api.getCreditBalance(authToken)
+    ]);
+    setTasks(loadedTasks);
+    setAssets(loadedAssets);
+    setBalance(loadedBalance);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function restoreSession() {
+      const stored = store.load();
+      if (!stored) {
+        return;
+      }
+      try {
+        const restored = await api.getSession(stored);
+        if (cancelled) {
+          return;
+        }
+        if (restored.authenticated && restored.user) {
+          setToken(stored);
+          setSession({ authenticated: true, user: restored.user, expiresAt: restored.expiresAt });
+          await loadUserData(stored);
+        } else {
+          store.clear();
+        }
+      } catch {
+        store.clear();
+      }
+    }
+    void restoreSession();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, store]);
+
   function handleSignedOut(message?: string) {
+    store.clear();
     setToken(undefined);
     setSession(anonymousSession);
     setTasks([]);
@@ -87,18 +131,12 @@ export function App({ client }: { client?: ApiClient } = {}) {
     try {
       const authSession = await api.verifyLogin({ challengeId, code });
       setToken(authSession.token);
+      store.save(authSession.token);
       setSession({ authenticated: true, user: authSession.user, expiresAt: authSession.expiresAt });
       setChallengeId(undefined);
       setDevCode(undefined);
       setCode("");
-      const [loadedTasks, loadedAssets, loadedBalance] = await Promise.all([
-        api.listGenerations(authSession.token),
-        api.listAssets(authSession.token),
-        api.getCreditBalance(authSession.token)
-      ]);
-      setTasks(loadedTasks);
-      setAssets(loadedAssets);
-      setBalance(loadedBalance);
+      await loadUserData(authSession.token);
     } catch (error) {
       setAuthError(errorMessage(error));
     }
