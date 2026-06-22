@@ -195,3 +195,18 @@ authenticated → restore the session and load tasks/assets/balance; otherwise
 saved on login and cleared on logout/401. No backend or shared-contract change.
 An OS keychain / Tauri secure store behind the same `TokenStore` interface, and
 refresh-token/session renewal, remain later slices.
+
+## Async Generation Lifecycle Slice
+
+The async generation machinery (slice 11a, fake provider). `submitGeneration`
+may return `running` + a `providerRef` (server-internal, stored in
+`generation_tasks.provider_ref`, never in `GenerationTask`); `ProviderAdapter`
+gains optional `pollGeneration`. `CompositeProviderAdapter` routes submit/poll by
+mode (text/image/video). The repository gains `get`/`update`; the generation
+service persists running tasks without charging and exposes `refreshTask`
+(re-poll, persist, deduct on `running → succeeded`). `GET /v1/generations/:id`
+re-polls on read (no worker); the desktop adds a per-running-task refresh button.
+A `FakeAsyncProvider` (submit→running, poll→succeeds after N) proves it
+end-to-end; production video stays `queued`. The real async video provider, a
+video-specific result variant, background polling, and a desktop auto-poll
+remain slice 11b / later.

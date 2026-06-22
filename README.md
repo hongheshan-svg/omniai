@@ -236,6 +236,17 @@ The tenth product-first slice makes image generation real.
 - The desktop renders the generated image in the task center and can save it to
   the asset library (image assets render in the library too).
 
+### Async Generation Lifecycle
+
+Generation can be asynchronous: a provider may return a `running` task with an
+internal job reference (never exposed in the product contract). `GET
+/v1/generations/:id` re-polls a `running` task via the stored reference,
+persists the new status/result, and charges the model's `creditUnitCost` once,
+on the `running → succeeded` transition. The desktop shows a "刷新状态" button on
+running tasks that fetches the latest state. This is proven with a deterministic
+`FakeAsyncProvider`; production video stays `queued` until a real async video
+provider is added. No background worker — advancement happens on read.
+
 ## Validation
 
 ```bash
