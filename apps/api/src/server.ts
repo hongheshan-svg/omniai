@@ -61,6 +61,7 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   const assetService = options.assetService ?? new InMemoryAssetService();
   const creditService = options.creditService ?? new InMemoryCreditService();
+  const devTopupEnabled = options.config?.devTopupEnabled ?? false;
   const authService =
     options.authService ??
     new InMemoryAuthService({
@@ -93,7 +94,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
-  registerCreditRoutes(server, creditService, authService);
+  registerCreditRoutes(server, creditService, authService, { devTopupEnabled });
   registerFileRoutes(server, objectStore);
   registerAuthRoutes(server, authService);
 

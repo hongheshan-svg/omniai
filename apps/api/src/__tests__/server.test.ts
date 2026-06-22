@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../server";
+import type { ApiConfig } from "../config";
 import type { AssetService } from "../services/assetService";
 import type { AuthService } from "../services/authService";
 import type { GenerationService } from "../services/generationService";
@@ -102,6 +103,68 @@ describe("product API", () => {
     });
     return (verify.json() as { token: string }).token;
   }
+
+  function topupConfig(devTopupEnabled: boolean): ApiConfig {
+    return {
+      port: 8787,
+      gatewayBaseUrl: "https://gateway.gw-link.local",
+      authDevCodesEnabled: true,
+      modelConfigPath: "config/models.json",
+      initialCredits: 100,
+      publicBaseUrl: "http://localhost:8787",
+      devTopupEnabled
+    };
+  }
+
+  it("tops up credits when dev top-up is enabled", async () => {
+    const server = buildServer({ config: topupConfig(true) });
+    const token = await authenticate(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/credits/topup",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { amount: 50 }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ balance: { credits: 150, unit: "credit" } });
+  });
+
+  it("rejects top-up when dev top-up is disabled", async () => {
+    const server = buildServer({ config: topupConfig(false) });
+    const token = await authenticate(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/credits/topup",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { amount: 50 }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "Top-up is disabled" });
+  });
+
+  it("rejects a non-positive-integer top-up amount", async () => {
+    const server = buildServer({ config: topupConfig(true) });
+    const token = await authenticate(server);
+    const response = await server.inject({
+      method: "POST",
+      url: "/v1/credits/topup",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { amount: -5 }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Invalid top-up amount" });
+  });
+
+  it("rejects unauthenticated top-up", async () => {
+    const server = buildServer({ config: topupConfig(true) });
+    const response = await server.inject({ method: "POST", url: "/v1/credits/topup", payload: { amount: 50 } });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "Authentication required" });
+  });
 
   it("registers the generation routes", async () => {
     const server = buildServer({ providerAdapter: new FakeProviderAdapter() });
