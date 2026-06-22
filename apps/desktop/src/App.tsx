@@ -386,6 +386,9 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
                     {task.result?.kind === "image" ? (
                       <img src={task.result.url} alt={task.result.alt} />
                     ) : null}
+                    {task.result?.kind === "video" ? (
+                      <video controls src={task.result.url} poster={task.result.posterUrl} />
+                    ) : null}
                     {task.status === "succeeded" && task.result ? (
                       <button type="button" onClick={() => handleSaveAsset(task)}>
                         保存到资产库
@@ -429,6 +432,9 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
                   <p>{asset.preview.description}</p>
                   {asset.content.kind === "image" ? (
                     <img src={asset.content.url} alt={asset.content.alt} />
+                  ) : null}
+                  {asset.content.kind === "video" ? (
+                    <video controls src={asset.content.url} poster={asset.content.posterUrl} />
                   ) : null}
                   <p>{summarizeAssetPrompt(asset)}</p>
                   <p>{asset.preset.modelId}</p>
