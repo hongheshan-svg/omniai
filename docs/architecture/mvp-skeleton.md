@@ -226,3 +226,14 @@ service, `refreshTask`, persistence, and credits are unchanged (charge
 video-job shape; production points the video model's provider at a real service.
 Object storage for video bytes, a specific vendor integration, and thumbnail
 generation remain later work.
+
+## Credit Top-up Foundation Slice
+
+`CreditService.topUp` records a positive `topup` ledger entry. `POST
+/v1/credits/topup` (auth-guarded, gated by `GW_LINK_DEV_TOPUP_ENABLED` — default
+off in production) credits the account directly and returns the new balance; the
+gate flag is passed into `registerCreditRoutes` from the injected config at build
+time (never triggering `loadConfig`). The desktop adds a fixed-amount "充值"
+button. This is a dev-only direct credit; real payment channels (Stripe / Alipay
+/ WeChat) will drive `topUp` via webhooks, and a package catalog / custom amounts
+/ minimumPlan enforcement remain later work.
