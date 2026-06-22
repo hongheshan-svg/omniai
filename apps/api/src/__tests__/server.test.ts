@@ -10,6 +10,7 @@ import type { ModelCatalogConfig } from "../services/modelConfig";
 import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
 import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
 import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
+import { InMemoryObjectStore } from "../services/objectStore";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -392,6 +393,26 @@ describe("product API", () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("serves a stored file at /files/:id", async () => {
+    const store = new InMemoryObjectStore({ publicBaseUrl: "http://localhost:8787", idGenerator: () => "obj1" });
+    const { id } = await store.put(new TextEncoder().encode("hello"), "image/png");
+    const server = buildServer({ objectStore: store });
+
+    const response = await server.inject({ method: "GET", url: `/files/${id}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/png");
+    expect(response.body).toBe("hello");
+  });
+
+  it("returns 404 for an unknown file id", async () => {
+    const server = buildServer({ objectStore: new InMemoryObjectStore() });
+    const response = await server.inject({ method: "GET", url: "/files/missing.png" });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "File not found" });
   });
 
   it("reflects the request origin via CORS headers", async () => {
