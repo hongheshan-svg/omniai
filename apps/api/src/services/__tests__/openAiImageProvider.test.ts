@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProviderGenerationRequest } from "../gatewayClient";
 import { OpenAiCompatibleImageProvider } from "../openAiImageProvider";
+import { InMemoryObjectStore } from "../objectStore";
 
 function imageRequest(overrides: Partial<ProviderGenerationRequest> = {}): ProviderGenerationRequest {
   return {
@@ -105,5 +106,25 @@ describe("OpenAiCompatibleImageProvider", () => {
     });
 
     await expect(provider.submitGeneration(imageRequest())).rejects.toMatchObject({ statusCode: 502 });
+  });
+
+  it("stores the image bytes and returns the stored URL when an object store is configured", async () => {
+    const store = new InMemoryObjectStore({ publicBaseUrl: "https://api.test", idGenerator: () => "obj1" });
+    const fetchMock = vi.fn(async () => jsonResponse({ data: [{ b64_json: "aGVsbG8=" }] }));
+    const provider = new OpenAiCompatibleImageProvider({
+      fetch: fetchMock as unknown as typeof fetch,
+      env: { OPENAI_API_KEY: "sk-test" },
+      objectStore: store
+    });
+
+    const result = await provider.submitGeneration(imageRequest());
+
+    expect(result.result).toEqual({
+      kind: "image",
+      url: "https://api.test/files/obj1.png",
+      alt: "一只在霓虹城市里的猫"
+    });
+    const stored = await store.get("obj1.png");
+    expect(new TextDecoder().decode(stored!.bytes)).toBe("hello");
   });
 });
