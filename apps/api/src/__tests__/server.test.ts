@@ -267,7 +267,8 @@ describe("product API", () => {
         image: new OpenAiCompatibleImageProvider({
           fetch: imageFetch as unknown as typeof fetch,
           env: { OPENAI_API_KEY: "sk-test" }
-        })
+        }),
+        video: new OpenAiCompatibleTextProvider()
       })
     });
     const token = await authenticate(server);
@@ -434,7 +435,8 @@ describe("product API", () => {
           fetch: imageFetch as unknown as typeof fetch,
           env: { OPENAI_API_KEY: "sk-test" },
           objectStore
-        })
+        }),
+        video: new OpenAiCompatibleTextProvider()
       })
     });
     const token = await authenticate(server);
