@@ -41,6 +41,15 @@ function contentTypeForId(id: string): string {
   return TYPE_BY_EXT[ext] ?? "application/octet-stream";
 }
 
+// Object ids are always `${uuid}.${ext}` (see buildId). Reject anything else so a
+// user-supplied id from GET /files/:id can never contain path separators or `..`
+// and escape the store directory.
+const SAFE_OBJECT_ID = /^[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/;
+
+function isSafeObjectId(id: string): boolean {
+  return SAFE_OBJECT_ID.test(id);
+}
+
 function buildId(idGenerator: () => string, contentType: string): string {
   return `${idGenerator()}.${extensionForContentType(contentType)}`;
 }
@@ -91,6 +100,10 @@ export class LocalFileObjectStore implements ObjectStore {
   }
 
   async get(id: string): Promise<StoredObject | undefined> {
+    if (!isSafeObjectId(id)) {
+      return undefined;
+    }
+
     try {
       const bytes = await readFile(join(this.dir, id));
       return { bytes: new Uint8Array(bytes), contentType: contentTypeForId(id) };

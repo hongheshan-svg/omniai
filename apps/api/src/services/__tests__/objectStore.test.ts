@@ -64,4 +64,13 @@ describe("LocalFileObjectStore", () => {
     expect(new TextDecoder().decode(got!.bytes)).toBe("pixels");
     expect(await store.get("missing.png")).toBeUndefined();
   });
+
+  it("rejects path-traversal ids without touching the filesystem", async () => {
+    dir = await mkdtemp(join(tmpdir(), "objstore-"));
+    const store = new LocalFileObjectStore(dir);
+
+    expect(await store.get("../../etc/passwd")).toBeUndefined();
+    expect(await store.get("../secret.png")).toBeUndefined();
+    expect(await store.get("a/b.png")).toBeUndefined();
+  });
 });
