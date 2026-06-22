@@ -168,3 +168,18 @@ result passes through generically; image costs `creditUnitCost` = 2). The
 desktop renders generated images and saves them as assets. Object storage (real
 file URLs instead of inline base64), image parameters, and real video generation
 remain later slices.
+
+## Object Storage Slice
+
+Generated images are stored in an `ObjectStore` (interface + `InMemoryObjectStore`
+default + `LocalFileObjectStore` when `GW_LINK_OBJECT_STORE_DIR` is set), mirroring
+the repository seam. The image provider takes an injected store: it `put`s the
+decoded bytes and returns `${GW_LINK_PUBLIC_BASE_URL}/files/<id>` (opaque id with a
+content-type extension), falling back to an inline `data:` URL when no store is
+given. A public `GET /files/:id` route streams the bytes; `LocalFileObjectStore`
+rejects ids that are not the generated `${uuid}.${ext}` shape so the route can
+never traverse outside the store directory. One store instance is shared between
+the image provider and the file route. The generation service, persistence,
+credits, desktop, and shared contracts are unchanged. Cloud backends (Supabase
+Storage / S3) behind the same interface, per-user ACL / signed URLs, and
+non-image files remain later slices.

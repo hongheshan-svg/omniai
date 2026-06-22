@@ -10,6 +10,7 @@ import type { ModelCatalogConfig } from "../services/modelConfig";
 import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
 import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
 import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
+import { InMemoryObjectStore } from "../services/objectStore";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -394,6 +395,95 @@ describe("product API", () => {
     expect(response.json()).toEqual({ error: "Authentication required" });
   });
 
+  it("stores a generated image and serves it from /files", async () => {
+    const modelConfig: ModelCatalogConfig = {
+      providers: [
+        {
+          id: "openai-main",
+          displayName: "OpenAI Main",
+          protocol: "openai-compatible",
+          baseUrl: "https://api.openai.com/v1",
+          apiKeyEnv: "OPENAI_API_KEY",
+          models: [
+            {
+              id: "gw-image-creative",
+              providerModelId: "gpt-image-1",
+              displayName: "OmniAI Image Creative",
+              capability: "image",
+              tags: ["creative"],
+              visibility: "visible",
+              minimumPlan: "free",
+              creditUnitCost: 2
+            }
+          ]
+        }
+      ]
+    };
+    const imageFetch = async () =>
+      new Response(JSON.stringify({ data: [{ b64_json: "aGVsbG8=" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    const objectStore = new InMemoryObjectStore({ publicBaseUrl: "http://localhost:8787" });
+    const server = buildServer({
+      objectStore,
+      modelCatalog: new ConfigModelCatalog(modelConfig),
+      providerAdapter: new CompositeProviderAdapter({
+        text: new OpenAiCompatibleTextProvider(),
+        image: new OpenAiCompatibleImageProvider({
+          fetch: imageFetch as unknown as typeof fetch,
+          env: { OPENAI_API_KEY: "sk-test" },
+          objectStore
+        })
+      })
+    });
+    const token = await authenticate(server);
+
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/v1/generations",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        mode: "image",
+        prompt: "一只猫",
+        optimizedPrompt: "一只在霓虹城市里的猫",
+        preset: {
+          modelId: "gw-image-creative",
+          parameters: { quality: "high" },
+          creditEstimate: { credits: 2, unit: "credit" }
+        }
+      }
+    });
+
+    const url = (createResponse.json() as { task: { result: { url: string } } }).task.result.url;
+    expect(url).toMatch(/^http:\/\/localhost:8787\/files\/.+\.png$/);
+
+    const fileResponse = await server.inject({ method: "GET", url: url.replace("http://localhost:8787", "") });
+    expect(fileResponse.statusCode).toBe(200);
+    expect(fileResponse.headers["content-type"]).toContain("image/png");
+    expect(fileResponse.body).toBe("hello");
+  });
+
+  it("serves a stored file at /files/:id", async () => {
+    const store = new InMemoryObjectStore({ publicBaseUrl: "http://localhost:8787", idGenerator: () => "obj1" });
+    const { id } = await store.put(new TextEncoder().encode("hello"), "image/png");
+    const server = buildServer({ objectStore: store });
+
+    const response = await server.inject({ method: "GET", url: `/files/${id}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/png");
+    expect(response.body).toBe("hello");
+  });
+
+  it("returns 404 for an unknown file id", async () => {
+    const server = buildServer({ objectStore: new InMemoryObjectStore() });
+    const response = await server.inject({ method: "GET", url: "/files/missing.png" });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "File not found" });
+  });
+
   it("reflects the request origin via CORS headers", async () => {
     const server = buildServer();
     const response = await server.inject({
@@ -471,7 +561,8 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
-        initialCredits: 100
+        initialCredits: 100,
+        publicBaseUrl: "http://localhost:8787"
       }
     });
     const response = await server.inject({
@@ -499,7 +590,8 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: false,
         modelConfigPath: "config/models.json",
-        initialCredits: 100
+        initialCredits: 100,
+        publicBaseUrl: "http://localhost:8787"
       }
     });
     const response = await server.inject({

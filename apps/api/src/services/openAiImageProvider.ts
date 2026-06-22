@@ -6,22 +6,26 @@ import {
   type ProviderGenerationResult
 } from "./gatewayClient";
 import { readProviderError } from "./openAiTextProvider";
+import type { ObjectStore } from "./objectStore";
 
 export interface OpenAiCompatibleImageProviderOptions {
   fetch?: typeof fetch;
   env?: Record<string, string | undefined>;
   clock?: { now(): Date };
+  objectStore?: ObjectStore;
 }
 
 export class OpenAiCompatibleImageProvider implements ProviderAdapter {
   private readonly fetchImpl: typeof fetch;
   private readonly env: Record<string, string | undefined>;
   private readonly clock: { now(): Date };
+  private readonly objectStore?: ObjectStore;
 
   constructor(options: OpenAiCompatibleImageProviderOptions = {}) {
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.env = options.env ?? process.env;
     this.clock = options.clock ?? { now: () => new Date() };
+    this.objectStore = options.objectStore;
   }
 
   async submitGeneration(request: ProviderGenerationRequest): Promise<ProviderGenerationResult> {
@@ -64,7 +68,12 @@ export class OpenAiCompatibleImageProvider implements ProviderAdapter {
     const first = payload.data?.[0];
     let imageUrl: string | undefined;
     if (first && typeof first.b64_json === "string" && first.b64_json.length > 0) {
-      imageUrl = `data:image/png;base64,${first.b64_json}`;
+      if (this.objectStore) {
+        const stored = await this.objectStore.put(Buffer.from(first.b64_json, "base64"), "image/png");
+        imageUrl = stored.url;
+      } else {
+        imageUrl = `data:image/png;base64,${first.b64_json}`;
+      }
     } else if (first && typeof first.url === "string" && first.url.length > 0) {
       imageUrl = first.url;
     }

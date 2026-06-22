@@ -5,6 +5,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerAssetRoutes } from "./routes/assets";
 import { registerGenerationRoutes } from "./routes/generations";
 import { registerCreditRoutes } from "./routes/credits";
+import { registerFileRoutes } from "./routes/files";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
 import { registerPromptRoutes } from "./routes/prompt";
@@ -16,6 +17,7 @@ import { InMemoryCreditService, type CreditService } from "./services/creditServ
 import { type ProviderAdapter } from "./services/gatewayClient";
 import { OpenAiCompatibleImageProvider } from "./services/openAiImageProvider";
 import { OpenAiCompatibleTextProvider } from "./services/openAiTextProvider";
+import { InMemoryObjectStore, type ObjectStore } from "./services/objectStore";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
@@ -28,6 +30,7 @@ export interface BuildServerOptions {
   creditService?: CreditService;
   generationService?: GenerationService;
   modelCatalog?: ModelCatalog;
+  objectStore?: ObjectStore;
   promptOptimizer?: PromptOptimizer;
   providerAdapter?: ProviderAdapter;
 }
@@ -64,11 +67,12 @@ export function buildServer(options: BuildServerOptions = {}) {
       creditGranter: creditService
     });
   const promptOptimizer = options.promptOptimizer ?? new LocalPromptOptimizer();
+  const objectStore = options.objectStore ?? new InMemoryObjectStore();
   const providerAdapter =
     options.providerAdapter ??
     new CompositeProviderAdapter({
       text: new OpenAiCompatibleTextProvider(),
-      image: new OpenAiCompatibleImageProvider()
+      image: new OpenAiCompatibleImageProvider({ objectStore })
     });
   const generationService =
     options.generationService ??
@@ -87,6 +91,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
   registerCreditRoutes(server, creditService, authService);
+  registerFileRoutes(server, objectStore);
   registerAuthRoutes(server, authService);
 
   return server;
@@ -110,7 +115,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     authService: services.authService,
     generationService: services.generationService,
     assetService: services.assetService,
-    creditService: services.creditService
+    creditService: services.creditService,
+    objectStore: services.objectStore
   });
 
   const shutdown = async (signal: string) => {

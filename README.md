@@ -223,9 +223,11 @@ The ninth product-first slice adds a server-side credit ledger.
 The tenth product-first slice makes image generation real.
 
 - With a provider key, `POST /v1/generations` for an image model calls the
-  OpenAI-compatible `images/generations` endpoint and returns a `succeeded`
-  task carrying `result: { kind: "image", url, alt }`, where `url` is an inline
-  `data:image/png;base64,...` URL (object storage is a later slice).
+  OpenAI-compatible `images/generations` endpoint, stores the image in the object
+  store, and returns a `succeeded` task whose `result.url` points at
+  `GET /files/<id>` (public, opaque id). Without an object store the image falls
+  back to an inline `data:` URL. Set `GW_LINK_OBJECT_STORE_DIR` to persist files
+  on disk (in-memory otherwise); `GW_LINK_PUBLIC_BASE_URL` sets the file URL host.
 - Without a key, image generation falls back to the `queued` placeholder.
   Generation routes by mode (`CompositeProviderAdapter`); video stays `queued`.
 - The desktop renders the generated image in the task center and can save it to

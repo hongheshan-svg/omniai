@@ -8,7 +8,8 @@ describe("loadConfig", () => {
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
-      initialCredits: 100
+      initialCredits: 100,
+      publicBaseUrl: "http://localhost:8787"
     });
   });
 
@@ -26,7 +27,8 @@ describe("loadConfig", () => {
       gatewayBaseUrl: "https://gateway.example",
       authDevCodesEnabled: false,
       modelConfigPath: "/tmp/custom-models.json",
-      initialCredits: 250
+      initialCredits: 250,
+      publicBaseUrl: "http://localhost:9000"
     });
   });
 
@@ -116,5 +118,25 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ GW_LINK_INITIAL_CREDITS: "1.5" })).toThrow(
       "GW_LINK_INITIAL_CREDITS must be a non-negative integer"
     );
+  });
+
+  it("defaults the public base URL to localhost on the configured port", () => {
+    expect(loadConfig({ PORT: "9000" }).publicBaseUrl).toBe("http://localhost:9000");
+  });
+
+  it("uses an explicit public base URL", () => {
+    expect(loadConfig({ GW_LINK_PUBLIC_BASE_URL: "https://api.example.com" }).publicBaseUrl).toBe(
+      "https://api.example.com"
+    );
+  });
+
+  it("includes the object store dir when provided", () => {
+    expect(loadConfig({ GW_LINK_OBJECT_STORE_DIR: "/var/data/objects" }).objectStoreDir).toBe(
+      "/var/data/objects"
+    );
+  });
+
+  it("omits the object store dir when not provided", () => {
+    expect(loadConfig({}).objectStoreDir).toBeUndefined();
   });
 });

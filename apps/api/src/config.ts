@@ -4,6 +4,8 @@ export interface ApiConfig {
   authDevCodesEnabled: boolean;
   modelConfigPath: string;
   initialCredits: number;
+  publicBaseUrl: string;
+  objectStoreDir?: string;
   databaseUrl?: string;
   corsOrigins?: string[];
 }
@@ -68,12 +70,15 @@ function parseCorsOrigins(value: string | undefined): string[] | undefined {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
+  const port = parsePort(env.PORT);
   return {
-    port: parsePort(env.PORT),
+    port,
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
     authDevCodesEnabled: parseAuthDevCodesEnabled(env),
     modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json",
     initialCredits: parseInitialCredits(env.GW_LINK_INITIAL_CREDITS),
+    publicBaseUrl: env.GW_LINK_PUBLIC_BASE_URL ?? `http://localhost:${port}`,
+    objectStoreDir: env.GW_LINK_OBJECT_STORE_DIR,
     databaseUrl: env.DATABASE_URL,
     corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS)
   };
