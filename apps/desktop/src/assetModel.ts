@@ -32,14 +32,20 @@ export function getAssetModeLabel(mode: CreationMode): string {
 }
 
 export function buildAssetRequestFromTask(task: GenerationTask): CreationAssetRequest {
-  if (task.result?.kind !== "text") {
-    throw new Error("Only succeeded text tasks can be saved as assets");
+  const result = task.result;
+  if (!result) {
+    throw new Error("Only succeeded tasks with a result can be saved as assets");
   }
+
+  const content: CreationAssetRequest["content"] =
+    result.kind === "image"
+      ? { kind: "image", url: result.url, alt: result.alt }
+      : { kind: "text", text: result.text, format: result.format };
 
   return {
     mode: task.mode,
     title: getAssetModeLabel(task.mode),
-    content: { kind: "text", text: task.result.text, format: task.result.format },
+    content,
     source: { taskId: task.id, taskStatus: "succeeded" },
     prompt: task.prompt,
     optimizedPrompt: task.optimizedPrompt,

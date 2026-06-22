@@ -105,7 +105,42 @@ describe("assetModel", () => {
     expect(task.preset.parameters.tone).toBe("warm");
   });
 
-  it("throws when the task is not a succeeded text task", () => {
+  it("builds an image asset request from a succeeded image task", () => {
+    const task: GenerationTask = {
+      id: "task-img",
+      mode: "image",
+      status: "succeeded",
+      prompt: "一只猫",
+      optimizedPrompt: "一只在霓虹城市里的猫",
+      preset: {
+        modelId: "gw-image-creative",
+        parameters: { quality: "high" },
+        creditEstimate: { credits: 2, unit: "credit" }
+      },
+      resultPreview: { title: "图片生成任务", description: "已生成。" },
+      result: { kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "一只在霓虹城市里的猫" },
+      createdAt: "2026-06-22T00:00:00.000Z",
+      updatedAt: "2026-06-22T00:00:00.000Z"
+    };
+
+    const request = buildAssetRequestFromTask(task);
+
+    expect(request).toEqual({
+      mode: "image",
+      title: "图片资产",
+      content: { kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "一只在霓虹城市里的猫" },
+      source: { taskId: "task-img", taskStatus: "succeeded" },
+      prompt: "一只猫",
+      optimizedPrompt: "一只在霓虹城市里的猫",
+      preset: {
+        modelId: "gw-image-creative",
+        parameters: { quality: "high" },
+        creditEstimate: { credits: 2, unit: "credit" }
+      }
+    });
+  });
+
+  it("throws when the task has no result", () => {
     const queued = {
       id: "t",
       mode: "text",
