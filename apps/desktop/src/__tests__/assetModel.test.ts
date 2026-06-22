@@ -140,6 +140,28 @@ describe("assetModel", () => {
     });
   });
 
+  it("builds a video asset request from a succeeded video task", () => {
+    const task: GenerationTask = {
+      id: "task-vid",
+      mode: "video",
+      status: "succeeded",
+      prompt: "一段海边日落短视频",
+      optimizedPrompt: "生成一段海边日落短视频。",
+      preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+      resultPreview: { title: "视频生成任务", description: "已生成。" },
+      result: { kind: "video", url: "https://cdn/v.mp4", durationSeconds: 8, posterUrl: "https://cdn/p.jpg" },
+      createdAt: "2026-06-23T00:00:00.000Z",
+      updatedAt: "2026-06-23T00:00:00.000Z"
+    };
+
+    expect(buildAssetRequestFromTask(task)).toMatchObject({
+      mode: "video",
+      title: "视频资产",
+      content: { kind: "video", url: "https://cdn/v.mp4", durationSeconds: 8, posterUrl: "https://cdn/p.jpg" },
+      source: { taskId: "task-vid", taskStatus: "succeeded" }
+    });
+  });
+
   it("throws when the task has no result", () => {
     const queued = {
       id: "t",

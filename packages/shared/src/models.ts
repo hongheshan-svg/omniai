@@ -67,7 +67,8 @@ export interface GenerationTaskResultPreview {
 
 export type GenerationTaskResult =
   | { kind: "text"; text: string; format: "markdown" | "plain" }
-  | { kind: "image"; url: string; alt: string };
+  | { kind: "image"; url: string; alt: string }
+  | { kind: "video"; url: string; durationSeconds: number; posterUrl: string };
 
 export interface GenerationTask {
   id: string;
