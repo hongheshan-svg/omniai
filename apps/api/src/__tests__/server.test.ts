@@ -521,7 +521,10 @@ describe("product API", () => {
       createTask: (_request: unknown, _userId: string) => {
         throw new Error("not implemented");
       },
-      listTasks: (_userId: string) => []
+      listTasks: (_userId: string) => [],
+      refreshTask: (_id: string, _userId: string) => {
+        throw new Error("not implemented");
+      }
     } satisfies GenerationService;
     const fakeAssetService = {
       createAsset: (_request: unknown, _userId: string) => {

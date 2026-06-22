@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CreationMode, GenerationTaskRequest } from "@gw-link-omniai/shared";
-import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter } from "../gatewayClient";
+import { FakeProviderAdapter, ProviderAdapterError, type ProviderAdapter, type ProviderPollRequest } from "../gatewayClient";
 import { GenerationTaskError, InMemoryGenerationService } from "../generationService";
 import type { CreditService } from "../creditService";
 import { ConfigModelCatalog, type ModelCatalog } from "../modelCatalog";
@@ -154,6 +154,45 @@ async function expectGenerationError(
   }
 
   throw new Error("Expected generation task error");
+}
+
+function runningThenSucceeds(): ProviderAdapter {
+  let polled = false;
+  return {
+    async submitGeneration(req) {
+      return {
+        status: "running",
+        providerId: req.provider.id,
+        providerProtocol: req.provider.protocol,
+        providerModelId: req.providerModelId,
+        submittedAt: "2026-06-20T00:00:00.000Z",
+        providerRef: "job-1"
+      };
+    },
+    async pollGeneration(_req: ProviderPollRequest) {
+      const status = polled ? "succeeded" : "running";
+      polled = true;
+      return {
+        status: status as "succeeded" | "running",
+        providerId: "video-main",
+        providerProtocol: "anthropic-compatible" as const,
+        providerModelId: "claude-video",
+        submittedAt: "2026-06-20T00:00:00.000Z",
+        ...(status === "succeeded"
+          ? { result: { kind: "image" as const, url: "data:image/png;base64,dmlkZW8=", alt: "video" } }
+          : {})
+      };
+    }
+  };
+}
+
+function createVideoRequest() {
+  return {
+    mode: "video" as const,
+    prompt: "一段短视频",
+    optimizedPrompt: "生成一段短视频。",
+    preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" as const } }
+  };
 }
 
 describe("InMemoryGenerationService", () => {
@@ -626,5 +665,52 @@ describe("InMemoryGenerationService", () => {
     expect(task.status).toBe("queued");
     expect(credit.deductions).toEqual([]);
     expect((await credit.getBalance("user-a")).credits).toBe(100);
+  });
+
+  it("persists a running task without charging", async () => {
+    const credit = new StubCreditService({ "user-a": 100 });
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_video",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter: runningThenSucceeds(),
+      creditService: credit
+    });
+
+    const task = await service.createTask(createVideoRequest(), "user-a");
+
+    expect(task.status).toBe("running");
+    expect(credit.deductions).toEqual([]);
+    expect((await service.listTasks("user-a"))[0]!.status).toBe("running");
+  });
+
+  it("refreshes a running task to succeeded and charges once", async () => {
+    const credit = new StubCreditService({ "user-a": 100 });
+    const service = new InMemoryGenerationService({
+      clock: { now: () => fixedNow },
+      idGenerator: () => "generation_task_video",
+      modelCatalog: new ConfigModelCatalog(createModelConfig()),
+      providerAdapter: runningThenSucceeds(),
+      creditService: credit
+    });
+    await service.createTask(createVideoRequest(), "user-a");
+
+    const first = await service.refreshTask("generation_task_video", "user-a");
+    expect(first.status).toBe("running");
+    expect(credit.deductions).toEqual([]);
+
+    const second = await service.refreshTask("generation_task_video", "user-a");
+    expect(second.status).toBe("succeeded");
+    expect(second.result).toEqual({ kind: "image", url: "data:image/png;base64,dmlkZW8=", alt: "video" });
+    expect(credit.deductions).toEqual([{ userId: "user-a", amount: 3, reference: "generation_task_video" }]);
+
+    const third = await service.refreshTask("generation_task_video", "user-a");
+    expect(third.status).toBe("succeeded");
+    expect(credit.deductions).toHaveLength(1);
+  });
+
+  it("rejects refreshing an unknown task", async () => {
+    const service = createService();
+    await expect(service.refreshTask("missing", "user-a")).rejects.toMatchObject({ statusCode: 404 });
   });
 });
