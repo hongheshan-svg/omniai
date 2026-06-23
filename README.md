@@ -261,3 +261,7 @@ pnpm --filter @gw-link-omniai/desktop test
 pnpm --filter @gw-link-omniai/mobile test
 pnpm typecheck
 ```
+
+## License
+
+Licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
