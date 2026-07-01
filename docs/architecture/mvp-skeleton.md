@@ -259,6 +259,6 @@ unit-tested — all behavior is covered at the controller layer.
 The bearer token persists in the OS secure enclave via `expo-secure-store` (iOS
 Keychain / Android Keystore, `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`) behind the
 same injectable `TokenStore` interface as desktop; startup restores the token
-through `getSession` and clears it if invalid. Task refresh, save-to-assets, the
-asset library, top-up, image/video rendering, and multi-screen navigation remain
-later slices.
+through `getSession` and clears it if invalid. A `running` task row shows a "刷新状态" button that re-polls via
+`getGeneration` (mirroring desktop). Save-to-assets, the asset library, top-up,
+image/video rendering, and multi-screen navigation remain later slices.

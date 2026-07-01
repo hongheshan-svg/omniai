@@ -196,4 +196,48 @@ describe("MobileAppController", () => {
     expect(listener).toHaveBeenCalled();
     unsub();
   });
+
+  it("refreshes a running task to its latest state", async () => {
+    const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+    const succeeded = textTask("t1", "p");
+    const client = createFakeClient({
+      listGenerations: async () => [running],
+      getGeneration: async () => succeeded
+    });
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    expect(ctrl.getState().tasks[0].status).toBe("running");
+    await ctrl.refreshTask("t1");
+    expect(ctrl.getState().tasks[0].status).toBe("succeeded");
+  });
+
+  it("signs out on a 401 during refresh", async () => {
+    const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+    const client = createFakeClient({
+      listGenerations: async () => [running],
+      getGeneration: async () => { throw new ApiError("unauth", 401); }
+    });
+    const store = createFakeTokenStore();
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: store });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    await ctrl.refreshTask("t1");
+    expect(ctrl.getState().stage).toBe("signedOut");
+    expect(await store.load()).toBeNull();
+  });
+
+  it("maps a non-401 refresh error to a friendly message", async () => {
+    const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+    const client = createFakeClient({
+      listGenerations: async () => [running],
+      getGeneration: async () => { throw new ApiError("boom", 500); }
+    });
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    await ctrl.refreshTask("t1");
+    expect(ctrl.getState().actionError).toBe("刷新失败，请稍后重试");
+    expect(ctrl.getState().stage).toBe("signedIn");
+  });
 });

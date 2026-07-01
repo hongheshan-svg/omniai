@@ -19,6 +19,7 @@ export interface MobileAppController {
   startLogin(email: string): Promise<void>;
   verifyLogin(code: string): Promise<void>;
   submitGeneration(input: { prompt: string; mode: CreationMode }): Promise<void>;
+  refreshTask(taskId: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -38,6 +39,13 @@ function loginError(err: unknown): string {
 function generationError(err: unknown): string {
   if (err instanceof ApiError) {
     return err.status === 402 ? "积分不足，无法生成" : "生成失败，请稍后重试";
+  }
+  return "网络错误";
+}
+
+function refreshError(err: unknown): string {
+  if (err instanceof ApiError) {
+    return "刷新失败，请稍后重试";
   }
   return "网络错误";
 }
@@ -159,6 +167,23 @@ export function createMobileAppController(deps: {
           return;
         }
         setState({ actionError: generationError(err) });
+      }
+    },
+    async refreshTask(taskId) {
+      const token = state.token;
+      if (!token) {
+        return;
+      }
+      setState({ actionError: null });
+      try {
+        const updated = await apiClient.getGeneration(taskId, token);
+        setState({ tasks: state.tasks.map((task) => (task.id === updated.id ? updated : task)) });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          await signOutInternal();
+          return;
+        }
+        setState({ actionError: refreshError(err) });
       }
     },
     async signOut() {
