@@ -1,4 +1,4 @@
-import { ApiError, type ApiClient, type CreationMode, type GenerationTask, type PresetSuggestion } from "@gw-link-omniai/shared";
+import { ApiError, buildAssetRequestFromTask, type ApiClient, type CreationAsset, type CreationMode, type GenerationTask, type PresetSuggestion } from "@gw-link-omniai/shared";
 import type { TokenStore } from "./tokenStore";
 
 export type Stage = "signedOut" | "signingIn" | "signedIn";
@@ -9,6 +9,7 @@ export interface MobileAppState {
   token: string | null;
   balance: number | null;
   tasks: GenerationTask[];
+  assets: CreationAsset[];
   actionError: string | null;
 }
 
@@ -20,6 +21,7 @@ export interface MobileAppController {
   verifyLogin(code: string): Promise<void>;
   submitGeneration(input: { prompt: string; mode: CreationMode }): Promise<void>;
   refreshTask(taskId: string): Promise<void>;
+  saveAsset(task: GenerationTask): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -50,6 +52,13 @@ function refreshError(err: unknown): string {
   return "网络错误";
 }
 
+function assetError(err: unknown): string {
+  if (err instanceof ApiError) {
+    return "保存失败，请稍后重试";
+  }
+  return "网络错误";
+}
+
 export function createMobileAppController(deps: {
   apiClient: ApiClient;
   tokenStore: TokenStore;
@@ -62,6 +71,7 @@ export function createMobileAppController(deps: {
     token: null,
     balance: null,
     tasks: [],
+    assets: [],
     actionError: null
   };
   const listeners = new Set<() => void>();
@@ -74,16 +84,17 @@ export function createMobileAppController(deps: {
   }
 
   async function loadUserData(token: string): Promise<void> {
-    const [balance, tasks] = await Promise.all([
+    const [balance, tasks, assets] = await Promise.all([
       apiClient.getCreditBalance(token),
-      apiClient.listGenerations(token)
+      apiClient.listGenerations(token),
+      apiClient.listAssets(token)
     ]);
-    setState({ balance: balance.credits, tasks });
+    setState({ balance: balance.credits, tasks, assets });
   }
 
   async function signOutInternal(): Promise<void> {
     await tokenStore.clear();
-    setState({ token: null, stage: "signedOut", balance: null, tasks: [], challengeId: null });
+    setState({ token: null, stage: "signedOut", balance: null, tasks: [], assets: [], challengeId: null });
   }
 
   return {
@@ -184,6 +195,24 @@ export function createMobileAppController(deps: {
           return;
         }
         setState({ actionError: refreshError(err) });
+      }
+    },
+    async saveAsset(task) {
+      const token = state.token;
+      if (!token) {
+        return;
+      }
+      setState({ actionError: null });
+      try {
+        await apiClient.createAsset(buildAssetRequestFromTask(task), token);
+        const assets = await apiClient.listAssets(token);
+        setState({ assets });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          await signOutInternal();
+          return;
+        }
+        setState({ actionError: assetError(err) });
       }
     },
     async signOut() {

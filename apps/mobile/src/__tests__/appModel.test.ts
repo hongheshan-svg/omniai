@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { ApiClient, AuthSession, GenerationTask, LoginStartResponse, SessionResponse } from "@gw-link-omniai/shared";
+import type { ApiClient, AuthSession, CreationAsset, CreationAssetRequest, GenerationTask, LoginStartResponse, SessionResponse } from "@gw-link-omniai/shared";
 import { ApiError } from "@gw-link-omniai/shared";
 import type { TokenStore } from "../tokenStore.js";
 import { createMobileAppController } from "../appModel.js";
@@ -31,6 +31,7 @@ function textTask(id: string, prompt: string): GenerationTask {
 function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   let balance = 100;
   let tasks: GenerationTask[] = [];
+  let assets: CreationAsset[] = [];
   const base: ApiClient = {
     startLogin: async (): Promise<LoginStartResponse> => ({
       challengeId: "ch-1",
@@ -49,8 +50,23 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return task;
     },
     listGenerations: async () => tasks,
-    listAssets: async () => { throw new Error("unused"); },
-    createAsset: async () => { throw new Error("unused"); },
+    listAssets: async () => assets,
+    createAsset: async (request: CreationAssetRequest) => {
+      const asset: CreationAsset = {
+        id: `a${assets.length + 1}`,
+        mode: request.mode,
+        title: request.title,
+        content: request.content,
+        preview: { title: request.title, description: "已保存" },
+        source: request.source,
+        prompt: request.prompt,
+        optimizedPrompt: request.optimizedPrompt,
+        preset: request.preset,
+        createdAt: "2026-07-02T00:00:00.000Z"
+      };
+      assets = [asset, ...assets];
+      return asset;
+    },
     getCreditBalance: async () => ({ credits: balance, unit: "credit" as const }),
     getSession: async (): Promise<SessionResponse> => ({ authenticated: true, user: USER, expiresAt: "2026-07-08T00:00:00.000Z" }),
     getGeneration: async () => { throw new Error("unused"); },
@@ -238,6 +254,58 @@ describe("MobileAppController", () => {
     await ctrl.verifyLogin("000000");
     await ctrl.refreshTask("t1");
     expect(ctrl.getState().actionError).toBe("刷新失败，请稍后重试");
+    expect(ctrl.getState().stage).toBe("signedIn");
+  });
+
+  it("loads assets on login", async () => {
+    const seeded: CreationAsset = {
+      id: "a-seed",
+      mode: "text",
+      title: "文本资产",
+      content: { kind: "text", text: "已生成", format: "plain" },
+      preview: { title: "文本资产", description: "已保存" },
+      source: { taskId: "t0", taskStatus: "succeeded" },
+      prompt: "p",
+      optimizedPrompt: "p",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      createdAt: "2026-07-02T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listAssets: async () => [seeded] });
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    expect(ctrl.getState().assets).toHaveLength(1);
+    expect(ctrl.getState().assets[0].id).toBe("a-seed");
+  });
+
+  it("saves a succeeded task as an asset and refreshes the list", async () => {
+    const ctrl = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    const task = textTask("t1", "存这个");
+    await ctrl.saveAsset(task);
+    expect(ctrl.getState().assets).toHaveLength(1);
+    expect(ctrl.getState().assets[0].prompt).toBe("存这个");
+  });
+
+  it("signs out on a 401 during saveAsset", async () => {
+    const client = createFakeClient({ createAsset: async () => { throw new ApiError("unauth", 401); } });
+    const store = createFakeTokenStore();
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: store });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    await ctrl.saveAsset(textTask("t1", "p"));
+    expect(ctrl.getState().stage).toBe("signedOut");
+    expect(await store.load()).toBeNull();
+  });
+
+  it("maps a non-401 saveAsset error to a friendly message", async () => {
+    const client = createFakeClient({ createAsset: async () => { throw new ApiError("boom", 500); } });
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    await ctrl.saveAsset(textTask("t1", "p"));
+    expect(ctrl.getState().actionError).toBe("保存失败，请稍后重试");
     expect(ctrl.getState().stage).toBe("signedIn");
   });
 });
