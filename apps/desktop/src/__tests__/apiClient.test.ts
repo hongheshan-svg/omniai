@@ -83,6 +83,20 @@ it("fetches the session with the bearer token", async () => {
   expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
 });
 
+it("posts a top-up with the bearer token and unwraps the balance", async () => {
+  const fetchMock = vi.fn(async () => jsonResponse({ balance: { credits: 150, unit: "credit" } }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const result = await client.topUpCredits(50, "tok-1");
+
+  expect(result).toEqual({ credits: 150, unit: "credit" });
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/credits/topup");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ amount: 50 });
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
 it("fetches the credit balance with the bearer token and unwraps the envelope", async () => {
   const balance = { credits: 100, unit: "credit" };
   const fetchMock = vi.fn(async () => jsonResponse({ balance }));

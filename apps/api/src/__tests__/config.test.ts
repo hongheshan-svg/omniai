@@ -9,7 +9,8 @@ describe("loadConfig", () => {
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
       initialCredits: 100,
-      publicBaseUrl: "http://localhost:8787"
+      publicBaseUrl: "http://localhost:8787",
+      devTopupEnabled: true
     });
   });
 
@@ -28,7 +29,8 @@ describe("loadConfig", () => {
       authDevCodesEnabled: false,
       modelConfigPath: "/tmp/custom-models.json",
       initialCredits: 250,
-      publicBaseUrl: "http://localhost:9000"
+      publicBaseUrl: "http://localhost:9000",
+      devTopupEnabled: true
     });
   });
 
@@ -138,5 +140,19 @@ describe("loadConfig", () => {
 
   it("omits the object store dir when not provided", () => {
     expect(loadConfig({}).objectStoreDir).toBeUndefined();
+  });
+
+  it("disables dev top-up by default in production", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).devTopupEnabled).toBe(false);
+  });
+
+  it("allows dev top-up to be explicitly enabled in production", () => {
+    expect(loadConfig({ NODE_ENV: "production", GW_LINK_DEV_TOPUP_ENABLED: "true" }).devTopupEnabled).toBe(true);
+  });
+
+  it("rejects invalid dev top-up configuration values", () => {
+    expect(() => loadConfig({ GW_LINK_DEV_TOPUP_ENABLED: "yes" })).toThrow(
+      'GW_LINK_DEV_TOPUP_ENABLED must be "true" or "false"'
+    );
   });
 });

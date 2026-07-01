@@ -13,6 +13,7 @@ function baseConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     modelConfigPath: "config/models.json",
     initialCredits: 100,
     publicBaseUrl: "http://localhost:8787",
+    devTopupEnabled: true,
     ...overrides
   };
 }

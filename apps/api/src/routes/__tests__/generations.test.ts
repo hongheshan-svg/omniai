@@ -15,7 +15,8 @@ function buildGenerationTestServer() {
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
       initialCredits: 100,
-      publicBaseUrl: "http://localhost:8787"
+      publicBaseUrl: "http://localhost:8787",
+      devTopupEnabled: true
     },
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
@@ -280,7 +281,8 @@ describe("generation routes", () => {
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
         initialCredits: 100,
-        publicBaseUrl: "http://localhost:8787"
+        publicBaseUrl: "http://localhost:8787",
+        devTopupEnabled: true
       },
       generationService
     });
@@ -315,7 +317,8 @@ describe("generation routes", () => {
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
         initialCredits: 100,
-        publicBaseUrl: "http://localhost:8787"
+        publicBaseUrl: "http://localhost:8787",
+        devTopupEnabled: true
       },
       generationService
     });

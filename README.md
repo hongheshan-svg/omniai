@@ -218,7 +218,11 @@ The ninth product-first slice adds a server-side credit ledger.
 - The desktop shows the balance in the header (loaded on login, refreshed after
   each generation) and shows a friendly "积分不足，无法生成" message when a
   generation is rejected for insufficient credits (`402`).
-- Concurrent deduction is not yet atomic; real payment/top-up and admin/mobile
+- Dev-only top-up: `POST /v1/credits/topup` (gated by `GW_LINK_DEV_TOPUP_ENABLED`,
+  off in production) credits the account directly and returns the new balance; the
+  desktop has a "充值" button. Real payment channels (driving `topUp` via webhooks)
+  are a later slice.
+- Concurrent deduction is not yet atomic; real payment channels and admin/mobile
   balance display are later slices.
 
 ### Real Image Generation

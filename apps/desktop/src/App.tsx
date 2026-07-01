@@ -201,6 +201,22 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     }
   }
 
+  async function handleTopUp() {
+    if (!token) {
+      return;
+    }
+    setActionError(undefined);
+    try {
+      setBalance(await api.topUpCredits(100, token));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
+      setActionError(errorMessage(error));
+    }
+  }
+
   async function handleSubmitGeneration() {
     if (!optimization || !token) {
       return;
@@ -283,6 +299,11 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
         <h1>GW-LINK OmniAI</h1>
         <button type="button">{getDesktopSessionCta(session)}</button>
         {balance ? <p>{formatCreditBalance(balance)}</p> : null}
+        {balance ? (
+          <button type="button" onClick={handleTopUp}>
+            充值
+          </button>
+        ) : null}
         <button type="button" onClick={handleLogout}>
           登出
         </button>
