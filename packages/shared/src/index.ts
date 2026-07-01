@@ -33,3 +33,4 @@ export type {
 } from "./models";
 export { estimateCreditCost } from "./credits";
 export type { CreditEstimateInput } from "./credits";
+export { createApiClient, ApiError, type ApiClient, type ApiClientOptions } from "./apiClient.js";
