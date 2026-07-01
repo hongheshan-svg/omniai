@@ -279,13 +279,45 @@ describe("MobileAppController", () => {
   });
 
   it("saves a succeeded task as an asset and refreshes the list", async () => {
-    const ctrl = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    const refreshed: CreationAsset = {
+      id: "a-refreshed",
+      mode: "text",
+      title: "文本资产",
+      content: { kind: "text", text: "已生成", format: "plain" },
+      preview: { title: "文本资产", description: "已保存" },
+      source: { taskId: "t1", taskStatus: "succeeded" },
+      prompt: "存这个",
+      optimizedPrompt: "存这个",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      createdAt: "2026-07-02T00:00:00.000Z"
+    };
+    let created = false;
+    const client = createFakeClient({
+      createAsset: async (request: CreationAssetRequest) => {
+        created = true;
+        return {
+          id: "a-created",
+          mode: request.mode,
+          title: request.title,
+          content: request.content,
+          preview: { title: request.title, description: "已保存" },
+          source: request.source,
+          prompt: request.prompt,
+          optimizedPrompt: request.optimizedPrompt,
+          preset: request.preset,
+          createdAt: "2026-07-02T00:00:00.000Z"
+        };
+      },
+      listAssets: async () => (created ? [refreshed] : [])
+    });
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
     await ctrl.startLogin("test@example.com");
     await ctrl.verifyLogin("000000");
-    const task = textTask("t1", "存这个");
-    await ctrl.saveAsset(task);
+    expect(ctrl.getState().assets).toHaveLength(0);
+    await ctrl.saveAsset(textTask("t1", "存这个"));
     expect(ctrl.getState().assets).toHaveLength(1);
-    expect(ctrl.getState().assets[0].prompt).toBe("存这个");
+    // id proves the list came from the post-save listAssets refresh, not createAsset's return
+    expect(ctrl.getState().assets[0].id).toBe("a-refreshed");
   });
 
   it("signs out on a 401 during saveAsset", async () => {
