@@ -8,7 +8,7 @@ import type {
   SessionResponse
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
-import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "./assetModel";
+import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
