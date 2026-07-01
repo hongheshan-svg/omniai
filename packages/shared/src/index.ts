@@ -34,3 +34,11 @@ export type {
 export { estimateCreditCost } from "./credits";
 export type { CreditEstimateInput } from "./credits";
 export { createApiClient, ApiError, type ApiClient, type ApiClientOptions } from "./apiClient.js";
+export {
+  filterCreationAssets,
+  getAssetFilterLabel,
+  getAssetModeLabel,
+  buildAssetRequestFromTask,
+  summarizeAssetPrompt,
+  type AssetFilter
+} from "./assetModel.js";

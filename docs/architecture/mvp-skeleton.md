@@ -260,5 +260,9 @@ The bearer token persists in the OS secure enclave via `expo-secure-store` (iOS
 Keychain / Android Keystore, `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`) behind the
 same injectable `TokenStore` interface as desktop; startup restores the token
 through `getSession` and clears it if invalid. A `running` task row shows a "刷新状态" button that re-polls via
-`getGeneration` (mirroring desktop). Save-to-assets, the asset library, top-up,
-image/video rendering, and multi-screen navigation remain later slices.
+`getGeneration`, and a `succeeded` row shows a "保存到资产库" button; the
+signed-in screen lists saved assets with type filters (`filterCreationAssets`).
+The asset-model pure functions (`buildAssetRequestFromTask`, `filterCreationAssets`,
+labels, `summarizeAssetPrompt`) were lifted to `packages/shared` so desktop and
+mobile share them. Top-up, image/video rendering, and multi-screen navigation
+remain later slices.

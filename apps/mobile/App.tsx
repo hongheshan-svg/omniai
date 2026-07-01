@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { createApiClient, type ApiClient, type CreationMode } from "@gw-link-omniai/shared";
+import { createApiClient, type ApiClient, type CreationMode, filterCreationAssets, getAssetFilterLabel, getAssetModeLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { createSecureTokenStore, type TokenStore } from "./src/tokenStore";
 import { createMobileAppController, type MobileAppController } from "./src/appModel";
 
@@ -26,6 +26,7 @@ export default function App({
   const [code, setCode] = useState("");
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<CreationMode>("text");
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
 
   useEffect(() => {
     void ctrl.restore();
@@ -85,6 +86,27 @@ export default function App({
                 {item.status === "running" ? (
                   <Button title="刷新状态" onPress={() => void ctrl.refreshTask(item.id)} />
                 ) : null}
+                {item.status === "succeeded" ? (
+                  <Button title="保存到资产库" onPress={() => void ctrl.saveAsset(item)} />
+                ) : null}
+              </View>
+            )}
+          />
+          <View style={styles.assetHeader}>
+            <Text>资产库</Text>
+            <View style={styles.filterRow}>
+              {(["all", "text", "image", "video"] as AssetFilter[]).map((filter) => (
+                <Button key={filter} title={getAssetFilterLabel(filter)} onPress={() => setAssetFilter(filter)} />
+              ))}
+            </View>
+          </View>
+          <FlatList
+            data={filterCreationAssets(state.assets, assetFilter)}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.task}>
+                <Text>{getAssetModeLabel(item.mode)}</Text>
+                <Text numberOfLines={1}>{summarizeAssetPrompt(item)}</Text>
               </View>
             )}
           />
@@ -100,5 +122,7 @@ const styles = StyleSheet.create({
   form: { marginBottom: 16 },
   input: { borderWidth: 1, borderColor: "#ccc", padding: 8, marginBottom: 8 },
   task: { padding: 8, borderBottomWidth: 1, borderColor: "#ccc" },
-  error: { color: "red", marginTop: 8 }
+  error: { color: "red", marginTop: 8 },
+  assetHeader: { marginTop: 16, marginBottom: 8 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 8 }
 });
