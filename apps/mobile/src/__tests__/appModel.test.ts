@@ -103,6 +103,19 @@ describe("MobileAppController", () => {
     expect(await store.load()).toBe("tok-1");
   });
 
+  it("stays signed in without a login error when data load fails after verify", async () => {
+    const client = createFakeClient({ getCreditBalance: async () => { throw new Error("transient"); } });
+    const store = createFakeTokenStore();
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: store });
+    await ctrl.startLogin("test@example.com");
+    await ctrl.verifyLogin("000000");
+    const state = ctrl.getState();
+    expect(state.stage).toBe("signedIn");
+    expect(state.token).toBe("tok-1");
+    expect(state.actionError).toBeNull();
+    expect(await store.load()).toBe("tok-1");
+  });
+
   it("submits a generation, refreshing tasks and balance", async () => {
     const store = createFakeTokenStore();
     const ctrl = createMobileAppController({ apiClient: createFakeClient(), tokenStore: store });
@@ -164,6 +177,15 @@ describe("MobileAppController", () => {
     await ctrl.restore();
     expect(ctrl.getState().stage).toBe("signedIn");
     expect(await store.load()).toBe("stored-tok");
+  });
+
+  it("clears the token when getSession reports an unauthenticated session", async () => {
+    const client = createFakeClient({ getSession: async () => ({ authenticated: false, user: null, expiresAt: null }) });
+    const store = createFakeTokenStore("stored-tok");
+    const ctrl = createMobileAppController({ apiClient: client, tokenStore: store });
+    await ctrl.restore();
+    expect(ctrl.getState().stage).toBe("signedOut");
+    expect(await store.load()).toBeNull();
   });
 
   it("notifies subscribers on state change", async () => {

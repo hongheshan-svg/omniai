@@ -124,13 +124,20 @@ export function createMobileAppController(deps: {
         return;
       }
       setState({ actionError: null });
+      let token: string;
       try {
         const session = await apiClient.verifyLogin({ challengeId: state.challengeId, code });
+        token = session.token;
         await tokenStore.save(session.token);
         setState({ token: session.token, stage: "signedIn", challengeId: null });
-        await loadUserData(session.token);
       } catch (err) {
         setState({ actionError: loginError(err) });
+        return;
+      }
+      try {
+        await loadUserData(token);
+      } catch {
+        // Signed in; a transient data-load failure must not surface as a login error.
       }
     },
     async submitGeneration({ prompt, mode }) {
