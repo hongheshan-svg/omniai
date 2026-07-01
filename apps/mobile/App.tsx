@@ -82,6 +82,9 @@ export default function App({
                 <Text>状态: {item.status}</Text>
                 <Text>提示词: {item.prompt}</Text>
                 {item.result?.kind === "text" ? <Text numberOfLines={2}>结果: {item.result.text}</Text> : null}
+                {item.status === "running" ? (
+                  <Button title="刷新状态" onPress={() => void ctrl.refreshTask(item.id)} />
+                ) : null}
               </View>
             )}
           />
