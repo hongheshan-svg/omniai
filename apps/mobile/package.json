@@ -12,12 +12,15 @@
   },
   "dependencies": {
     "@gw-link-omniai/shared": "workspace:*",
+    "@react-native-picker/picker": "~2.7.5",
     "expo": "^51.0.0",
+    "expo-secure-store": "~13.0.2",
     "react": "^18.2.0",
     "react-native": "^0.74.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.74",
+    "vite": "^5.2.8",
     "vitest": "^1.6.0"
   }
 }

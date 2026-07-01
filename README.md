@@ -254,6 +254,24 @@ happens on read.
   polls to a `result.kind === "video"` (service-hosted URL); the desktop renders
   `<video>` and saves it as an asset. Without a key, video stays `queued`.
 
+### Mobile API Integration
+
+The mobile app connects to the product API for the core creation flow.
+
+- The `apiClient` now lives in `packages/shared` (framework-free — `fetch` +
+  shared contracts) and is imported by both desktop and mobile from
+  `@gw-link-omniai/shared`.
+- Mobile interaction logic lives in a framework-free controller
+  (`apps/mobile/src/appModel.ts`, `createMobileAppController`), unit-tested
+  directly with vitest. `App.tsx` is a thin React Native view (login → generation
+  form → task list + balance) driven by that controller.
+- The bearer token is stored in the OS secure enclave via `expo-secure-store`
+  (iOS Keychain / Android Keystore); on startup the stored token is validated with
+  `GET /v1/auth/session` and the session restored (invalid tokens cleared).
+- Core flow only: login, submit a generation, list your tasks, show balance.
+  Task refresh, save-to-assets, the asset library, top-up, and image/video
+  rendering remain later slices.
+
 ## Validation
 
 ```bash

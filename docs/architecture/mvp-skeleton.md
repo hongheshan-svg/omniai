@@ -237,3 +237,28 @@ time (never triggering `loadConfig`). The desktop adds a fixed-amount "充值"
 button. This is a dev-only direct credit; real payment channels (Stripe / Alipay
 / WeChat) will drive `topUp` via webhooks, and a package catalog / custom amounts
 / minimumPlan enforcement remain later work.
+
+## Mobile API Integration Slice
+
+The `apiClient` was lifted from `apps/desktop` to `packages/shared` (it is
+framework-free — only `fetch` + shared contracts), so desktop and mobile import
+one client from `@gw-link-omniai/shared`. The mobile app gains its first live
+screen wired to the API for the core flow: passwordless login, generation
+submit, task list, and balance.
+
+Following the repo convention (state logic in framework-free modules, thin
+components), the interaction logic lives in `apps/mobile/src/appModel.ts` — a
+`createMobileAppController({ apiClient, tokenStore })` controller holding state
+(`signedOut → signingIn → signedIn`) with `getState`/`subscribe` and the
+`startLogin`/`verifyLogin`/`submitGeneration`/`restore`/`signOut` actions. It is
+unit-tested directly with vitest. `apps/mobile/App.tsx` is a thin React Native
+view that subscribes via `useSyncExternalStore` and is typecheck-only: RN 0.74
+source (Flow+ESM) cannot render under vite-node, so component rendering is not
+unit-tested — all behavior is covered at the controller layer.
+
+The bearer token persists in the OS secure enclave via `expo-secure-store` (iOS
+Keychain / Android Keystore, `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`) behind the
+same injectable `TokenStore` interface as desktop; startup restores the token
+through `getSession` and clears it if invalid. Task refresh, save-to-assets, the
+asset library, top-up, image/video rendering, and multi-screen navigation remain
+later slices.

@@ -7,7 +7,7 @@ import type {
   PromptOptimization,
   SessionResponse
 } from "@gw-link-omniai/shared";
-import { ApiError, createApiClient, type ApiClient } from "./apiClient";
+import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "./assetModel";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";

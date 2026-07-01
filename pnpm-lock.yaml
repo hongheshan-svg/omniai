@@ -122,9 +122,15 @@ importers:
       '@gw-link-omniai/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@react-native-picker/picker':
+        specifier: ~2.7.5
+        version: 2.7.7(react-native@0.74.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.3.31)(react@18.2.0))(react@18.2.0)
       expo:
         specifier: ^51.0.0
         version: 51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
+      expo-secure-store:
+        specifier: ~13.0.2
+        version: 13.0.2(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
       react:
         specifier: ^18.2.0
         version: 18.2.0
@@ -135,6 +141,9 @@ importers:
       '@types/react':
         specifier: ^18.2.74
         version: 18.3.31
+      vite:
+        specifier: ^5.2.8
+        version: 5.2.8(@types/node@20.19.43)(terser@5.48.0)
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@20.19.43)(jsdom@24.0.0)(terser@5.48.0)
@@ -1771,6 +1780,12 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  '@react-native-picker/picker@2.7.7':
+    resolution: {integrity: sha512-CTHthVmx8ujlH/u5AnxLQfsheh/DoEbo+Kbx0HGTlbKVLC1eZ4Kr9jXIIUcwB7JEgOXifdZIPQCsoTc/7GQ0ag==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   '@react-native/assets-registry@0.74.81':
     resolution: {integrity: sha512-ms+D6pJ6l30epm53pwnAislW79LEUHJxWfe1Cu0LWyTTBlg1OFoqXfB3eIbpe4WyH3nrlkQAh0yyk4huT2mCvw==}
     engines: {node: '>=18'}
@@ -3139,6 +3154,11 @@ packages:
 
   expo-modules-core@1.12.9:
     resolution: {integrity: sha512-t0HrPwelNFqGiaa9RsDt2ttDekAbgHjcq4PBovNS0jyhRwBbDDb465xoMxG+V4eNLBYTP+BVgxMHK+TPxT2QgQ==}
+
+  expo-secure-store@13.0.2:
+    resolution: {integrity: sha512-3QYgoneo8p8yeeBPBiAfokNNc2xq6+n8+Ob4fAlErEcf4H7Y72LH+K/dx0nQyWau2ZKZUXBxyyfuHFyVKrEVLg==}
+    peerDependencies:
+      expo: '*'
 
   expo@51.0.0:
     resolution: {integrity: sha512-qY4gECM+YDWgmv0rTzdlrbvGKYLMy/xQ6FtYp2/HG+yF+XpqpKTCNQ2RZN97DRIXlPmxhPd/S5IUD46kW3TQaQ==}
@@ -7563,6 +7583,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@react-native-picker/picker@2.7.7(react-native@0.74.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.3.31)(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      react: 18.2.0
+      react-native: 0.74.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@types/react@18.3.31)(react@18.2.0)
+
   '@react-native/assets-registry@0.74.81': {}
 
   '@react-native/assets-registry@0.74.83': {}
@@ -7674,7 +7699,7 @@ snapshots:
       '@babel/template': 7.29.7
       '@react-native/babel-plugin-codegen': 0.74.83(@babel/preset-env@7.29.7(@babel/core@7.29.7))
       babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.29.7)
-      react-refresh: 0.14.2
+      react-refresh: 0.14.0
     transitivePeerDependencies:
       - '@babel/preset-env'
       - supports-color
@@ -9128,6 +9153,10 @@ snapshots:
   expo-modules-core@1.12.9:
     dependencies:
       invariant: 2.2.4
+
+  expo-secure-store@13.0.2(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))):
+    dependencies:
+      expo: 51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
 
   expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)):
     dependencies:

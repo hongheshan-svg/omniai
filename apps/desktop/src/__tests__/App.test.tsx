@@ -8,7 +8,7 @@ import type {
   PromptOptimization
 } from "@gw-link-omniai/shared";
 import { App } from "../App";
-import { ApiError, type ApiClient } from "../apiClient";
+import { ApiError, type ApiClient } from "@gw-link-omniai/shared";
 import type { TokenStore } from "../tokenStore";
 import { getDesktopSessionCta } from "../sessionModel";
 
