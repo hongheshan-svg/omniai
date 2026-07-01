@@ -268,9 +268,9 @@ The mobile app connects to the product API for the core creation flow.
 - The bearer token is stored in the OS secure enclave via `expo-secure-store`
   (iOS Keychain / Android Keystore); on startup the stored token is validated with
   `GET /v1/auth/session` and the session restored (invalid tokens cleared).
-- Core flow: login, submit a generation, list your tasks, show balance, and
-  refresh a `running` task's status. Save-to-assets, the asset library, top-up,
-  and image/video rendering remain later slices.
+- Core flow: login, submit a generation, list your tasks, show balance, refresh a
+  `running` task's status, and save a succeeded result to a filtered asset
+  library. Top-up and image/video rendering remain later slices.
 
 ## Validation
 
