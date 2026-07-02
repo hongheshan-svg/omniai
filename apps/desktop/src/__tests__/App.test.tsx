@@ -114,7 +114,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     topUpCredits: async (amount: number) => {
       balance += amount;
       return { credits: balance, unit: "credit" as const };
-    }
+    },
+    listModels: async () => { throw new Error("unused"); }
   };
   return { ...base, ...overrides };
 }
