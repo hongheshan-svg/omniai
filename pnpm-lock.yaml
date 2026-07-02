@@ -128,6 +128,9 @@ importers:
       expo:
         specifier: ^51.0.0
         version: 51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
+      expo-av:
+        specifier: ~14.0.7
+        version: 14.0.7(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
       expo-secure-store:
         specifier: ~13.0.2
         version: 13.0.2(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7)))
@@ -3125,6 +3128,11 @@ packages:
 
   expo-asset@10.0.6:
     resolution: {integrity: sha512-waP73/ccn/HZNNcGM4/s3X3icKjSSbEQ9mwc6tX34oYNg+XE5WdwOuZ9wgVVFrU7wZMitq22lQXd2/O0db8bxg==}
+    peerDependencies:
+      expo: '*'
+
+  expo-av@14.0.7:
+    resolution: {integrity: sha512-FvKZxyy+2/qcCmp+e1GTK3s4zH8ZO1RfjpqNxh7ARlS1oH8HPtk1AyZAMo52tHz3yQ3UIqxQ2YbI9CFb4065lA==}
     peerDependencies:
       expo: '*'
 
@@ -9121,6 +9129,10 @@ snapshots:
       md5-file: 3.2.3
     transitivePeerDependencies:
       - supports-color
+
+  expo-av@14.0.7(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))):
+    dependencies:
+      expo: 51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))
 
   expo-constants@16.0.0(expo@51.0.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))):
     dependencies:
