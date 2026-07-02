@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GenerationTask } from "@gw-link-omniai/shared";
-import { getGenerationStatusLabel, summarizeGenerationPrompt } from "../generationModel";
+import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "../generationModel";
 
 describe("generationModel", () => {
   it("returns status labels", () => {
@@ -48,5 +48,31 @@ describe("generationModel", () => {
     };
 
     expect(summarizeGenerationPrompt(task)).toBe("短提示词");
+  });
+});
+
+function task(id: string, status: GenerationTask["status"]): GenerationTask {
+  return {
+    id,
+    mode: "video",
+    status,
+    prompt: "p",
+    optimizedPrompt: "op",
+    preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+    resultPreview: { title: "T", description: "D" },
+    createdAt: "2026-07-03T00:00:00.000Z",
+    updatedAt: "2026-07-03T00:00:00.000Z"
+  };
+}
+
+describe("selectRunningTaskIds", () => {
+  it("returns only running task ids, preserving order", () => {
+    const tasks = [task("a", "running"), task("b", "succeeded"), task("c", "running"), task("d", "queued")];
+    expect(selectRunningTaskIds(tasks)).toEqual(["a", "c"]);
+  });
+
+  it("returns an empty array when nothing is running", () => {
+    expect(selectRunningTaskIds([task("a", "succeeded"), task("b", "failed")])).toEqual([]);
+    expect(selectRunningTaskIds([])).toEqual([]);
   });
 });
