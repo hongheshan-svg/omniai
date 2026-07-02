@@ -20,3 +20,7 @@ export function summarizeGenerationPrompt(task: GenerationTask, maxLength = 48):
 
   return `${prompt.slice(0, maxLength)}...`;
 }
+
+export function selectRunningTaskIds(tasks: GenerationTask[]): string[] {
+  return tasks.filter((task) => task.status === "running").map((task) => task.id);
+}

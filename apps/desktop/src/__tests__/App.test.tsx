@@ -421,4 +421,49 @@ describe("Desktop App", () => {
       getDesktopSessionCta({ authenticated: true, expiresAt: authSession.expiresAt, user: authSession.user })
     ).toBe("Signed in as creator");
   });
+
+  it("auto-polls a running task to completion", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const running: GenerationTask = {
+        id: "task-run",
+        mode: "video",
+        status: "running",
+        prompt: "p",
+        optimizedPrompt: "op",
+        preset: { modelId: "gw-video-motion", parameters: {}, creditEstimate: { credits: 3, unit: "credit" } },
+        resultPreview: { title: "视频生成任务", description: "生成中。" },
+        createdAt: "2026-07-03T00:00:00.000Z",
+        updatedAt: "2026-07-03T00:00:00.000Z"
+      };
+      const succeeded: GenerationTask = { ...running, status: "succeeded", result: { kind: "text", text: "done", format: "plain" } };
+      const client = createFakeClient({
+        listGenerations: async () => [running],
+        getGeneration: async () => succeeded
+      });
+      await signIn(client);
+
+      const taskCenter = screen.getByLabelText("任务中心");
+      await within(taskCenter).findByText("生成中");
+      vi.advanceTimersByTime(5000);
+      await within(taskCenter).findByText("已完成");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not poll when there are no running tasks", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const getGeneration = vi.fn(async (id: string) => {
+        throw new ApiError("should not be called", 404);
+      });
+      const client = createFakeClient({ listGenerations: async () => [], getGeneration });
+      await signIn(client);
+      vi.advanceTimersByTime(5000);
+      expect(getGeneration).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

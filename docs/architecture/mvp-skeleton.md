@@ -210,6 +210,9 @@ A `FakeAsyncProvider` (submit→running, poll→succeeds after N) proves it
 end-to-end; production video stays `queued`. The real async video provider, a
 video-specific result variant, background polling, and a desktop auto-poll
 remain slice 11b / later.
+The desktop also auto-polls `running` tasks every 5s (`selectRunningTaskIds` +
+a `setInterval` effect keyed on the running-id set; poll reuses `getGeneration`,
+401 signs out, other errors stay silent), keeping the manual "刷新状态" button.
 
 ## Real Video Provider Slice
 

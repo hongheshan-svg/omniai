@@ -10,12 +10,13 @@ import type {
 import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatCreditBalance } from "./creditModel";
-import { getGenerationStatusLabel, summarizeGenerationPrompt } from "./generationModel";
+import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
 
 const anonymousSession: SessionResponse = { authenticated: false, user: null, expiresAt: null };
+const POLL_INTERVAL_MS = 5000;
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -102,6 +103,22 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, store]);
+
+  const runningKey = selectRunningTaskIds(tasks).join(",");
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    const runningIds = runningKey ? runningKey.split(",") : [];
+    if (runningIds.length === 0) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void pollRunningTasks(runningIds);
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, token, runningKey]);
 
   function handleSignedOut(message?: string) {
     store.clear();
@@ -198,6 +215,24 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
         return;
       }
       setActionError(errorMessage(error));
+    }
+  }
+
+  async function pollRunningTasks(ids: string[]) {
+    if (!token) {
+      return;
+    }
+    for (const id of ids) {
+      try {
+        const updated = await api.getGeneration(id, token);
+        setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleSignedOut("登录已失效，请重新登录");
+          return;
+        }
+        // transient poll error: stay quiet, retry next tick
+      }
     }
   }
 
