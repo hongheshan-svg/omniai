@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet } from "react-native";
+import { SafeAreaView, View, Text, TextInput, Button, FlatList, Image, StyleSheet } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { createApiClient, type ApiClient, type CreationMode, filterCreationAssets, getAssetFilterLabel, getAssetModeLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { createSecureTokenStore, type TokenStore } from "./src/tokenStore";
 import { createMobileAppController, type MobileAppController } from "./src/appModel";
+import { formatDuration } from "./src/resultModel";
 
 interface AppProps {
   apiClient?: ApiClient;
@@ -83,6 +84,15 @@ export default function App({
                 <Text>状态: {item.status}</Text>
                 <Text>提示词: {item.prompt}</Text>
                 {item.result?.kind === "text" ? <Text numberOfLines={2}>结果: {item.result.text}</Text> : null}
+                {item.result?.kind === "image" ? (
+                  <Image source={{ uri: item.result.url }} accessibilityLabel={item.result.alt} style={styles.media} />
+                ) : null}
+                {item.result?.kind === "video" ? (
+                  <>
+                    <Image source={{ uri: item.result.posterUrl }} accessibilityLabel="视频封面" style={styles.media} />
+                    <Text>时长 {formatDuration(item.result.durationSeconds)}</Text>
+                  </>
+                ) : null}
                 {item.status === "running" ? (
                   <Button title="刷新状态" onPress={() => void ctrl.refreshTask(item.id)} />
                 ) : null}
@@ -107,6 +117,15 @@ export default function App({
               <View style={styles.task}>
                 <Text>{getAssetModeLabel(item.mode)}</Text>
                 <Text numberOfLines={1}>{summarizeAssetPrompt(item)}</Text>
+                {item.content.kind === "image" ? (
+                  <Image source={{ uri: item.content.url }} accessibilityLabel={item.content.alt} style={styles.media} />
+                ) : null}
+                {item.content.kind === "video" ? (
+                  <>
+                    <Image source={{ uri: item.content.posterUrl }} accessibilityLabel="视频封面" style={styles.media} />
+                    <Text>时长 {formatDuration(item.content.durationSeconds)}</Text>
+                  </>
+                ) : null}
               </View>
             )}
           />
@@ -122,6 +141,7 @@ const styles = StyleSheet.create({
   form: { marginBottom: 16 },
   input: { borderWidth: 1, borderColor: "#ccc", padding: 8, marginBottom: 8 },
   task: { padding: 8, borderBottomWidth: 1, borderColor: "#ccc" },
+  media: { width: 160, height: 120, marginTop: 8 },
   error: { color: "red", marginTop: 8 },
   assetHeader: { marginTop: 16, marginBottom: 8 },
   filterRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 8 }

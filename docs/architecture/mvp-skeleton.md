@@ -267,6 +267,12 @@ labels, `summarizeAssetPrompt`) were lifted to `packages/shared` so desktop and
 mobile share them. Top-up, image/video rendering, and multi-screen navigation
 remain later slices.
 
+Image results (and saved image assets) render via React Native's built-in `Image`;
+video results render a `posterUrl` thumbnail plus a `formatDuration` (mm:ss) label
+— inline playback is deferred. `App.tsx` stays typecheck-only, so the media
+rendering is not unit-tested; the framework-free `formatDuration` helper carries
+the unit coverage.
+
 ## Admin Model Display Slice
 
 The admin operations console makes its first live API call: the shared apiClient
