@@ -273,6 +273,12 @@ video results render a `posterUrl` thumbnail plus a `formatDuration` (mm:ss) lab
 rendering is not unit-tested; the framework-free `formatDuration` helper carries
 the unit coverage.
 
+Video results play inline via `expo-av` (`<Video>` with native controls and a
+`usePoster` poster) through a small reused `VideoResult` component; the duration
+label reuses `formatDuration`. `VideoResult` and `App.tsx` stay typecheck-only, so
+actual playback is verified manually on a device/simulator rather than in the unit
+suite.
+
 ## Admin Model Display Slice
 
 The admin operations console makes its first live API call: the shared apiClient
