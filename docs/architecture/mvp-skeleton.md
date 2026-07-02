@@ -266,3 +266,14 @@ The asset-model pure functions (`buildAssetRequestFromTask`, `filterCreationAsse
 labels, `summarizeAssetPrompt`) were lifted to `packages/shared` so desktop and
 mobile share them. Top-up, image/video rendering, and multi-screen navigation
 remain later slices.
+
+## Admin Model Display Slice
+
+The admin operations console makes its first live API call: the shared apiClient
+gains `listModels()` (public `GET /v1/models`, no token — product fields only), and
+a client component `ModelCatalogSection` fetches and renders the visible model
+catalog inside the Model Display module (name + `capability · plan · creditUnitCost`
+summary via the framework-free `catalogModel` helper). `AdminAppShell` threads an
+optional injected `client` for testability. The other four modules (Users, Plans &
+Credits, Orders, Usage Metrics) stay placeholders because the API has no admin auth
+or cross-user endpoints yet — those remain a later slice.
