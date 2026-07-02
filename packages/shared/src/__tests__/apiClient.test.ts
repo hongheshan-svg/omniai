@@ -174,6 +174,22 @@ it("throws ApiError with the API error message and status on non-2xx", async () 
   await expect(client.listGenerations("bad")).rejects.toBeInstanceOf(ApiError);
 });
 
+it("fetches the public model catalog without a token", async () => {
+  const models = [
+    { id: "gw-text-balanced", displayName: "均衡文本", capability: "text", tags: [], visibility: "visible", minimumPlan: "free", creditUnitCost: 1 }
+  ];
+  const fetchMock = vi.fn(async () => jsonResponse({ models }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+
+  const result = await client.listModels();
+
+  expect(result).toEqual(models);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/models");
+  expect(init.method ?? "GET").toBe("GET");
+  expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+});
+
 it("posts an asset with the bearer token and unwraps the asset envelope", async () => {
   const asset = {
     id: "a1",

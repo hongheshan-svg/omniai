@@ -272,6 +272,17 @@ The mobile app connects to the product API for the core creation flow.
   `running` task's status, and save a succeeded result to a filtered asset
   library. Top-up and image/video rendering remain later slices.
 
+### Admin Model Display
+
+The admin console's Model Display module renders the live product model catalog.
+
+- The shared apiClient gains `listModels()` (public `GET /v1/models`, no token).
+- `ModelCatalogSection` (a client component) fetches the catalog on mount and lists
+  each visible model's name and a `capability · minimumPlan · creditUnitCost` summary.
+- `NEXT_PUBLIC_API_BASE_URL` overrides the API base (defaults to `http://localhost:8787`).
+- The other admin modules (Users, Plans & Credits, Orders, Usage Metrics) remain
+  placeholders — they need admin auth and cross-user endpoints (a later slice).
+
 ## Validation
 
 ```bash

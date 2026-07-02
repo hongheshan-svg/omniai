@@ -8,6 +8,7 @@ import type {
   LoginStartRequest,
   LoginStartResponse,
   LoginVerifyRequest,
+  ProductModel,
   PromptOptimization,
   PromptOptimizationRequest,
   SessionResponse
@@ -41,6 +42,7 @@ export interface ApiClient {
   getSession(token: string): Promise<SessionResponse>;
   getGeneration(id: string, token: string): Promise<GenerationTask>;
   topUpCredits(amount: number, token: string): Promise<CreditAmount>;
+  listModels(): Promise<ProductModel[]>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -154,6 +156,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         token
       });
       return balance;
+    },
+    async listModels() {
+      const { models } = await send<{ models: ProductModel[] }>("/v1/models");
+      return models;
     }
   };
 }

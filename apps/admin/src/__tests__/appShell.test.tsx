@@ -1,11 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { ApiClient } from "@gw-link-omniai/shared";
 import { AdminAppShell } from "../appShell";
 import { getAdminSessionBanner } from "../sessionModel";
 
 describe("AdminAppShell", () => {
   it("renders the operations modules required by the PRD and auth banner", () => {
-    render(<AdminAppShell />);
+    const client = { listModels: async () => [] } as unknown as ApiClient;
+    render(<AdminAppShell client={client} />);
 
     expect(screen.getByText("GW-LINK OmniAI Admin")).toBeTruthy();
     expect(screen.getByText("Admin login required")).toBeTruthy();
