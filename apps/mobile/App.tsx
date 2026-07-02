@@ -4,7 +4,7 @@ import { Picker } from "@react-native-picker/picker";
 import { createApiClient, type ApiClient, type CreationMode, filterCreationAssets, getAssetFilterLabel, getAssetModeLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { createSecureTokenStore, type TokenStore } from "./src/tokenStore";
 import { createMobileAppController, type MobileAppController } from "./src/appModel";
-import { formatDuration } from "./src/resultModel";
+import { VideoResult } from "./src/VideoResult";
 
 interface AppProps {
   apiClient?: ApiClient;
@@ -88,10 +88,7 @@ export default function App({
                   <Image source={{ uri: item.result.url }} accessibilityLabel={item.result.alt} style={styles.media} />
                 ) : null}
                 {item.result?.kind === "video" ? (
-                  <>
-                    <Image source={{ uri: item.result.posterUrl }} accessibilityLabel="视频封面" style={styles.media} />
-                    <Text>时长 {formatDuration(item.result.durationSeconds)}</Text>
-                  </>
+                  <VideoResult uri={item.result.url} posterUrl={item.result.posterUrl} durationSeconds={item.result.durationSeconds} />
                 ) : null}
                 {item.status === "running" ? (
                   <Button title="刷新状态" onPress={() => void ctrl.refreshTask(item.id)} />
@@ -121,10 +118,7 @@ export default function App({
                   <Image source={{ uri: item.content.url }} accessibilityLabel={item.content.alt} style={styles.media} />
                 ) : null}
                 {item.content.kind === "video" ? (
-                  <>
-                    <Image source={{ uri: item.content.posterUrl }} accessibilityLabel="视频封面" style={styles.media} />
-                    <Text>时长 {formatDuration(item.content.durationSeconds)}</Text>
-                  </>
+                  <VideoResult uri={item.content.url} posterUrl={item.content.posterUrl} durationSeconds={item.content.durationSeconds} />
                 ) : null}
               </View>
             )}
