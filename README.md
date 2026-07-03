@@ -286,6 +286,22 @@ curl -X POST http://localhost:8787/v1/payments/webhook \
   -d "$BODY"
 ```
 
+### Desktop Checkout
+
+The desktop app closes the payment loop end to end (payment sub-slice C). It
+lists the credit-package catalog (`GET /v1/packages`) in a "积分套餐" section;
+clicking "购买" on a package creates an order (`POST /v1/orders`) and then
+completes it in dev via `POST /v1/payments/dev-complete` (gated by
+`GW_LINK_DEV_PAYMENTS_ENABLED`, off in production). That endpoint
+server-side signs a `payment.succeeded` event with the configured webhook
+secret and runs the real webhook path (`PaymentService.handleWebhookEvent`,
+the same verify + idempotent + credit logic as the Payment Webhook slice
+above) — the client never holds the secret. On success the balance and the
+"订单" (orders) list refresh to show the credited balance and the `paid`
+order. In production (`GW_LINK_DEV_PAYMENTS_ENABLED` off) the endpoint
+returns `403`, and the real payment provider's webhook drives crediting
+instead.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

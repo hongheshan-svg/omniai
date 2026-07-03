@@ -355,3 +355,28 @@ than a re-serialized object. Deferred non-goals: real Stripe/Alipay/WeChat
 Pay signature formats, concurrency/row-locking around the mark-paid-then-credit
 sequence, `payment.failed` handling, refunds, and the client checkout UI —
 all sub-slice C.
+
+## Desktop Checkout Slice
+
+This sub-slice (payment sub-slice C) closes the loop end to end with a
+desktop checkout UI. `apiClient` gains four methods: `listPackages()`
+(public), `createOrder(packageId, token)`, `listOrders(token)`, and
+`devCompletePayment(orderId, token)`. `OrderService` gains
+`getOrder(userId, orderId): Promise<Order | null>`, an owner-scoped lookup
+used by the new route. `registerPaymentRoutes` is refactored to a deps
+object (`{ paymentService, orderService, authService, secret,
+devPaymentsEnabled }`) and adds a dev-gated `POST /v1/payments/dev-complete`:
+auth-guarded, it looks up the caller's order via `getOrder` (404 if missing
+or not owned), server-side signs a `payment.succeeded` event for the order's
+`checkoutRef` with `config.paymentWebhookSecret`, and feeds it straight into
+the real `PaymentService.handleWebhookEvent` — reusing the audited
+verify + idempotent + credit path rather than duplicating it, so the client
+never sees the signing secret. `ApiConfig.devPaymentsEnabled` (env
+`GW_LINK_DEV_PAYMENTS_ENABLED`, parsed identically to `devTopupEnabled`)
+gates the route with `403` and defaults off in production, on otherwise.
+The desktop adds a package-checkout section (`orderModel.ts`:
+`formatPackagePrice`, `getOrderStatusLabel`) alongside the existing
+fixed-100 "充值" dev top-up button: "购买" creates an order, immediately
+calls `devCompletePayment`, then reloads the balance and order list. Real
+payment-provider checkout pages/redirects and mobile checkout are later
+work.
