@@ -87,7 +87,8 @@ function mapOrderRow(row: typeof orders.$inferSelect): OrderRecord {
     currency: row.currency,
     status: row.status as OrderStatus,
     checkoutRef: row.checkoutRef,
-    createdAt: row.createdAt.toISOString()
+    createdAt: row.createdAt.toISOString(),
+    ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {})
   };
 }
 
@@ -352,7 +353,10 @@ export class DrizzleOrderRepository implements OrderRepository {
     return row ? { record: mapOrderRow(row), ownerUserId: row.ownerUserId } : null;
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<void> {
-    await this.db.update(orders).set({ status }).where(eq(orders.id, id));
+  async updateStatus(id: string, status: OrderStatus, paidAt?: string): Promise<void> {
+    await this.db
+      .update(orders)
+      .set({ status, ...(paidAt !== undefined ? { paidAt: new Date(paidAt) } : {}) })
+      .where(eq(orders.id, id));
   }
 }

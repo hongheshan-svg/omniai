@@ -17,6 +17,7 @@ export interface Order {
   status: OrderStatus;
   checkoutRef: string;
   createdAt: string;
+  paidAt?: string;
 }
 
 export interface CreateOrderRequest {

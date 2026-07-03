@@ -79,6 +79,7 @@ export interface OrderRecord {
   status: OrderStatus;
   checkoutRef: string;
   createdAt: string;
+  paidAt?: string;
 }
 
 export interface OrderRepository {
@@ -88,5 +89,5 @@ export interface OrderRepository {
   getByCheckoutRef(
     checkoutRef: string
   ): Promise<{ record: OrderRecord; ownerUserId: string } | null> | { record: OrderRecord; ownerUserId: string } | null;
-  updateStatus(id: string, status: OrderStatus): Promise<void> | void;
+  updateStatus(id: string, status: OrderStatus, paidAt?: string): Promise<void> | void;
 }
