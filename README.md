@@ -246,6 +246,46 @@ real payment integration.
   signature and credits the account via `topUp`, and another adds the client
   checkout UI.
 
+### Payment Webhook (crediting)
+
+The payment webhook slice adds the only automatic credit-granting path: a
+signed, idempotent `POST /v1/payments/webhook`.
+
+- The route is **public** (no auth guard — the caller is the payment
+  provider, not a logged-in user) but gated by a signature: the request body
+  must be signed with HMAC-SHA256 over the **raw** request bytes, hex-encoded
+  in the `x-gw-signature` header, verified with a constant-time comparison
+  against `GW_LINK_PAYMENT_WEBHOOK_SECRET`. If the secret is unset the
+  webhook rejects every request with `500` (it never processes an
+  unconfigured or unsigned event); an invalid/missing signature is `401`.
+- On a well-formed `payment.succeeded` event (`{ type, checkoutRef }`) the
+  service looks up the order by `checkoutRef` (unknown order → `404`), and if
+  it is still `pending`, marks it `paid` and then credits the owner via
+  `CreditService.topUp` with reason `"purchase"`. The credited amount always
+  comes from the **stored order** (`credits`), never from the event body.
+- Redelivery is idempotent: only a `pending` order is processed, so a
+  re-sent `payment.succeeded` for an already-`paid` order returns `200`
+  without crediting again. Other event types are acknowledged (`200`) and
+  ignored.
+- `OrderService` (`POST /v1/orders`) and the payment webhook share a single
+  `OrderRepository` instance, so the webhook sees orders created through the
+  checkout API.
+- This slice stubs the provider: there is no real Stripe/Alipay/WeChat Pay
+  signature verification (just a generic HMAC scheme), no concurrency/row
+  locking around the mark-paid-then-credit sequence, no `payment.failed` or
+  refund handling, and no client checkout UI — those are later work.
+
+```bash
+# The body must be signed — this example computes the HMAC in a subshell.
+# $GW_LINK_PAYMENT_WEBHOOK_SECRET must match the API's configured secret.
+BODY='{"type":"payment.succeeded","checkoutRef":"checkout_abc123"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$GW_LINK_PAYMENT_WEBHOOK_SECRET" | sed 's/^.* //')
+curl -X POST http://localhost:8787/v1/payments/webhook \
+  -H "Content-Type: application/json" \
+  -H "x-gw-signature: $SIG" \
+  -d "$BODY"
+```
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.
