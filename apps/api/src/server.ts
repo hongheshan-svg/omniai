@@ -8,6 +8,7 @@ import { registerCreditRoutes } from "./routes/credits";
 import { registerFileRoutes } from "./routes/files";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
+import { registerPackageRoutes } from "./routes/orders";
 import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
@@ -22,6 +23,7 @@ import { InMemoryObjectStore, type ObjectStore } from "./services/objectStore";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
+import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./services/packageCatalog";
 import { LocalPromptOptimizer, type PromptOptimizer } from "./services/promptOptimizer";
 
 export interface BuildServerOptions {
@@ -32,6 +34,7 @@ export interface BuildServerOptions {
   generationService?: GenerationService;
   modelCatalog?: ModelCatalog;
   objectStore?: ObjectStore;
+  packageCatalog?: PackageCatalog;
   promptOptimizer?: PromptOptimizer;
   providerAdapter?: ProviderAdapter;
 }
@@ -57,6 +60,14 @@ export function buildServer(options: BuildServerOptions = {}) {
       loadModelCatalogConfig(resolveConfigPath(getConfig().modelConfigPath))
     );
     return loadedModelCatalog;
+  }
+
+  let loadedPackageCatalog = options.packageCatalog;
+  function getPackageCatalog() {
+    loadedPackageCatalog ??= new ConfigPackageCatalog(
+      loadPackageCatalogConfig(resolveConfigPath(getConfig().packagesConfigPath))
+    );
+    return loadedPackageCatalog;
   }
 
   const assetService = options.assetService ?? new InMemoryAssetService();
@@ -91,6 +102,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     listVisibleModels: () => getModelCatalog().listVisibleModels(),
     getModelReference: (modelId, mode) => getModelCatalog().getModelReference(modelId, mode)
   });
+  registerPackageRoutes(server, getPackageCatalog());
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);

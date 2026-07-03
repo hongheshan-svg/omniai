@@ -1,0 +1,7 @@
+{
+  "packages": [
+    { "id": "credits-100", "displayName": "100 积分", "credits": 100, "amountCents": 990, "currency": "CNY" },
+    { "id": "credits-500", "displayName": "500 积分", "credits": 500, "amountCents": 4500, "currency": "CNY" },
+    { "id": "credits-1200", "displayName": "1200 积分", "credits": 1200, "amountCents": 9900, "currency": "CNY" }
+  ]
+}

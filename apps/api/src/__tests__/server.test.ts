@@ -8,6 +8,7 @@ import { FakeProviderAdapter } from "../services/gatewayClient";
 import { ConfigModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalog } from "../services/modelCatalog";
 import type { ModelCatalogConfig } from "../services/modelConfig";
+import type { PackageCatalog } from "../services/packageCatalog";
 import { OpenAiCompatibleTextProvider } from "../services/openAiTextProvider";
 import { OpenAiCompatibleImageProvider } from "../services/openAiImageProvider";
 import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
@@ -110,6 +111,7 @@ describe("product API", () => {
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
+      packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled
@@ -749,6 +751,12 @@ describe("product API", () => {
         throw new Error("not implemented");
       }
     } satisfies ModelCatalog;
+    const fakePackageCatalog = {
+      listPackages: () => [],
+      getPackage: () => {
+        throw new Error("not implemented");
+      }
+    } satisfies PackageCatalog;
 
     try {
       process.env.PORT = "abc";
@@ -758,7 +766,8 @@ describe("product API", () => {
           authService: fakeAuthService,
           generationService: fakeGenerationService,
           assetService: fakeAssetService,
-          modelCatalog: fakeModelCatalog
+          modelCatalog: fakeModelCatalog,
+          packageCatalog: fakePackageCatalog
         })
       ).not.toThrow();
     } finally {
@@ -777,6 +786,7 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
+        packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true
@@ -807,6 +817,7 @@ describe("product API", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: false,
         modelConfigPath: "config/models.json",
+        packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true

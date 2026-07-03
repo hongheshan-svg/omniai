@@ -14,6 +14,7 @@ function buildGenerationTestServer() {
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
+      packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true
@@ -280,6 +281,7 @@ describe("generation routes", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
+        packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true
@@ -316,6 +318,7 @@ describe("generation routes", () => {
         gatewayBaseUrl: "https://gateway.gw-link.local",
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
+        packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true
