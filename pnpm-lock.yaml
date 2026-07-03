@@ -153,6 +153,9 @@ importers:
 
   packages/shared:
     devDependencies:
+      '@gw-link-omniai/shared':
+        specifier: workspace:*
+        version: 'link:'
       vitest:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@20.19.43)(jsdom@24.0.0)(terser@5.48.0)
