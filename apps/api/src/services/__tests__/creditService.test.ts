@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryCreditService } from "../creditService";
+import type { CreditTransactionRecord, CreditTransactionRepository } from "../../repositories/types";
+import { CreditServiceImpl, InMemoryCreditService } from "../creditService";
 
 function createService(initialCredits = 100) {
   let counter = 0;
@@ -8,6 +9,28 @@ function createService(initialCredits = 100) {
     idGenerator: () => `credit_transaction_${(counter += 1)}`,
     clock: { now: () => new Date("2026-06-20T00:00:00.000Z") }
   });
+}
+
+class RecordingCreditTransactionRepository implements CreditTransactionRepository {
+  readonly inserted: CreditTransactionRecord[] = [];
+
+  async insert(record: CreditTransactionRecord): Promise<void> {
+    this.inserted.push(record);
+  }
+
+  async balance(): Promise<number> {
+    return this.inserted.reduce((sum, record) => sum + record.amount, 0);
+  }
+}
+
+function createServiceWithRecorder() {
+  const repository = new RecordingCreditTransactionRepository();
+  let counter = 0;
+  const service = new CreditServiceImpl(repository, {
+    idGenerator: () => `credit_transaction_${(counter += 1)}`,
+    clock: { now: () => new Date("2026-06-20T00:00:00.000Z") }
+  });
+  return { service, repository };
 }
 
 describe("InMemoryCreditService", () => {
@@ -53,5 +76,17 @@ describe("InMemoryCreditService", () => {
     await service.topUp("user-a", 25);
     await service.deduct("user-a", 10, "task-1");
     expect((await service.getBalance("user-a")).credits).toBe(115);
+  });
+
+  it("records a purchase-reason top-up", async () => {
+    const { service, repository } = createServiceWithRecorder();
+    await service.topUp("user-a", 100, "order_1", "purchase");
+    expect(repository.inserted.at(-1)).toMatchObject({ amount: 100, reason: "purchase", reference: "order_1" });
+  });
+
+  it("defaults the top-up reason to topup when omitted", async () => {
+    const { service, repository } = createServiceWithRecorder();
+    await service.topUp("user-a", 50);
+    expect(repository.inserted.at(-1)).toMatchObject({ amount: 50, reason: "topup", reference: null });
   });
 });

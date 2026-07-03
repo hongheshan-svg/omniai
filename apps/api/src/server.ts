@@ -9,6 +9,7 @@ import { registerFileRoutes } from "./routes/files";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
 import { registerOrderRoutes, registerPackageRoutes } from "./routes/orders";
+import { registerPaymentRoutes } from "./routes/payments";
 import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
@@ -23,9 +24,18 @@ import { InMemoryObjectStore, type ObjectStore } from "./services/objectStore";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
-import { InMemoryOrderService, type OrderService } from "./services/orderService";
+import { OrderServiceImpl, type OrderService } from "./services/orderService";
 import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./services/packageCatalog";
+import { PaymentServiceImpl, type PaymentService } from "./services/paymentService";
 import { LocalPromptOptimizer, type PromptOptimizer } from "./services/promptOptimizer";
+import { InMemoryOrderRepository } from "./repositories/memory";
+import type { OrderRepository } from "./repositories/types";
+
+declare module "fastify" {
+  interface FastifyRequest {
+    rawBody?: string;
+  }
+}
 
 export interface BuildServerOptions {
   assetService?: AssetService;
@@ -35,8 +45,10 @@ export interface BuildServerOptions {
   generationService?: GenerationService;
   modelCatalog?: ModelCatalog;
   objectStore?: ObjectStore;
+  orderRepository?: OrderRepository;
   orderService?: OrderService;
   packageCatalog?: PackageCatalog;
+  paymentService?: PaymentService;
   promptOptimizer?: PromptOptimizer;
   providerAdapter?: ProviderAdapter;
 }
@@ -48,6 +60,19 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.register(cors, {
     origin: options.config?.corsOrigins ?? true
+  });
+
+  server.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+    req.rawBody = body as string;
+    if (!body) {
+      done(null, undefined);
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (error) {
+      done(error as Error);
+    }
   });
 
   let loadedConfig = options.config;
@@ -98,7 +123,11 @@ export function buildServer(options: BuildServerOptions = {}) {
       providerAdapter,
       creditService
     });
-  const orderService = options.orderService ?? new InMemoryOrderService(getPackageCatalog());
+  const orderRepository = options.orderRepository ?? new InMemoryOrderRepository();
+  const orderService = options.orderService ?? new OrderServiceImpl(orderRepository, getPackageCatalog());
+  const paymentService =
+    options.paymentService ??
+    new PaymentServiceImpl(orderRepository, creditService, { secret: options.config?.paymentWebhookSecret });
 
   registerHealthRoute(server);
   registerModelRoutes(server, {
@@ -107,6 +136,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
   registerPackageRoutes(server, getPackageCatalog());
   registerOrderRoutes(server, { orderService, authService });
+  registerPaymentRoutes(server, paymentService);
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
@@ -138,7 +168,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     creditService: services.creditService,
     objectStore: services.objectStore,
     orderService: services.orderService,
-    packageCatalog: services.packageCatalog
+    packageCatalog: services.packageCatalog,
+    paymentService: services.paymentService
   });
 
   const shutdown = async (signal: string) => {

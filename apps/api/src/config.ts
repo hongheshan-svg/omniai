@@ -10,6 +10,7 @@ export interface ApiConfig {
   objectStoreDir?: string;
   databaseUrl?: string;
   corsOrigins?: string[];
+  paymentWebhookSecret?: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -102,6 +103,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     devTopupEnabled: parseDevTopupEnabled(env),
     objectStoreDir: env.GW_LINK_OBJECT_STORE_DIR,
     databaseUrl: env.DATABASE_URL,
-    corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS)
+    corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS),
+    paymentWebhookSecret: env.GW_LINK_PAYMENT_WEBHOOK_SECRET
   };
 }

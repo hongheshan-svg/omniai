@@ -321,3 +321,37 @@ alongside the public `GET /v1/packages` in `buildServer`. Prices are integer
 in this slice — crediting the account, verifying a payment webhook's
 signature (driving `CreditService.topUp`), and integrating a real payment
 provider are later sub-slices.
+
+## Payment Webhook Slice
+
+This sub-slice (payment sub-slice B) closes the loop opened by the order
+foundation: a public `POST /v1/payments/webhook` verifies a signature and
+credits the buyer. `webhookSignature.ts` signs/verifies an HMAC-SHA256 over
+the raw request body (hex, `x-gw-signature` header) using
+`crypto.timingSafeEqual` for a constant-time comparison, so timing cannot
+leak whether a signature is close to correct. `PaymentServiceImpl` assembles
+the flow: an unset `paymentWebhookSecret` (`ApiConfig`, env
+`GW_LINK_PAYMENT_WEBHOOK_SECRET`) throws before any verification, mapped to
+`500` — the webhook never processes an unsigned or unconfigured event; a bad
+signature is `401`; invalid JSON or an event failing `isPaymentWebhookEvent`
+is `400`; a non-`payment.succeeded` event is acknowledged and ignored; an
+unknown `checkoutRef` (via `OrderRepository.getByCheckoutRef`) is `404`. For a
+known order, idempotency is enforced by only acting when `status ===
+"pending"`: the service calls `OrderRepository.updateStatus(id, "paid")`
+**before** `CreditService.topUp(ownerUserId, record.credits, record.id,
+"purchase")`, so a redelivered event finds the order already `paid` and
+returns without crediting again. The credited amount is always
+`record.credits` from the stored order, never a value from the event body.
+Marking paid before crediting means a `topUp` failure after the status
+update leaves the order paid but uncredited — a documented limitation of the
+current non-transactional repositories; the real fix is wrapping both writes
+in a single DB transaction, deferred. `buildServer`/`createServices` build
+one `OrderRepository` explicitly and inject it into both `OrderServiceImpl`
+and `PaymentServiceImpl`, so the webhook sees orders created via `POST
+/v1/orders`. Fastify's default JSON body parser is replaced with a raw-body
+content-type parser that stores the exact bytes on `request.rawBody` before
+parsing, since HMAC verification requires the untouched wire bytes rather
+than a re-serialized object. Deferred non-goals: real Stripe/Alipay/WeChat
+Pay signature formats, concurrency/row-locking around the mark-paid-then-credit
+sequence, `payment.failed` handling, refunds, and the client checkout UI —
+all sub-slice C.

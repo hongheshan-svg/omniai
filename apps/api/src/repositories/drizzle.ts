@@ -345,4 +345,14 @@ export class DrizzleOrderRepository implements OrderRepository {
       .limit(1);
     return rows[0] ? mapOrderRow(rows[0]) : null;
   }
+
+  async getByCheckoutRef(checkoutRef: string): Promise<{ record: OrderRecord; ownerUserId: string } | null> {
+    const rows = await this.db.select().from(orders).where(eq(orders.checkoutRef, checkoutRef)).limit(1);
+    const row = rows[0];
+    return row ? { record: mapOrderRow(row), ownerUserId: row.ownerUserId } : null;
+  }
+
+  async updateStatus(id: string, status: OrderStatus): Promise<void> {
+    await this.db.update(orders).set({ status }).where(eq(orders.id, id));
+  }
 }

@@ -395,4 +395,28 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(await orders.get("owner-a", "order_1")).toMatchObject({ id: "order_1", status: "pending" });
     expect(await orders.get("owner-a", "order_2")).toBeNull();
   });
+
+  it("finds an order by checkout ref and updates its status", async () => {
+    const { users, orders } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+
+    const record = {
+      id: "order_1",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "pending" as const,
+      checkoutRef: "checkout_abc",
+      createdAt: "2026-07-03T00:00:00.000Z"
+    };
+    await orders.insert(record, "owner-a");
+
+    const found = await orders.getByCheckoutRef("checkout_abc");
+    expect(found).toMatchObject({ ownerUserId: "owner-a", record: { id: "order_1", status: "pending" } });
+    expect(await orders.getByCheckoutRef("missing")).toBeNull();
+
+    await orders.updateStatus("order_1", "paid");
+    expect((await orders.get("owner-a", "order_1"))?.status).toBe("paid");
+  });
 });
