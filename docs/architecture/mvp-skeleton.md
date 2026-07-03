@@ -298,3 +298,26 @@ summary via the framework-free `catalogModel` helper). `AdminAppShell` threads a
 optional injected `client` for testability. The other four modules (Users, Plans &
 Credits, Orders, Usage Metrics) stay placeholders because the API has no admin auth
 or cross-user endpoints yet — those remain a later slice.
+
+## Payment Order Foundation Slice
+
+This sub-slice adds the order/checkout contract without any real payment
+integration. `config/credit-packages.json` (path overridable via
+`GW_LINK_PACKAGES_CONFIG_PATH`) feeds a `ConfigPackageCatalog`
+(`listPackages`/`getPackage`, defensively cloned like `ConfigModelCatalog`),
+served publicly at `GET /v1/packages`. `OrderRepository` follows the existing
+repository seam — an in-memory implementation and a Drizzle implementation
+backed by a new owner-scoped `orders` table (`owner_user_id` FK, mirroring
+`assets`/`credit_transactions`), locked by the same cross-backend contract
+test. `OrderService` (`OrderServiceImpl`/`InMemoryOrderService`) exposes
+`createOrder(userId, packageId)` — resolves the package via the catalog
+(unknown id throws a 404 `OrderServiceError`), generates an id and an opaque
+`checkoutRef`, and persists a `pending` order — and `listOrders(userId)`,
+scoped by owner like generations/assets. `POST /v1/orders` (auth-guarded,
+`isCreateOrderRequest` body validation, 400/401/404 mapped from the guard and
+service errors) and `GET /v1/orders` (auth-guarded, per-user) are registered
+alongside the public `GET /v1/packages` in `buildServer`. Prices are integer
+`amountCents` with an ISO `currency`; orders never leave the `pending` status
+in this slice — crediting the account, verifying a payment webhook's
+signature (driving `CreditService.topUp`), and integrating a real payment
+provider are later sub-slices.
