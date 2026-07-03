@@ -83,4 +83,25 @@ describe("PaymentServiceImpl", () => {
     await svc.handleWebhookEvent({ rawBody: raw, signature: sig });
     expect(calls).toHaveLength(1);
   });
+
+  it("stamps paidAt from the injected clock when marking an order paid", async () => {
+    const orders = new InMemoryOrderRepository();
+    pendingOrder(orders);
+    const { service: credits } = fakeCredits();
+    const fixed = new Date("2026-07-03T02:30:00.000Z");
+    const payment = new PaymentServiceImpl(orders, credits, { secret: SECRET, clock: { now: () => fixed } });
+
+    const rawBody = event();
+    await payment.handleWebhookEvent({ rawBody, signature: signWebhookPayload(rawBody, SECRET) });
+
+    const order = await orders.get("user-a", "order_1");
+    expect(order?.status).toBe("paid");
+    expect(order?.paidAt).toBe("2026-07-03T02:30:00.000Z");
+
+    // Idempotent re-delivery does not overwrite paidAt.
+    const later = new Date("2026-07-03T09:00:00.000Z");
+    const payment2 = new PaymentServiceImpl(orders, credits, { secret: SECRET, clock: { now: () => later } });
+    await payment2.handleWebhookEvent({ rawBody, signature: signWebhookPayload(rawBody, SECRET) });
+    expect((await orders.get("user-a", "order_1"))?.paidAt).toBe("2026-07-03T02:30:00.000Z");
+  });
 });
