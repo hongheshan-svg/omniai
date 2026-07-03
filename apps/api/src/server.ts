@@ -8,7 +8,7 @@ import { registerCreditRoutes } from "./routes/credits";
 import { registerFileRoutes } from "./routes/files";
 import { registerHealthRoute } from "./routes/health";
 import { registerModelRoutes } from "./routes/models";
-import { registerPackageRoutes } from "./routes/orders";
+import { registerOrderRoutes, registerPackageRoutes } from "./routes/orders";
 import { registerPromptRoutes } from "./routes/prompt";
 import { InMemoryAssetService, type AssetService } from "./services/assetService";
 import { InMemoryAuthService, type AuthService } from "./services/authService";
@@ -106,6 +106,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     getModelReference: (modelId, mode) => getModelCatalog().getModelReference(modelId, mode)
   });
   registerPackageRoutes(server, getPackageCatalog());
+  registerOrderRoutes(server, { orderService, authService });
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
