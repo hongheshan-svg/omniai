@@ -3,11 +3,13 @@ import type {
   CreationAsset,
   CreationAssetRequest,
   CreditAmount,
+  CreditPackage,
   GenerationTask,
   GenerationTaskRequest,
   LoginStartRequest,
   LoginStartResponse,
   LoginVerifyRequest,
+  Order,
   ProductModel,
   PromptOptimization,
   PromptOptimizationRequest,
@@ -43,6 +45,10 @@ export interface ApiClient {
   getGeneration(id: string, token: string): Promise<GenerationTask>;
   topUpCredits(amount: number, token: string): Promise<CreditAmount>;
   listModels(): Promise<ProductModel[]>;
+  listPackages(): Promise<CreditPackage[]>;
+  createOrder(packageId: string, token: string): Promise<Order>;
+  listOrders(token: string): Promise<Order[]>;
+  devCompletePayment(orderId: string, token: string): Promise<Order>;
 }
 
 const DEFAULT_BASE_URL = "http://localhost:8787";
@@ -160,6 +166,22 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     async listModels() {
       const { models } = await send<{ models: ProductModel[] }>("/v1/models");
       return models;
+    },
+    async listPackages() {
+      const { packages } = await send<{ packages: CreditPackage[] }>("/v1/packages");
+      return packages;
+    },
+    async createOrder(packageId, token) {
+      const { order } = await send<{ order: Order }>("/v1/orders", { method: "POST", body: { packageId }, token });
+      return order;
+    },
+    async listOrders(token) {
+      const { orders } = await send<{ orders: Order[] }>("/v1/orders", { token });
+      return orders;
+    },
+    async devCompletePayment(orderId, token) {
+      const { order } = await send<{ order: Order }>("/v1/payments/dev-complete", { method: "POST", body: { orderId }, token });
+      return order;
     }
   };
 }
