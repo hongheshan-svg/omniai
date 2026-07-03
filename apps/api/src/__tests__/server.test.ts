@@ -114,7 +114,8 @@ describe("product API", () => {
       packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
-      devTopupEnabled
+      devTopupEnabled,
+      devPaymentsEnabled: true
     };
   }
 
@@ -789,7 +790,8 @@ describe("product API", () => {
         packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
-        devTopupEnabled: true
+        devTopupEnabled: true,
+        devPaymentsEnabled: true
       }
     });
     const response = await server.inject({
@@ -820,7 +822,8 @@ describe("product API", () => {
         packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
-        devTopupEnabled: true
+        devTopupEnabled: true,
+        devPaymentsEnabled: true
       }
     });
     const response = await server.inject({

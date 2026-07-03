@@ -11,7 +11,8 @@ describe("loadConfig", () => {
       packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
-      devTopupEnabled: true
+      devTopupEnabled: true,
+      devPaymentsEnabled: true
     });
   });
 
@@ -32,7 +33,8 @@ describe("loadConfig", () => {
       packagesConfigPath: "config/credit-packages.json",
       initialCredits: 250,
       publicBaseUrl: "http://localhost:9000",
-      devTopupEnabled: true
+      devTopupEnabled: true,
+      devPaymentsEnabled: true
     });
   });
 
@@ -176,5 +178,9 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ GW_LINK_DEV_TOPUP_ENABLED: "yes" })).toThrow(
       'GW_LINK_DEV_TOPUP_ENABLED must be "true" or "false"'
     );
+  });
+
+  it("disables dev payment completion by default in production", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).devPaymentsEnabled).toBe(false);
   });
 });

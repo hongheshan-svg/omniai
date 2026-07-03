@@ -27,6 +27,7 @@ export class OrderServiceError extends Error {
 export interface OrderService {
   createOrder(userId: string, packageId: string): Promise<Order>;
   listOrders(userId: string): Promise<Order[]>;
+  getOrder(userId: string, orderId: string): Promise<Order | null>;
 }
 
 function toOrder(record: OrderRecord): Order {
@@ -84,6 +85,11 @@ export class OrderServiceImpl implements OrderService {
   async listOrders(userId: string): Promise<Order[]> {
     const records = await this.orders.listByOwner(userId);
     return records.map(toOrder);
+  }
+
+  async getOrder(userId: string, orderId: string): Promise<Order | null> {
+    const record = await this.orders.get(userId, orderId);
+    return record ? toOrder(record) : null;
   }
 }
 

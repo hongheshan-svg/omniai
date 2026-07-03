@@ -50,4 +50,12 @@ describe("OrderServiceImpl", () => {
     const [reloaded] = await service.listOrders("user-a");
     expect(reloaded.status).toBe("pending");
   });
+
+  it("gets a user's own order by id", async () => {
+    const service = makeService();
+    const created = await service.createOrder("user-a", "credits-100");
+    expect(await service.getOrder("user-a", created.id)).toMatchObject({ id: created.id, status: "pending" });
+    expect(await service.getOrder("user-b", created.id)).toBeNull();
+    expect(await service.getOrder("user-a", "missing")).toBeNull();
+  });
 });

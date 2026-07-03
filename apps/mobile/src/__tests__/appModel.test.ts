@@ -71,7 +71,11 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     getSession: async (): Promise<SessionResponse> => ({ authenticated: true, user: USER, expiresAt: "2026-07-08T00:00:00.000Z" }),
     getGeneration: async () => { throw new Error("unused"); },
     topUpCredits: async () => { throw new Error("unused"); },
-    listModels: async () => { throw new Error("unused"); }
+    listModels: async () => { throw new Error("unused"); },
+    listPackages: async () => { throw new Error("unused"); },
+    createOrder: async () => { throw new Error("unused"); },
+    listOrders: async () => { throw new Error("unused"); },
+    devCompletePayment: async () => { throw new Error("unused"); }
   };
   return { ...base, ...overrides };
 }

@@ -19,6 +19,7 @@ function config(secret?: string): ApiConfig {
     initialCredits: 100,
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: false,
+    devPaymentsEnabled: true,
     paymentWebhookSecret: secret
   };
 }
@@ -77,5 +78,49 @@ describe("POST /v1/payments/webhook", () => {
     expect(hook2.statusCode).toBe(200);
     const balanceFinal = await server.inject({ method: "GET", url: "/v1/credits/balance", headers: auth });
     expect((balanceFinal.json() as { balance: { credits: number } }).balance.credits).toBe(before + 100);
+  });
+});
+
+describe("POST /v1/payments/dev-complete", () => {
+  it("returns 403 when dev payments are disabled", async () => {
+    const server = buildServer({ config: { ...config(SECRET), devPaymentsEnabled: false }, packageCatalog });
+    const token = await authenticate(server);
+    const created = await server.inject({ method: "POST", url: "/v1/orders", headers: { authorization: `Bearer ${token}` }, payload: { packageId: "credits-100" } });
+    const { order } = created.json() as { order: { id: string } };
+    const response = await server.inject({ method: "POST", url: "/v1/payments/dev-complete", headers: { authorization: `Bearer ${token}` }, payload: { orderId: order.id } });
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("rejects an unauthenticated dev-complete", async () => {
+    const server = buildServer({ config: { ...config(SECRET), devPaymentsEnabled: true }, packageCatalog });
+    const response = await server.inject({ method: "POST", url: "/v1/payments/dev-complete", payload: { orderId: "x" } });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("404s for an order the caller does not own", async () => {
+    const server = buildServer({ config: { ...config(SECRET), devPaymentsEnabled: true }, packageCatalog });
+    const token = await authenticate(server);
+    const response = await server.inject({ method: "POST", url: "/v1/payments/dev-complete", headers: { authorization: `Bearer ${token}` }, payload: { orderId: "missing" } });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("completes payment and credits the buyer (idempotent)", async () => {
+    const server = buildServer({ config: { ...config(SECRET), devPaymentsEnabled: true }, packageCatalog });
+    const token = await authenticate(server);
+    const auth = { authorization: `Bearer ${token}` };
+    const created = await server.inject({ method: "POST", url: "/v1/orders", headers: auth, payload: { packageId: "credits-100" } });
+    const { order } = created.json() as { order: { id: string } };
+    const before = ((await server.inject({ method: "GET", url: "/v1/credits/balance", headers: auth })).json() as { balance: { credits: number } }).balance.credits;
+
+    const done = await server.inject({ method: "POST", url: "/v1/payments/dev-complete", headers: auth, payload: { orderId: order.id } });
+    expect(done.statusCode).toBe(200);
+    expect((done.json() as { order: { status: string } }).order.status).toBe("paid");
+    const after = ((await server.inject({ method: "GET", url: "/v1/credits/balance", headers: auth })).json() as { balance: { credits: number } }).balance.credits;
+    expect(after).toBe(before + 100);
+
+    // idempotent
+    await server.inject({ method: "POST", url: "/v1/payments/dev-complete", headers: auth, payload: { orderId: order.id } });
+    const final = ((await server.inject({ method: "GET", url: "/v1/credits/balance", headers: auth })).json() as { balance: { credits: number } }).balance.credits;
+    expect(final).toBe(before + 100);
   });
 });

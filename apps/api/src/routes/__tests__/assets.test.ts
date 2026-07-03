@@ -12,7 +12,8 @@ const testConfig = {
   packagesConfigPath: "config/credit-packages.json",
   initialCredits: 100,
   publicBaseUrl: "http://localhost:8787",
-  devTopupEnabled: true
+  devTopupEnabled: true,
+  devPaymentsEnabled: true
 };
 
 function buildAssetTestServer() {

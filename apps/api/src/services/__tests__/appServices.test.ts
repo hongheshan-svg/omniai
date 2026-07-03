@@ -15,6 +15,7 @@ function baseConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     initialCredits: 100,
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: true,
+    devPaymentsEnabled: true,
     ...overrides
   };
 }

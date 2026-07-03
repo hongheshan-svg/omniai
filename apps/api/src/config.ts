@@ -7,6 +7,7 @@ export interface ApiConfig {
   initialCredits: number;
   publicBaseUrl: string;
   devTopupEnabled: boolean;
+  devPaymentsEnabled: boolean;
   objectStoreDir?: string;
   databaseUrl?: string;
   corsOrigins?: string[];
@@ -63,6 +64,24 @@ function parseDevTopupEnabled(env: NodeJS.ProcessEnv): boolean {
   throw new Error('GW_LINK_DEV_TOPUP_ENABLED must be "true" or "false"');
 }
 
+function parseDevPaymentsEnabled(env: NodeJS.ProcessEnv): boolean {
+  const value = env.GW_LINK_DEV_PAYMENTS_ENABLED;
+
+  if (value === undefined) {
+    return env.NODE_ENV === "production" ? false : true;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  throw new Error('GW_LINK_DEV_PAYMENTS_ENABLED must be "true" or "false"');
+}
+
 function parseInitialCredits(value: string | undefined): number {
   if (value === undefined) {
     return 100;
@@ -101,6 +120,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     initialCredits: parseInitialCredits(env.GW_LINK_INITIAL_CREDITS),
     publicBaseUrl: env.GW_LINK_PUBLIC_BASE_URL ?? `http://localhost:${port}`,
     devTopupEnabled: parseDevTopupEnabled(env),
+    devPaymentsEnabled: parseDevPaymentsEnabled(env),
     objectStoreDir: env.GW_LINK_OBJECT_STORE_DIR,
     databaseUrl: env.DATABASE_URL,
     corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS),
