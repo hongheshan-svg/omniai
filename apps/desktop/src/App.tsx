@@ -13,7 +13,7 @@ import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/share
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
-import { formatPackagePrice, getOrderStatusLabel } from "./orderModel";
+import { buildReceiptLines, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
@@ -53,6 +53,7 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
   const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
@@ -138,6 +139,7 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     setBalance(undefined);
     setPackages([]);
     setOrders([]);
+    setSelectedOrderId(null);
     setOptimization(undefined);
     if (message) {
       setAuthError(message);
@@ -504,11 +506,42 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
       </section>
       <section aria-label="订单">
         <h2>订单</h2>
-        {orders.map((order) => (
-          <article key={order.id}>
-            <p>{order.packageId} · <span>{getOrderStatusLabel(order.status)}</span></p>
-          </article>
-        ))}
+        {orders.map((order) => {
+          const expanded = order.id === selectedOrderId;
+          const packageName = packages.find((p) => p.id === order.packageId)?.displayName ?? order.packageId;
+          return (
+            <article key={order.id}>
+              <p>
+                {order.packageId} · <span>{getOrderStatusLabel(order.status)}</span>{" "}
+                <button type="button" onClick={() => setSelectedOrderId(expanded ? null : order.id)}>
+                  {expanded ? "收起" : "查看"}
+                </button>
+              </p>
+              {expanded && (
+                <div aria-label="订单详情">
+                  <p>订单号：{order.id}</p>
+                  <p>套餐：{packageName}</p>
+                  <p>积分：{order.credits}</p>
+                  <p>金额：{formatMoney(order.amountCents, order.currency)}</p>
+                  <p>状态：{getOrderStatusLabel(order.status)}</p>
+                  <p>下单时间：{formatDateTime(order.createdAt)}</p>
+                  {order.paidAt && <p>付款时间：{formatDateTime(order.paidAt)}</p>}
+                  <p>凭证：{order.checkoutRef}</p>
+                  {order.status === "paid" && (
+                    <dl aria-label="收据">
+                      {buildReceiptLines(order, packageName).map((line) => (
+                        <div key={line.label}>
+                          <dt>{line.label}</dt>
+                          <dd>{line.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
       </section>
 
       <section aria-label="资产库">

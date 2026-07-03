@@ -302,6 +302,17 @@ order. In production (`GW_LINK_DEV_PAYMENTS_ENABLED` off) the endpoint
 returns `403`, and the real payment provider's webhook drives crediting
 instead.
 
+### Order Details & Receipt
+
+Each order in the desktop "订单" list has a 查看/收起 toggle that expands an
+inline detail block (order id, package, credits, amount, status, created
+time, paid time, checkout ref). Paid orders additionally render a formatted
+收据 (receipt). The receipt and detail are rendered purely client-side from
+the order list returned by `GET /v1/orders` — there is no per-order endpoint.
+The paid time comes from `Order.paidAt`, an optional field stamped by the
+webhook credit path when an order is marked paid; unpaid orders have none.
+This is a receipt, not a tax invoice (no tax, title, or tax id).
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

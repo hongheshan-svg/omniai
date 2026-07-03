@@ -417,6 +417,11 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect(await orders.getByCheckoutRef("missing")).toBeNull();
 
     await orders.updateStatus("order_1", "paid");
-    expect((await orders.get("owner-a", "order_1"))?.status).toBe("paid");
+    const afterStatusOnly = await orders.get("owner-a", "order_1");
+    expect(afterStatusOnly?.status).toBe("paid");
+    expect(afterStatusOnly?.paidAt).toBeUndefined();
+
+    await orders.updateStatus("order_1", "paid", "2026-07-03T01:02:00.000Z");
+    expect((await orders.get("owner-a", "order_1"))?.paidAt).toBe("2026-07-03T01:02:00.000Z");
   });
 });

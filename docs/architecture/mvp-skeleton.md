@@ -380,3 +380,18 @@ fixed-100 "充值" dev top-up button: "购买" creates an order, immediately
 calls `devCompletePayment`, then reloads the balance and order list. Real
 payment-provider checkout pages/redirects and mobile checkout are later
 work.
+
+## Order Details & Receipt Slice
+
+`Order` gains an optional additive `paidAt` (ISO), persisted through the
+repository seam: `OrderRecord.paidAt`, a nullable `paid_at` column
+(migration `0005`), and a widened `OrderRepository.updateStatus(id, status,
+paidAt?)`. `PaymentServiceImpl` takes an injected `clock` and stamps
+`paidAt = clock.now()` when it marks an order paid in the webhook credit
+path; idempotent re-delivery does not overwrite it. The desktop renders
+order detail and, for paid orders, a receipt entirely client-side from the
+existing `listOrders` data — no new endpoint. `orderModel.ts` adds
+`formatMoney`, `formatDateTime`, and `buildReceiptLines`; `App.tsx` adds a
+`selectedOrderId` inline expander. Deferred: a `GET /v1/orders/:id`
+endpoint, mobile order UI, real tax invoices (fapiao/title/tax id), and
+receipt export/print.

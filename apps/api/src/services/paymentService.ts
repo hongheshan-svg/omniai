@@ -15,6 +15,7 @@ export class PaymentServiceError extends Error {
 
 export interface PaymentServiceOptions {
   secret?: string;
+  clock?: { now(): Date };
 }
 
 export interface PaymentService {
@@ -22,11 +23,15 @@ export interface PaymentService {
 }
 
 export class PaymentServiceImpl implements PaymentService {
+  private readonly clock: { now(): Date };
+
   constructor(
     private readonly orders: OrderRepository,
     private readonly credits: CreditService,
     private readonly options: PaymentServiceOptions = {}
-  ) {}
+  ) {
+    this.clock = options.clock ?? { now: () => new Date() };
+  }
 
   async handleWebhookEvent(input: { rawBody: string; signature: string | undefined }): Promise<void> {
     const secret = this.options.secret;
@@ -55,7 +60,7 @@ export class PaymentServiceImpl implements PaymentService {
     if (found.record.status !== "pending") {
       return; // idempotent: already paid (or otherwise finalized) — do not re-credit
     }
-    await this.orders.updateStatus(found.record.id, "paid");
+    await this.orders.updateStatus(found.record.id, "paid", this.clock.now().toISOString());
     await this.credits.topUp(found.ownerUserId, found.record.credits, found.record.id, "purchase");
   }
 }

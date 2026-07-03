@@ -182,10 +182,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     return row ? { record: structuredClone(row.record), ownerUserId: row.ownerUserId } : null;
   }
 
-  updateStatus(id: string, status: OrderStatus): void {
+  updateStatus(id: string, status: OrderStatus, paidAt?: string): void {
     const row = this.rows.find((r) => r.record.id === id);
     if (row) {
       row.record.status = status;
+      if (paidAt !== undefined) {
+        row.record.paidAt = paidAt;
+      }
     }
   }
 }

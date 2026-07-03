@@ -39,7 +39,8 @@ function toOrder(record: OrderRecord): Order {
     currency: record.currency,
     status: record.status,
     checkoutRef: record.checkoutRef,
-    createdAt: record.createdAt
+    createdAt: record.createdAt,
+    ...(record.paidAt !== undefined ? { paidAt: record.paidAt } : {})
   };
 }
 
