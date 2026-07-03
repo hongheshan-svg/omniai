@@ -190,6 +190,52 @@ it("fetches the public model catalog without a token", async () => {
   expect((init.headers as Record<string, string>).authorization).toBeUndefined();
 });
 
+it("lists packages publicly", async () => {
+  const packages = [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }];
+  const fetchMock = vi.fn(async () => jsonResponse({ packages }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+  const result = await client.listPackages();
+  expect(result).toEqual(packages);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/packages");
+  expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+});
+
+it("creates an order with the bearer token", async () => {
+  const order = { id: "order_1", packageId: "credits-100", credits: 100, amountCents: 990, currency: "CNY", status: "pending", checkoutRef: "checkout_1", createdAt: "2026-07-03T00:00:00.000Z" };
+  const fetchMock = vi.fn(async () => jsonResponse({ order }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+  const result = await client.createOrder("credits-100", "tok-1");
+  expect(result).toEqual(order);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/orders");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ packageId: "credits-100" });
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
+it("lists orders with the bearer token", async () => {
+  const fetchMock = vi.fn(async () => jsonResponse({ orders: [] }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+  expect(await client.listOrders("tok-1")).toEqual([]);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/orders");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
+it("completes a dev payment with the bearer token", async () => {
+  const order = { id: "order_1", packageId: "credits-100", credits: 100, amountCents: 990, currency: "CNY", status: "paid", checkoutRef: "checkout_1", createdAt: "2026-07-03T00:00:00.000Z" };
+  const fetchMock = vi.fn(async () => jsonResponse({ order }));
+  const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
+  const result = await client.devCompletePayment("order_1", "tok-1");
+  expect(result).toEqual(order);
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("http://api.test/v1/payments/dev-complete");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ orderId: "order_1" });
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
+});
+
 it("posts an asset with the bearer token and unwraps the asset envelope", async () => {
   const asset = {
     id: "a1",

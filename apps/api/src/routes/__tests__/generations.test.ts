@@ -17,7 +17,8 @@ function buildGenerationTestServer() {
       packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
-      devTopupEnabled: true
+      devTopupEnabled: true,
+      devPaymentsEnabled: true
     },
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
@@ -284,7 +285,8 @@ describe("generation routes", () => {
         packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
-        devTopupEnabled: true
+        devTopupEnabled: true,
+        devPaymentsEnabled: true
       },
       generationService
     });
@@ -321,7 +323,8 @@ describe("generation routes", () => {
         packagesConfigPath: "config/credit-packages.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
-        devTopupEnabled: true
+        devTopupEnabled: true,
+        devPaymentsEnabled: true
       },
       generationService
     });

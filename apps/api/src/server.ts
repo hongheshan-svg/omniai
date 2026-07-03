@@ -136,7 +136,13 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
   registerPackageRoutes(server, getPackageCatalog());
   registerOrderRoutes(server, { orderService, authService });
-  registerPaymentRoutes(server, paymentService);
+  registerPaymentRoutes(server, {
+    paymentService,
+    orderService,
+    authService,
+    secret: options.config?.paymentWebhookSecret,
+    devPaymentsEnabled: options.config?.devPaymentsEnabled ?? false
+  });
   registerPromptRoutes(server, promptOptimizer);
   registerGenerationRoutes(server, generationService, authService);
   registerAssetRoutes(server, assetService, authService);
