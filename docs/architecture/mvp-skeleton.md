@@ -282,6 +282,12 @@ label reuses `formatDuration`. `VideoResult` and `App.tsx` stay typecheck-only, 
 actual playback is verified manually on a device/simulator rather than in the unit
 suite.
 
+The `appModel` controller also auto-polls `running` tasks every 5s
+(`startAutoPoll`/`stopAutoPoll`; `pollRunning` reuses `getGeneration`, 401 signs
+out and stops, other errors stay silent), started by `App.tsx` while signed-in and
+stopped on cleanup. Because the polling lives in the framework-free controller, it
+is fully unit-tested with fake timers (unlike the typecheck-only view).
+
 ## Admin Model Display Slice
 
 The admin operations console makes its first live API call: the shared apiClient
