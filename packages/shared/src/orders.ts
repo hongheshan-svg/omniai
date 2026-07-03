@@ -30,3 +30,17 @@ export function isCreateOrderRequest(value: unknown): value is CreateOrderReques
     typeof (value as { packageId?: unknown }).packageId === "string"
   );
 }
+
+export interface PaymentWebhookEvent {
+  type: string;
+  checkoutRef: string;
+}
+
+export function isPaymentWebhookEvent(value: unknown): value is PaymentWebhookEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === "string" &&
+    typeof (value as { checkoutRef?: unknown }).checkoutRef === "string"
+  );
+}

@@ -2,6 +2,7 @@ import type {
   CreationAsset,
   GenerationTask,
   LoginChannel,
+  OrderStatus,
   UserProfile
 } from "@gw-link-omniai/shared";
 import type {
@@ -174,5 +175,17 @@ export class InMemoryOrderRepository implements OrderRepository {
   get(ownerUserId: string, id: string): OrderRecord | null {
     const row = this.rows.find((r) => r.ownerUserId === ownerUserId && r.record.id === id);
     return row ? structuredClone(row.record) : null;
+  }
+
+  getByCheckoutRef(checkoutRef: string): { record: OrderRecord; ownerUserId: string } | null {
+    const row = this.rows.find((r) => r.record.checkoutRef === checkoutRef);
+    return row ? { record: structuredClone(row.record), ownerUserId: row.ownerUserId } : null;
+  }
+
+  updateStatus(id: string, status: OrderStatus): void {
+    const row = this.rows.find((r) => r.record.id === id);
+    if (row) {
+      row.record.status = status;
+    }
   }
 }
