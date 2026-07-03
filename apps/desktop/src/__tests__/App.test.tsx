@@ -443,6 +443,50 @@ describe("Desktop App", () => {
     expect(await within(orders).findByText("已支付")).toBeTruthy();
   });
 
+  it("expands a paid order to show detail and a receipt", async () => {
+    const paidOrder: Order = {
+      id: "order_seed",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "paid",
+      checkoutRef: "checkout_seed",
+      createdAt: "2026-07-03T00:00:00.000Z",
+      paidAt: "2026-07-03T02:30:00.000Z"
+    };
+    const client = createFakeClient({ listOrders: async () => [paidOrder] });
+    await signIn(client);
+
+    const ordersSection = screen.getByLabelText("订单");
+    fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
+
+    const receipt = await screen.findByLabelText("收据");
+    expect(within(receipt).getByText("¥9.90")).toBeTruthy();
+    expect(within(receipt).getByText("2026-07-03 02:30")).toBeTruthy();
+  });
+
+  it("expands a pending order to show detail without a receipt", async () => {
+    const pendingOrder: Order = {
+      id: "order_pending",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "pending",
+      checkoutRef: "checkout_pending",
+      createdAt: "2026-07-03T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listOrders: async () => [pendingOrder] });
+    await signIn(client);
+
+    const ordersSection = screen.getByLabelText("订单");
+    fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
+
+    await within(ordersSection).findByLabelText("订单详情");
+    expect(screen.queryByLabelText("收据")).toBeNull();
+  });
+
   it("summarizes authenticated desktop sessions", () => {
     expect(
       getDesktopSessionCta({ authenticated: true, expiresAt: authSession.expiresAt, user: authSession.user })
