@@ -23,6 +23,7 @@ import { InMemoryObjectStore, type ObjectStore } from "./services/objectStore";
 import { InMemoryGenerationService, type GenerationService } from "./services/generationService";
 import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
+import { InMemoryOrderService, type OrderService } from "./services/orderService";
 import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./services/packageCatalog";
 import { LocalPromptOptimizer, type PromptOptimizer } from "./services/promptOptimizer";
 
@@ -34,6 +35,7 @@ export interface BuildServerOptions {
   generationService?: GenerationService;
   modelCatalog?: ModelCatalog;
   objectStore?: ObjectStore;
+  orderService?: OrderService;
   packageCatalog?: PackageCatalog;
   promptOptimizer?: PromptOptimizer;
   providerAdapter?: ProviderAdapter;
@@ -96,6 +98,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       providerAdapter,
       creditService
     });
+  const orderService = options.orderService ?? new InMemoryOrderService(getPackageCatalog());
 
   registerHealthRoute(server);
   registerModelRoutes(server, {

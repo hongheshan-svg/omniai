@@ -6,6 +6,7 @@ import {
   DrizzleChallengeRepository,
   DrizzleCreditTransactionRepository,
   DrizzleGenerationTaskRepository,
+  DrizzleOrderRepository,
   DrizzleSessionRepository,
   DrizzleUserRepository
 } from "../repositories/drizzle";
@@ -25,6 +26,8 @@ import type { ProviderAdapter } from "./gatewayClient";
 import { ConfigModelCatalog, type ModelCatalog } from "./modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./modelConfig";
 import { OpenAiCompatibleTextProvider } from "./openAiTextProvider";
+import { OrderServiceImpl, InMemoryOrderService, type OrderService } from "./orderService";
+import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./packageCatalog";
 
 export interface AppServices {
   authService: AuthService;
@@ -33,6 +36,8 @@ export interface AppServices {
   creditService: CreditService;
   objectStore: ObjectStore;
   modelCatalog: ModelCatalog;
+  orderService: OrderService;
+  packageCatalog: PackageCatalog;
   verifyConnectivity(): Promise<void>;
   closeDb(): Promise<void>;
 }
@@ -40,6 +45,7 @@ export interface AppServices {
 export function createDbServices(
   db: AppDatabase,
   modelCatalog: ModelCatalog,
+  packageCatalog: PackageCatalog,
   options: {
     authDevCodesEnabled: boolean;
     initialCredits: number;
@@ -52,6 +58,7 @@ export function createDbServices(
   assetService: AssetService;
   creditService: CreditService;
   objectStore: ObjectStore;
+  orderService: OrderService;
 } {
   const creditService = new CreditServiceImpl(new DrizzleCreditTransactionRepository(db), {
     initialCredits: options.initialCredits,
@@ -84,7 +91,19 @@ export function createDbServices(
     idGenerator: () => `creation_asset_${randomUUID()}`
   });
 
-  return { authService, generationService, assetService, creditService, objectStore: options.objectStore };
+  const orderService = new OrderServiceImpl(new DrizzleOrderRepository(db), packageCatalog, {
+    idGenerator: () => `order_${randomUUID()}`,
+    checkoutRefGenerator: () => `checkout_${randomUUID()}`
+  });
+
+  return {
+    authService,
+    generationService,
+    assetService,
+    creditService,
+    objectStore: options.objectStore,
+    orderService
+  };
 }
 
 function createObjectStore(config: ApiConfig): ObjectStore {
@@ -96,6 +115,10 @@ function createObjectStore(config: ApiConfig): ObjectStore {
 export function createServices(config: ApiConfig): AppServices {
   const modelCatalog = new ConfigModelCatalog(
     loadModelCatalogConfig(resolveConfigPath(config.modelConfigPath))
+  );
+
+  const packageCatalog = new ConfigPackageCatalog(
+    loadPackageCatalogConfig(resolveConfigPath(config.packagesConfigPath))
   );
 
   const objectStore = createObjectStore(config);
@@ -120,13 +143,15 @@ export function createServices(config: ApiConfig): AppServices {
       creditService,
       objectStore,
       modelCatalog,
+      orderService: new InMemoryOrderService(packageCatalog),
+      packageCatalog,
       async verifyConnectivity() {},
       async closeDb() {}
     };
   }
 
   const client = createDbClient(config.databaseUrl);
-  const services = createDbServices(client.db, modelCatalog, {
+  const services = createDbServices(client.db, modelCatalog, packageCatalog, {
     authDevCodesEnabled: config.authDevCodesEnabled,
     initialCredits: config.initialCredits,
     objectStore
@@ -135,6 +160,7 @@ export function createServices(config: ApiConfig): AppServices {
   return {
     ...services,
     modelCatalog,
+    packageCatalog,
     verifyConnectivity: () => client.verifyConnectivity(),
     closeDb: () => client.close()
   };

@@ -6,6 +6,7 @@ import { createDbServices } from "../services/appServices";
 import { FakeProviderAdapter } from "../services/gatewayClient";
 import { InMemoryObjectStore } from "../services/objectStore";
 import { ConfigModelCatalog } from "../services/modelCatalog";
+import { ConfigPackageCatalog } from "../services/packageCatalog";
 import { createPgliteDatabase, type PgliteDatabase } from "../testSupport/pglite";
 
 function smokeConfig(): ApiConfig {
@@ -49,7 +50,10 @@ function modelConfig(): ModelCatalogConfig {
 
 function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
-  const services = createDbServices(database.db, modelCatalog, {
+  const packageCatalog = new ConfigPackageCatalog({
+    packages: [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }]
+  });
+  const services = createDbServices(database.db, modelCatalog, packageCatalog, {
     authDevCodesEnabled: true,
     initialCredits: 100,
     objectStore: new InMemoryObjectStore(),
