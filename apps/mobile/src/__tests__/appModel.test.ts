@@ -341,4 +341,85 @@ describe("MobileAppController", () => {
     expect(ctrl.getState().actionError).toBe("保存失败，请稍后重试");
     expect(ctrl.getState().stage).toBe("signedIn");
   });
+
+  it("auto-polls a running task to completion", async () => {
+    vi.useFakeTimers();
+    try {
+      const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+      const succeeded = textTask("t1", "p");
+      const client = createFakeClient({ listGenerations: async () => [running], getGeneration: async () => succeeded });
+      const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+      await ctrl.startLogin("test@example.com");
+      await ctrl.verifyLogin("000000");
+      expect(ctrl.getState().tasks[0].status).toBe("running");
+      ctrl.startAutoPoll();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(ctrl.getState().tasks[0].status).toBe("succeeded");
+      ctrl.stopAutoPoll();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops polling after stopAutoPoll", async () => {
+    vi.useFakeTimers();
+    try {
+      const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+      const getGeneration = vi.fn(async () => running);
+      const client = createFakeClient({ listGenerations: async () => [running], getGeneration });
+      const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+      await ctrl.startLogin("test@example.com");
+      await ctrl.verifyLogin("000000");
+      ctrl.startAutoPoll();
+      await vi.advanceTimersByTimeAsync(5000);
+      const callsAfterFirst = getGeneration.mock.calls.length;
+      expect(callsAfterFirst).toBeGreaterThan(0);
+      ctrl.stopAutoPoll();
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(getGeneration.mock.calls.length).toBe(callsAfterFirst);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("signs out and stops polling on a 401 during a poll", async () => {
+    vi.useFakeTimers();
+    try {
+      const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+      const getGeneration = vi.fn(async () => { throw new ApiError("unauth", 401); });
+      const store = createFakeTokenStore();
+      const client = createFakeClient({ listGenerations: async () => [running], getGeneration });
+      const ctrl = createMobileAppController({ apiClient: client, tokenStore: store });
+      await ctrl.startLogin("test@example.com");
+      await ctrl.verifyLogin("000000");
+      ctrl.startAutoPoll();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(ctrl.getState().stage).toBe("signedOut");
+      expect(await store.load()).toBeNull();
+      const callsAfter = getGeneration.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(getGeneration.mock.calls.length).toBe(callsAfter);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("startAutoPoll is idempotent (one interval)", async () => {
+    vi.useFakeTimers();
+    try {
+      const running: GenerationTask = { ...textTask("t1", "p"), status: "running", result: undefined };
+      const getGeneration = vi.fn(async () => running);
+      const client = createFakeClient({ listGenerations: async () => [running], getGeneration });
+      const ctrl = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+      await ctrl.startLogin("test@example.com");
+      await ctrl.verifyLogin("000000");
+      ctrl.startAutoPoll();
+      ctrl.startAutoPoll();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(getGeneration).toHaveBeenCalledTimes(1);
+      ctrl.stopAutoPoll();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
