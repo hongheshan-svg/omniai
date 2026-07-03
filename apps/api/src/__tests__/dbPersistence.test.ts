@@ -62,9 +62,11 @@ function buildServerForDb(database: PgliteDatabase) {
   return buildServer({
     config: smokeConfig(),
     modelCatalog,
+    packageCatalog,
     authService: services.authService,
     generationService: services.generationService,
-    assetService: services.assetService
+    assetService: services.assetService,
+    orderService: services.orderService
   });
 }
 
@@ -174,6 +176,26 @@ describe("database-backed persistence", () => {
     const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets", headers: auth });
     expect(assetsResponse.json()).toMatchObject({
       assets: [{ mode: "text", title: "文本资产" }]
+    });
+  });
+
+  it("persists orders across service instances", async () => {
+    const first = buildServerForDb(database);
+    const token = await login(first, "buyer@example.com");
+    const auth = { authorization: `Bearer ${token}` };
+
+    const createResponse = await first.inject({
+      method: "POST",
+      url: "/v1/orders",
+      headers: auth,
+      payload: { packageId: "credits-100" }
+    });
+    expect(createResponse.statusCode).toBe(201);
+
+    const second = buildServerForDb(database);
+    const ordersResponse = await second.inject({ method: "GET", url: "/v1/orders", headers: auth });
+    expect(ordersResponse.json()).toMatchObject({
+      orders: [{ packageId: "credits-100", status: "pending" }]
     });
   });
 });

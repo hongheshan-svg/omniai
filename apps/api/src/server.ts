@@ -136,7 +136,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     generationService: services.generationService,
     assetService: services.assetService,
     creditService: services.creditService,
-    objectStore: services.objectStore
+    objectStore: services.objectStore,
+    orderService: services.orderService,
+    packageCatalog: services.packageCatalog
   });
 
   const shutdown = async (signal: string) => {
