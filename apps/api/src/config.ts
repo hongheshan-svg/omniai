@@ -3,6 +3,7 @@ export interface ApiConfig {
   gatewayBaseUrl: string;
   authDevCodesEnabled: boolean;
   modelConfigPath: string;
+  packagesConfigPath: string;
   initialCredits: number;
   publicBaseUrl: string;
   devTopupEnabled: boolean;
@@ -95,6 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     gatewayBaseUrl: env.GW_LINK_GATEWAY_BASE_URL ?? "https://gateway.gw-link.local",
     authDevCodesEnabled: parseAuthDevCodesEnabled(env),
     modelConfigPath: env.GW_LINK_MODEL_CONFIG_PATH ?? "config/models.json",
+    packagesConfigPath: env.GW_LINK_PACKAGES_CONFIG_PATH ?? "config/credit-packages.json",
     initialCredits: parseInitialCredits(env.GW_LINK_INITIAL_CREDITS),
     publicBaseUrl: env.GW_LINK_PUBLIC_BASE_URL ?? `http://localhost:${port}`,
     devTopupEnabled: parseDevTopupEnabled(env),

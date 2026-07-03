@@ -5,6 +5,7 @@ import {
   InMemoryChallengeRepository,
   InMemoryCreditTransactionRepository,
   InMemoryGenerationTaskRepository,
+  InMemoryOrderRepository,
   InMemorySessionRepository,
   InMemoryUserRepository
 } from "../memory";
@@ -14,6 +15,7 @@ import type {
   CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
+  OrderRepository,
   SessionRecord,
   SessionRepository,
   UserRepository
@@ -23,6 +25,7 @@ import {
   DrizzleChallengeRepository,
   DrizzleCreditTransactionRepository,
   DrizzleGenerationTaskRepository,
+  DrizzleOrderRepository,
   DrizzleSessionRepository,
   DrizzleUserRepository
 } from "../drizzle";
@@ -35,6 +38,7 @@ interface RepositoryBundle {
   tasks: GenerationTaskRepository;
   assets: AssetRepository;
   credits: CreditTransactionRepository;
+  orders: OrderRepository;
 }
 
 interface BackendContext {
@@ -50,7 +54,8 @@ async function setupMemory(): Promise<BackendContext> {
       challenges: new InMemoryChallengeRepository(),
       tasks: new InMemoryGenerationTaskRepository(),
       assets: new InMemoryAssetRepository(),
-      credits: new InMemoryCreditTransactionRepository()
+      credits: new InMemoryCreditTransactionRepository(),
+      orders: new InMemoryOrderRepository()
     },
     async close() {}
   };
@@ -65,7 +70,8 @@ async function setupPglite(): Promise<BackendContext> {
       challenges: new DrizzleChallengeRepository(db),
       tasks: new DrizzleGenerationTaskRepository(db),
       assets: new DrizzleAssetRepository(db),
-      credits: new DrizzleCreditTransactionRepository(db)
+      credits: new DrizzleCreditTransactionRepository(db),
+      orders: new DrizzleOrderRepository(db)
     },
     close
   };
@@ -364,5 +370,29 @@ describe.each(backends)("$name repositories", ({ setup }) => {
 
     expect(await credits.balance("owner-a")).toBe(98);
     expect(await credits.balance("owner-b")).toBe(0);
+  });
+
+  it("inserts and lists orders by owner only", async () => {
+    const { users, orders } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+
+    const record = {
+      id: "order_1",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "pending" as const,
+      checkoutRef: "checkout_1",
+      createdAt: "2026-07-03T00:00:00.000Z"
+    };
+    await orders.insert(record, "owner-a");
+    await orders.insert({ ...record, id: "order_2", checkoutRef: "checkout_2" }, "owner-b");
+
+    const listA = await orders.listByOwner("owner-a");
+    expect(listA.map((o) => o.id)).toEqual(["order_1"]);
+    expect(await orders.get("owner-a", "order_1")).toMatchObject({ id: "order_1", status: "pending" });
+    expect(await orders.get("owner-a", "order_2")).toBeNull();
   });
 });

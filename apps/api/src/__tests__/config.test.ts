@@ -8,6 +8,7 @@ describe("loadConfig", () => {
       gatewayBaseUrl: "https://gateway.gw-link.local",
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
+      packagesConfigPath: "config/credit-packages.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true
@@ -28,6 +29,7 @@ describe("loadConfig", () => {
       gatewayBaseUrl: "https://gateway.example",
       authDevCodesEnabled: false,
       modelConfigPath: "/tmp/custom-models.json",
+      packagesConfigPath: "config/credit-packages.json",
       initialCredits: 250,
       publicBaseUrl: "http://localhost:9000",
       devTopupEnabled: true
@@ -37,6 +39,16 @@ describe("loadConfig", () => {
   it("returns the supplied model config path", () => {
     expect(loadConfig({ GW_LINK_MODEL_CONFIG_PATH: "fixtures/models.json" })).toMatchObject({
       modelConfigPath: "fixtures/models.json"
+    });
+  });
+
+  it("defaults the packages config path", () => {
+    expect(loadConfig({}).packagesConfigPath).toBe("config/credit-packages.json");
+  });
+
+  it("returns the supplied packages config path", () => {
+    expect(loadConfig({ GW_LINK_PACKAGES_CONFIG_PATH: "fixtures/credit-packages.json" })).toMatchObject({
+      packagesConfigPath: "fixtures/credit-packages.json"
     });
   });
 

@@ -225,6 +225,27 @@ The ninth product-first slice adds a server-side credit ledger.
 - Concurrent deduction is not yet atomic; real payment channels and admin/mobile
   balance display are later slices.
 
+### Payment Orders (foundation)
+
+The payment order foundation slice adds the order/checkout contract ahead of a
+real payment integration.
+
+- `GET /v1/packages` returns the public credit-package catalog (no auth) —
+  each package has an integer `amountCents` price and a `currency` (e.g.
+  `{ id, displayName, credits, amountCents, currency }`). The catalog is
+  configured via `config/credit-packages.json` (override the path with
+  `GW_LINK_PACKAGES_CONFIG_PATH`).
+- `POST /v1/orders` (auth-guarded) creates an order for a `packageId` and
+  returns it with `status: "pending"` and a generated `checkoutRef` (opaque,
+  for later webhook correlation). Unknown `packageId` returns `404`; an
+  invalid body returns `400`.
+- `GET /v1/orders` (auth-guarded) lists the caller's own orders only.
+- This slice does **not** grant any credit, does **not** verify or accept a
+  payment webhook, and makes **no real payment HTTP calls** — orders stay
+  `pending`. A later slice adds the webhook that verifies the provider's
+  signature and credits the account via `topUp`, and another adds the client
+  checkout UI.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

@@ -121,3 +121,23 @@ export const creditTransactions = pgTable(
     ownerIdx: index("credit_transactions_owner_idx").on(table.ownerUserId)
   })
 );
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    packageId: text("package_id").notNull(),
+    credits: integer("credits").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").notNull(),
+    checkoutRef: text("checkout_ref").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull()
+  },
+  (table) => ({
+    ownerIdx: index("orders_owner_idx").on(table.ownerUserId)
+  })
+);

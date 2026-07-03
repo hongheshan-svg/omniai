@@ -6,6 +6,7 @@ import { createDbServices } from "../services/appServices";
 import { FakeProviderAdapter } from "../services/gatewayClient";
 import { InMemoryObjectStore } from "../services/objectStore";
 import { ConfigModelCatalog } from "../services/modelCatalog";
+import { ConfigPackageCatalog } from "../services/packageCatalog";
 import { createPgliteDatabase, type PgliteDatabase } from "../testSupport/pglite";
 
 function smokeConfig(): ApiConfig {
@@ -14,6 +15,7 @@ function smokeConfig(): ApiConfig {
     gatewayBaseUrl: "https://gateway.gw-link.local",
     authDevCodesEnabled: true,
     modelConfigPath: "config/models.json",
+    packagesConfigPath: "config/credit-packages.json",
     initialCredits: 100,
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: true
@@ -48,7 +50,10 @@ function modelConfig(): ModelCatalogConfig {
 
 function buildServerForDb(database: PgliteDatabase) {
   const modelCatalog = new ConfigModelCatalog(modelConfig());
-  const services = createDbServices(database.db, modelCatalog, {
+  const packageCatalog = new ConfigPackageCatalog({
+    packages: [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }]
+  });
+  const services = createDbServices(database.db, modelCatalog, packageCatalog, {
     authDevCodesEnabled: true,
     initialCredits: 100,
     objectStore: new InMemoryObjectStore(),
@@ -57,9 +62,11 @@ function buildServerForDb(database: PgliteDatabase) {
   return buildServer({
     config: smokeConfig(),
     modelCatalog,
+    packageCatalog,
     authService: services.authService,
     generationService: services.generationService,
-    assetService: services.assetService
+    assetService: services.assetService,
+    orderService: services.orderService
   });
 }
 
@@ -169,6 +176,26 @@ describe("database-backed persistence", () => {
     const assetsResponse = await second.inject({ method: "GET", url: "/v1/assets", headers: auth });
     expect(assetsResponse.json()).toMatchObject({
       assets: [{ mode: "text", title: "文本资产" }]
+    });
+  });
+
+  it("persists orders across service instances", async () => {
+    const first = buildServerForDb(database);
+    const token = await login(first, "buyer@example.com");
+    const auth = { authorization: `Bearer ${token}` };
+
+    const createResponse = await first.inject({
+      method: "POST",
+      url: "/v1/orders",
+      headers: auth,
+      payload: { packageId: "credits-100" }
+    });
+    expect(createResponse.statusCode).toBe(201);
+
+    const second = buildServerForDb(database);
+    const ordersResponse = await second.inject({ method: "GET", url: "/v1/orders", headers: auth });
+    expect(ordersResponse.json()).toMatchObject({
+      orders: [{ packageId: "credits-100", status: "pending" }]
     });
   });
 });
