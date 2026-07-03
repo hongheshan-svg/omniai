@@ -103,6 +103,16 @@ describe("loadConfig", () => {
     expect(loadConfig({}).databaseUrl).toBeUndefined();
   });
 
+  it("includes the payment webhook secret when provided", () => {
+    expect(loadConfig({ GW_LINK_PAYMENT_WEBHOOK_SECRET: "whsec_x" })).toMatchObject({
+      paymentWebhookSecret: "whsec_x"
+    });
+  });
+
+  it("omits the payment webhook secret when not provided", () => {
+    expect(loadConfig({}).paymentWebhookSecret).toBeUndefined();
+  });
+
   it("parses comma-separated CORS origins", () => {
     expect(
       loadConfig({ GW_LINK_CORS_ORIGINS: "http://localhost:1420, tauri://localhost" }).corsOrigins
