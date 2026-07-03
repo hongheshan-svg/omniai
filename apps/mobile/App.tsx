@@ -33,6 +33,14 @@ export default function App({
     void ctrl.restore();
   }, [ctrl]);
 
+  useEffect(() => {
+    if (state.stage !== "signedIn") {
+      return;
+    }
+    ctrl.startAutoPoll();
+    return () => ctrl.stopAutoPoll();
+  }, [ctrl, state.stage]);
+
   return (
     <SafeAreaView style={styles.container}>
       {state.stage === "signedOut" && (

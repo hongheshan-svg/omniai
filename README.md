@@ -271,8 +271,9 @@ The mobile app connects to the product API for the core creation flow.
   `GET /v1/auth/session` and the session restored (invalid tokens cleared).
 - Core flow: login, submit a generation, list your tasks (image results render via
   `Image`; video results play inline via `expo-av` with native controls + a poster
-  and duration), show balance, refresh a `running` task's status, and save a
-  succeeded result to a filtered asset library. Top-up remains a later slice.
+  and duration), show balance, refresh a `running` task's status (and auto-poll
+  running tasks every 5s), and save a succeeded result to a filtered asset
+  library. Top-up remains a later slice.
 
 ### Admin Model Display
 

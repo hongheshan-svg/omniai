@@ -21,6 +21,8 @@ export interface MobileAppController {
   verifyLogin(code: string): Promise<void>;
   submitGeneration(input: { prompt: string; mode: CreationMode }): Promise<void>;
   refreshTask(taskId: string): Promise<void>;
+  startAutoPoll(): void;
+  stopAutoPoll(): void;
   saveAsset(task: GenerationTask): Promise<void>;
   signOut(): Promise<void>;
 }
@@ -30,6 +32,8 @@ const DEFAULT_PRESET: PresetSuggestion = {
   parameters: {},
   creditEstimate: { credits: 1, unit: "credit" }
 };
+
+const POLL_INTERVAL_MS = 5000;
 
 function loginError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -75,6 +79,7 @@ export function createMobileAppController(deps: {
     actionError: null
   };
   const listeners = new Set<() => void>();
+  let pollHandle: ReturnType<typeof setInterval> | null = null;
 
   function setState(patch: Partial<MobileAppState>): void {
     state = { ...state, ...patch };
@@ -92,7 +97,36 @@ export function createMobileAppController(deps: {
     setState({ balance: balance.credits, tasks, assets });
   }
 
+  function stopPolling(): void {
+    if (pollHandle !== null) {
+      clearInterval(pollHandle);
+      pollHandle = null;
+    }
+  }
+
+  async function pollRunning(): Promise<void> {
+    const token = state.token;
+    if (!token) {
+      return;
+    }
+    const runningIds = state.tasks.filter((task) => task.status === "running").map((task) => task.id);
+    for (const id of runningIds) {
+      try {
+        const updated = await apiClient.getGeneration(id, token);
+        setState({ tasks: state.tasks.map((task) => (task.id === updated.id ? updated : task)) });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          stopPolling();
+          await signOutInternal();
+          return;
+        }
+        // transient poll error: stay quiet, retry next tick
+      }
+    }
+  }
+
   async function signOutInternal(): Promise<void> {
+    stopPolling();
     await tokenStore.clear();
     setState({ token: null, stage: "signedOut", balance: null, tasks: [], assets: [], challengeId: null });
   }
@@ -196,6 +230,17 @@ export function createMobileAppController(deps: {
         }
         setState({ actionError: refreshError(err) });
       }
+    },
+    startAutoPoll() {
+      if (pollHandle !== null) {
+        return;
+      }
+      pollHandle = setInterval(() => {
+        void pollRunning();
+      }, POLL_INTERVAL_MS);
+    },
+    stopAutoPoll() {
+      stopPolling();
     },
     async saveAsset(task) {
       const token = state.token;
