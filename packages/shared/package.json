@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@gw-link-omniai/shared": "workspace:*",
     "vitest": "^1.6.0"
   }
 }

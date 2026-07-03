@@ -6,7 +6,7 @@ import {
   formatMoney,
   formatPackagePrice,
   getOrderStatusLabel
-} from "@gw-link-omniai/shared";
+} from "../orderView";
 
 describe("orderView", () => {
   it("formats money by currency", () => {
