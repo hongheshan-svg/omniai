@@ -3,7 +3,9 @@ import type {
   CreationAsset,
   CreationMode,
   CreditAmount,
+  CreditPackage,
   GenerationTask,
+  Order,
   PromptOptimization,
   SessionResponse
 } from "@gw-link-omniai/shared";
@@ -11,6 +13,7 @@ import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/share
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
+import { formatPackagePrice, getOrderStatusLabel } from "./orderModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
@@ -48,6 +51,8 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<CreationAsset[]>([]);
   const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
+  const [packages, setPackages] = useState<CreditPackage[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
@@ -59,14 +64,18 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
   const promptInputId = `${selectedMode}-studio-prompt`;
 
   async function loadUserData(authToken: string) {
-    const [loadedTasks, loadedAssets, loadedBalance] = await Promise.all([
+    const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders] = await Promise.all([
       api.listGenerations(authToken),
       api.listAssets(authToken),
-      api.getCreditBalance(authToken)
+      api.getCreditBalance(authToken),
+      api.listPackages(),
+      api.listOrders(authToken)
     ]);
     setTasks(loadedTasks);
     setAssets(loadedAssets);
     setBalance(loadedBalance);
+    setPackages(loadedPackages);
+    setOrders(loadedOrders);
   }
 
   useEffect(() => {
@@ -127,6 +136,8 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     setTasks([]);
     setAssets([]);
     setBalance(undefined);
+    setPackages([]);
+    setOrders([]);
     setOptimization(undefined);
     if (message) {
       setAuthError(message);
@@ -243,6 +254,25 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     setActionError(undefined);
     try {
       setBalance(await api.topUpCredits(100, token));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
+      setActionError(errorMessage(error));
+    }
+  }
+
+  async function handleBuy(pkg: CreditPackage) {
+    if (!token) {
+      return;
+    }
+    setActionError(undefined);
+    try {
+      const order = await api.createOrder(pkg.id, token);
+      await api.devCompletePayment(order.id, token);
+      setBalance(await api.getCreditBalance(token));
+      setOrders(await api.listOrders(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
@@ -461,6 +491,24 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
             })}
           </ol>
         )}
+      </section>
+
+      <section aria-label="套餐">
+        <h2>积分套餐</h2>
+        {packages.map((pkg) => (
+          <article key={pkg.id}>
+            <p>{pkg.displayName} · {formatPackagePrice(pkg)} · {pkg.credits} 积分</p>
+            <button type="button" onClick={() => handleBuy(pkg)}>购买 {pkg.displayName}</button>
+          </article>
+        ))}
+      </section>
+      <section aria-label="订单">
+        <h2>订单</h2>
+        {orders.map((order) => (
+          <article key={order.id}>
+            <p>{order.packageId} · <span>{getOrderStatusLabel(order.status)}</span></p>
+          </article>
+        ))}
       </section>
 
       <section aria-label="资产库">

@@ -5,6 +5,7 @@ import type {
   CreationAsset,
   GenerationTask,
   LoginStartResponse,
+  Order,
   PromptOptimization
 } from "@gw-link-omniai/shared";
 import { App } from "../App";
@@ -52,6 +53,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   let tasks: GenerationTask[] = [];
   let assets: CreationAsset[] = [];
   let balance = 100;
+  let orders: Order[] = [];
   const base: ApiClient = {
     startLogin: async (): Promise<LoginStartResponse> => ({
       challengeId: "c1",
@@ -116,10 +118,19 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return { credits: balance, unit: "credit" as const };
     },
     listModels: async () => { throw new Error("unused"); },
-    listPackages: async () => { throw new Error("unused"); },
-    createOrder: async () => { throw new Error("unused"); },
-    listOrders: async () => { throw new Error("unused"); },
-    devCompletePayment: async () => { throw new Error("unused"); }
+    listPackages: async () => [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }],
+    createOrder: async (packageId: string) => {
+      const order = { id: `order-${orders.length + 1}`, packageId, credits: 100, amountCents: 990, currency: "CNY" as const, status: "pending" as const, checkoutRef: `checkout-${orders.length + 1}`, createdAt: "2026-07-03T00:00:00.000Z" };
+      orders = [order, ...orders];
+      return order;
+    },
+    listOrders: async () => orders,
+    devCompletePayment: async (orderId: string) => {
+      orders = orders.map((o) => (o.id === orderId ? { ...o, status: "paid" as const } : o));
+      balance += 100;
+      const updated = orders.find((o) => o.id === orderId)!;
+      return updated;
+    }
   };
   return { ...base, ...overrides };
 }
@@ -418,6 +429,18 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "充值" }));
 
     expect(await screen.findByText("积分：200")).toBeTruthy();
+  });
+
+  it("buys a credit package and updates the balance", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    await screen.findByText("积分：100");
+
+    fireEvent.click(screen.getByRole("button", { name: "购买 100 积分" }));
+
+    expect(await screen.findByText("积分：200")).toBeTruthy();
+    const orders = screen.getByLabelText("订单");
+    expect(await within(orders).findByText("已支付")).toBeTruthy();
   });
 
   it("summarizes authenticated desktop sessions", () => {
