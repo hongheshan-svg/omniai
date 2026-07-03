@@ -2,6 +2,7 @@ import type {
   CreationAsset,
   GenerationTask,
   LoginChannel,
+  OrderStatus,
   UserProfile
 } from "@gw-link-omniai/shared";
 
@@ -67,4 +68,21 @@ export interface CreditTransactionRecord {
 export interface CreditTransactionRepository {
   insert(record: CreditTransactionRecord, ownerUserId: string): Promise<void>;
   balance(ownerUserId: string): Promise<number>;
+}
+
+export interface OrderRecord {
+  id: string;
+  packageId: string;
+  credits: number;
+  amountCents: number;
+  currency: string;
+  status: OrderStatus;
+  checkoutRef: string;
+  createdAt: string;
+}
+
+export interface OrderRepository {
+  insert(record: OrderRecord, ownerUserId: string): Promise<void> | void;
+  listByOwner(ownerUserId: string): Promise<OrderRecord[]> | OrderRecord[];
+  get(ownerUserId: string, id: string): Promise<OrderRecord | null> | OrderRecord | null;
 }

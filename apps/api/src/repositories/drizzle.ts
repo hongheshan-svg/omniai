@@ -3,10 +3,11 @@ import type {
   CreationAsset,
   GenerationTask,
   LoginChannel,
+  OrderStatus,
   UserProfile
 } from "@gw-link-omniai/shared";
 import type { AppDatabase } from "../db/client";
-import { assets, creditTransactions, generationTasks, loginChallenges, sessions, users } from "../db/schema";
+import { assets, creditTransactions, generationTasks, loginChallenges, orders, sessions, users } from "../db/schema";
 import type {
   AssetRepository,
   ChallengeRepository,
@@ -14,6 +15,8 @@ import type {
   CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
+  OrderRecord,
+  OrderRepository,
   SessionRecord,
   SessionRepository,
   UserRepository
@@ -71,6 +74,19 @@ function mapAssetRow(row: typeof assets.$inferSelect): CreationAsset {
     prompt: row.prompt,
     optimizedPrompt: row.optimizedPrompt,
     preset: row.preset,
+    createdAt: row.createdAt.toISOString()
+  };
+}
+
+function mapOrderRow(row: typeof orders.$inferSelect): OrderRecord {
+  return {
+    id: row.id,
+    packageId: row.packageId,
+    credits: row.credits,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    status: row.status as OrderStatus,
+    checkoutRef: row.checkoutRef,
     createdAt: row.createdAt.toISOString()
   };
 }
@@ -292,5 +308,41 @@ export class DrizzleCreditTransactionRepository implements CreditTransactionRepo
       .from(creditTransactions)
       .where(eq(creditTransactions.ownerUserId, ownerUserId));
     return rows.reduce((sum, row) => sum + row.amount, 0);
+  }
+}
+
+export class DrizzleOrderRepository implements OrderRepository {
+  constructor(private readonly db: AppDatabase) {}
+
+  async insert(record: OrderRecord, ownerUserId: string): Promise<void> {
+    await this.db.insert(orders).values({
+      id: record.id,
+      ownerUserId,
+      packageId: record.packageId,
+      credits: record.credits,
+      amountCents: record.amountCents,
+      currency: record.currency,
+      status: record.status,
+      checkoutRef: record.checkoutRef,
+      createdAt: new Date(record.createdAt)
+    });
+  }
+
+  async listByOwner(ownerUserId: string): Promise<OrderRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(orders)
+      .where(eq(orders.ownerUserId, ownerUserId))
+      .orderBy(orders.createdAt);
+    return rows.map(mapOrderRow);
+  }
+
+  async get(ownerUserId: string, id: string): Promise<OrderRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.ownerUserId, ownerUserId), eq(orders.id, id)))
+      .limit(1);
+    return rows[0] ? mapOrderRow(rows[0]) : null;
   }
 }

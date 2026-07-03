@@ -11,6 +11,8 @@ import type {
   CreditTransactionRepository,
   GenerationTaskRepository,
   LoginChallengeRecord,
+  OrderRecord,
+  OrderRepository,
   SessionRecord,
   SessionRepository,
   UserRepository
@@ -153,5 +155,24 @@ export class InMemoryCreditTransactionRepository implements CreditTransactionRep
     return this.rows
       .filter((row) => row.ownerUserId === ownerUserId)
       .reduce((sum, row) => sum + row.record.amount, 0);
+  }
+}
+
+export class InMemoryOrderRepository implements OrderRepository {
+  private readonly rows: Array<{ ownerUserId: string; record: OrderRecord }> = [];
+
+  insert(record: OrderRecord, ownerUserId: string): void {
+    this.rows.push({ ownerUserId, record: structuredClone(record) });
+  }
+
+  listByOwner(ownerUserId: string): OrderRecord[] {
+    return this.rows
+      .filter((row) => row.ownerUserId === ownerUserId)
+      .map((row) => structuredClone(row.record));
+  }
+
+  get(ownerUserId: string, id: string): OrderRecord | null {
+    const row = this.rows.find((r) => r.ownerUserId === ownerUserId && r.record.id === id);
+    return row ? structuredClone(row.record) : null;
   }
 }
