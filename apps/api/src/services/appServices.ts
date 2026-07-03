@@ -26,8 +26,10 @@ import type { ProviderAdapter } from "./gatewayClient";
 import { ConfigModelCatalog, type ModelCatalog } from "./modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./modelConfig";
 import { OpenAiCompatibleTextProvider } from "./openAiTextProvider";
-import { OrderServiceImpl, InMemoryOrderService, type OrderService } from "./orderService";
+import { OrderServiceImpl, type OrderService } from "./orderService";
 import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./packageCatalog";
+import { PaymentServiceImpl, type PaymentService } from "./paymentService";
+import { InMemoryOrderRepository } from "../repositories/memory";
 
 export interface AppServices {
   authService: AuthService;
@@ -38,6 +40,7 @@ export interface AppServices {
   modelCatalog: ModelCatalog;
   orderService: OrderService;
   packageCatalog: PackageCatalog;
+  paymentService: PaymentService;
   verifyConnectivity(): Promise<void>;
   closeDb(): Promise<void>;
 }
@@ -51,6 +54,7 @@ export function createDbServices(
     initialCredits: number;
     objectStore: ObjectStore;
     providerAdapter?: ProviderAdapter;
+    paymentWebhookSecret?: string;
   }
 ): {
   authService: AuthService;
@@ -59,6 +63,7 @@ export function createDbServices(
   creditService: CreditService;
   objectStore: ObjectStore;
   orderService: OrderService;
+  paymentService: PaymentService;
 } {
   const creditService = new CreditServiceImpl(new DrizzleCreditTransactionRepository(db), {
     initialCredits: options.initialCredits,
@@ -91,9 +96,13 @@ export function createDbServices(
     idGenerator: () => `creation_asset_${randomUUID()}`
   });
 
-  const orderService = new OrderServiceImpl(new DrizzleOrderRepository(db), packageCatalog, {
+  const orderRepository = new DrizzleOrderRepository(db);
+  const orderService = new OrderServiceImpl(orderRepository, packageCatalog, {
     idGenerator: () => `order_${randomUUID()}`,
     checkoutRefGenerator: () => `checkout_${randomUUID()}`
+  });
+  const paymentService = new PaymentServiceImpl(orderRepository, creditService, {
+    secret: options.paymentWebhookSecret
   });
 
   return {
@@ -102,7 +111,8 @@ export function createDbServices(
     assetService,
     creditService,
     objectStore: options.objectStore,
-    orderService
+    orderService,
+    paymentService
   };
 }
 
@@ -125,6 +135,7 @@ export function createServices(config: ApiConfig): AppServices {
 
   if (!config.databaseUrl) {
     const creditService = new InMemoryCreditService({ initialCredits: config.initialCredits });
+    const orderRepository = new InMemoryOrderRepository();
     return {
       authService: new InMemoryAuthService({
         devCodesEnabled: config.authDevCodesEnabled,
@@ -143,8 +154,11 @@ export function createServices(config: ApiConfig): AppServices {
       creditService,
       objectStore,
       modelCatalog,
-      orderService: new InMemoryOrderService(packageCatalog),
+      orderService: new OrderServiceImpl(orderRepository, packageCatalog),
       packageCatalog,
+      paymentService: new PaymentServiceImpl(orderRepository, creditService, {
+        secret: config.paymentWebhookSecret
+      }),
       async verifyConnectivity() {},
       async closeDb() {}
     };
@@ -154,7 +168,8 @@ export function createServices(config: ApiConfig): AppServices {
   const services = createDbServices(client.db, modelCatalog, packageCatalog, {
     authDevCodesEnabled: config.authDevCodesEnabled,
     initialCredits: config.initialCredits,
-    objectStore
+    objectStore,
+    paymentWebhookSecret: config.paymentWebhookSecret
   });
 
   return {
