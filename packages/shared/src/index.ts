@@ -42,3 +42,5 @@ export {
   summarizeAssetPrompt,
   type AssetFilter
 } from "./assetModel.js";
+export type { CreditPackage, Order, OrderStatus, CreateOrderRequest } from "./orders.js";
+export { isCreateOrderRequest } from "./orders.js";
