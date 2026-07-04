@@ -48,6 +48,7 @@ export interface ApiClient {
   listPackages(): Promise<CreditPackage[]>;
   createOrder(packageId: string, token: string): Promise<Order>;
   listOrders(token: string): Promise<Order[]>;
+  listAllOrders(): Promise<Order[]>;
   devCompletePayment(orderId: string, token: string): Promise<Order>;
 }
 
@@ -177,6 +178,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     },
     async listOrders(token) {
       const { orders } = await send<{ orders: Order[] }>("/v1/orders", { token });
+      return orders;
+    },
+    async listAllOrders() {
+      const { orders } = await send<{ orders: Order[] }>("/v1/admin/orders");
       return orders;
     },
     async devCompletePayment(orderId, token) {
