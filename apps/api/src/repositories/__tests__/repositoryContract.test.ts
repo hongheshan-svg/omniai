@@ -424,4 +424,40 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     await orders.updateStatus("order_1", "paid", "2026-07-03T01:02:00.000Z");
     expect((await orders.get("owner-a", "order_1"))?.paidAt).toBe("2026-07-03T01:02:00.000Z");
   });
+
+  it("lists all orders across owners", async () => {
+    const { users, orders } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+    await users.insert(makeUser({ id: "owner-b", destination: "b@example.com" }));
+
+    await orders.insert(
+      {
+        id: "order_a",
+        packageId: "credits-100",
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY",
+        status: "pending",
+        checkoutRef: "chk_a",
+        createdAt: "2026-07-04T00:00:00.000Z"
+      },
+      "owner-a"
+    );
+    await orders.insert(
+      {
+        id: "order_b",
+        packageId: "credits-100",
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY",
+        status: "paid",
+        checkoutRef: "chk_b",
+        createdAt: "2026-07-04T01:00:00.000Z"
+      },
+      "owner-b"
+    );
+
+    const all = await orders.listAll();
+    expect(all.map((o) => o.id).sort()).toEqual(["order_a", "order_b"]);
+  });
 });
