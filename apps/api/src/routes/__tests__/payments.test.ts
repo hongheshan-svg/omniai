@@ -20,6 +20,7 @@ function config(secret?: string): ApiConfig {
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: false,
     devPaymentsEnabled: true,
+    devAdminEnabled: true,
     paymentWebhookSecret: secret
   };
 }

@@ -12,7 +12,8 @@ describe("loadConfig", () => {
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true,
-      devPaymentsEnabled: true
+      devPaymentsEnabled: true,
+      devAdminEnabled: true
     });
   });
 
@@ -34,7 +35,8 @@ describe("loadConfig", () => {
       initialCredits: 250,
       publicBaseUrl: "http://localhost:9000",
       devTopupEnabled: true,
-      devPaymentsEnabled: true
+      devPaymentsEnabled: true,
+      devAdminEnabled: true
     });
   });
 
@@ -182,5 +184,27 @@ describe("loadConfig", () => {
 
   it("disables dev payment completion by default in production", () => {
     expect(loadConfig({ NODE_ENV: "production" }).devPaymentsEnabled).toBe(false);
+  });
+
+  it("enables dev admin by default outside production", () => {
+    expect(loadConfig({}).devAdminEnabled).toBe(true);
+  });
+
+  it("disables dev admin by default in production", () => {
+    expect(loadConfig({ NODE_ENV: "production" }).devAdminEnabled).toBe(false);
+  });
+
+  it("allows dev admin to be explicitly enabled in production", () => {
+    expect(loadConfig({ NODE_ENV: "production", GW_LINK_DEV_ADMIN_ENABLED: "true" }).devAdminEnabled).toBe(true);
+  });
+
+  it("allows dev admin to be explicitly disabled outside production", () => {
+    expect(loadConfig({ GW_LINK_DEV_ADMIN_ENABLED: "false" }).devAdminEnabled).toBe(false);
+  });
+
+  it("rejects invalid dev admin configuration values", () => {
+    expect(() => loadConfig({ GW_LINK_DEV_ADMIN_ENABLED: "yes" })).toThrow(
+      "Invalid GW_LINK_DEV_ADMIN_ENABLED value: yes"
+    );
   });
 });
