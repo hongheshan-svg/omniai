@@ -89,6 +89,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       return order;
     },
     listOrders: async () => orders,
+    listAllOrders: async () => { throw new Error("unused"); },
     devCompletePayment: async (orderId: string) => {
       orders = orders.map((o) => (o.id === orderId ? { ...o, status: "paid" as const, paidAt: "2026-07-03T02:30:00.000Z" } : o));
       balance += 100;

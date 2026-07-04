@@ -334,6 +334,26 @@ clipboard write is an injectable side effect (`copyText`, default
 the UI shows "已复制收据"; on failure it shows "复制失败，请重试". PDF export
 and system print are later work.
 
+### Admin Orders Dashboard
+
+The admin console's "Orders" module shows a cross-user orders dashboard —
+totals by status plus revenue and credits sold (`summarizeOrders`) and an
+order table — behind a real login. `GET /v1/admin/orders` (which returns
+every order via `OrderRepository.listAll()`) is guarded by
+`createAdminGuard`: an unauthenticated request gets `401`, and an
+authenticated user whose email is not in the `GW_LINK_ADMIN_EMAILS`
+allowlist gets `403 { error: "Admin access required" }`. On top of that,
+`devAdminEnabled` (`GW_LINK_DEV_ADMIN_ENABLED`) is an additional kill-switch —
+`403 { error: "Admin orders are disabled" }` when off — and it can never be
+turned on in production: setting `GW_LINK_DEV_ADMIN_ENABLED=true` with
+`NODE_ENV=production` throws at boot. The admin console has a passwordless
+login (`adminAuthModel`); `OrdersSection` renders "请先登录" until an admin
+signs in and passes its session token, then calls
+`apiClient.listAllOrders(token)` and renders the summary and table. `Order`
+carries no user PII, so the dashboard exposes none beyond order records.
+Real RBAC/roles, a transactions dashboard, and filtering/pagination are
+later work.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { loadConfig, type ApiConfig } from "./config";
+import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAssetRoutes } from "./routes/assets";
 import { registerGenerationRoutes } from "./routes/generations";
@@ -136,6 +137,12 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
   registerPackageRoutes(server, getPackageCatalog());
   registerOrderRoutes(server, { orderService, authService });
+  registerAdminRoutes(server, {
+    orderService,
+    authService,
+    adminEmails: options.config?.adminEmails ?? [],
+    devAdminEnabled: options.config?.devAdminEnabled ?? false
+  });
   registerPaymentRoutes(server, {
     paymentService,
     orderService,

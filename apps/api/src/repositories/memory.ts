@@ -172,6 +172,12 @@ export class InMemoryOrderRepository implements OrderRepository {
       .map((row) => structuredClone(row.record));
   }
 
+  listAll(): OrderRecord[] {
+    return this.rows
+      .map((row) => structuredClone(row.record))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
   get(ownerUserId: string, id: string): OrderRecord | null {
     const row = this.rows.find((r) => r.ownerUserId === ownerUserId && r.record.id === id);
     return row ? structuredClone(row.record) : null;

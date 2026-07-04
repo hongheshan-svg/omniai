@@ -85,6 +85,7 @@ export interface OrderRecord {
 export interface OrderRepository {
   insert(record: OrderRecord, ownerUserId: string): Promise<void> | void;
   listByOwner(ownerUserId: string): Promise<OrderRecord[]> | OrderRecord[];
+  listAll(): Promise<OrderRecord[]> | OrderRecord[];
   get(ownerUserId: string, id: string): Promise<OrderRecord | null> | OrderRecord | null;
   getByCheckoutRef(
     checkoutRef: string

@@ -338,6 +338,11 @@ export class DrizzleOrderRepository implements OrderRepository {
     return rows.map(mapOrderRow);
   }
 
+  async listAll(): Promise<OrderRecord[]> {
+    const rows = await this.db.select().from(orders).orderBy(orders.createdAt);
+    return rows.map(mapOrderRow);
+  }
+
   async get(ownerUserId: string, id: string): Promise<OrderRecord | null> {
     const rows = await this.db
       .select()
