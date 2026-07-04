@@ -49,5 +49,6 @@ export {
   formatPackagePrice,
   getOrderStatusLabel,
   formatDateTime,
-  buildReceiptLines
+  buildReceiptLines,
+  buildReceiptText
 } from "./orderView.js";
