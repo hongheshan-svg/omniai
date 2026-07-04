@@ -88,7 +88,8 @@ function mapOrderRow(row: typeof orders.$inferSelect): OrderRecord {
     status: row.status as OrderStatus,
     checkoutRef: row.checkoutRef,
     createdAt: row.createdAt.toISOString(),
-    ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {})
+    ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
+    ...(row.checkoutUrl ? { checkoutUrl: row.checkoutUrl } : {})
   };
 }
 
@@ -325,7 +326,8 @@ export class DrizzleOrderRepository implements OrderRepository {
       currency: record.currency,
       status: record.status,
       checkoutRef: record.checkoutRef,
-      createdAt: new Date(record.createdAt)
+      createdAt: new Date(record.createdAt),
+      checkoutUrl: record.checkoutUrl ?? null
     });
   }
 

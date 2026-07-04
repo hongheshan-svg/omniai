@@ -41,7 +41,8 @@ function toOrder(record: OrderRecord): Order {
     status: record.status,
     checkoutRef: record.checkoutRef,
     createdAt: record.createdAt,
-    ...(record.paidAt !== undefined ? { paidAt: record.paidAt } : {})
+    ...(record.paidAt !== undefined ? { paidAt: record.paidAt } : {}),
+    ...(record.checkoutUrl !== undefined ? { checkoutUrl: record.checkoutUrl } : {})
   };
 }
 

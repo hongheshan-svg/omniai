@@ -136,7 +136,8 @@ export const orders = pgTable(
     status: text("status").notNull(),
     checkoutRef: text("checkout_ref").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
-    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" })
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    checkoutUrl: text("checkout_url")
   },
   (table) => ({
     ownerIdx: index("orders_owner_idx").on(table.ownerUserId)
