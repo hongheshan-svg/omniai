@@ -1,4 +1,4 @@
-import { ApiError, buildAssetRequestFromTask, type ApiClient, type CreationAsset, type CreationMode, type GenerationTask, type PresetSuggestion } from "@gw-link-omniai/shared";
+import { ApiError, buildAssetRequestFromTask, type ApiClient, type CreationAsset, type CreationMode, type CreditPackage, type GenerationTask, type Order, type PresetSuggestion } from "@gw-link-omniai/shared";
 import type { TokenStore } from "./tokenStore";
 
 export type Stage = "signedOut" | "signingIn" | "signedIn";
@@ -10,6 +10,9 @@ export interface MobileAppState {
   balance: number | null;
   tasks: GenerationTask[];
   assets: CreationAsset[];
+  packages: CreditPackage[];
+  orders: Order[];
+  selectedOrderId: string | null;
   actionError: string | null;
 }
 
@@ -25,6 +28,8 @@ export interface MobileAppController {
   stopAutoPoll(): void;
   saveAsset(task: GenerationTask): Promise<void>;
   signOut(): Promise<void>;
+  buyPackage(packageId: string): Promise<void>;
+  selectOrder(orderId: string | null): void;
 }
 
 const DEFAULT_PRESET: PresetSuggestion = {
@@ -63,6 +68,13 @@ function assetError(err: unknown): string {
   return "网络错误";
 }
 
+function purchaseError(err: unknown): string {
+  if (err instanceof ApiError) {
+    return "购买失败，请稍后重试";
+  }
+  return "网络错误";
+}
+
 export function createMobileAppController(deps: {
   apiClient: ApiClient;
   tokenStore: TokenStore;
@@ -76,6 +88,9 @@ export function createMobileAppController(deps: {
     balance: null,
     tasks: [],
     assets: [],
+    packages: [],
+    orders: [],
+    selectedOrderId: null,
     actionError: null
   };
   const listeners = new Set<() => void>();
@@ -89,12 +104,14 @@ export function createMobileAppController(deps: {
   }
 
   async function loadUserData(token: string): Promise<void> {
-    const [balance, tasks, assets] = await Promise.all([
+    const [balance, tasks, assets, packages, orders] = await Promise.all([
       apiClient.getCreditBalance(token),
       apiClient.listGenerations(token),
-      apiClient.listAssets(token)
+      apiClient.listAssets(token),
+      apiClient.listPackages(),
+      apiClient.listOrders(token)
     ]);
-    setState({ balance: balance.credits, tasks, assets });
+    setState({ balance: balance.credits, tasks, assets, packages, orders });
   }
 
   function stopPolling(): void {
@@ -128,7 +145,7 @@ export function createMobileAppController(deps: {
   async function signOutInternal(): Promise<void> {
     stopPolling();
     await tokenStore.clear();
-    setState({ token: null, stage: "signedOut", balance: null, tasks: [], assets: [], challengeId: null });
+    setState({ token: null, stage: "signedOut", balance: null, tasks: [], assets: [], packages: [], orders: [], selectedOrderId: null, challengeId: null });
   }
 
   return {
@@ -262,6 +279,31 @@ export function createMobileAppController(deps: {
     },
     async signOut() {
       await signOutInternal();
+    },
+    async buyPackage(packageId) {
+      const token = state.token;
+      if (!token) {
+        return;
+      }
+      setState({ actionError: null });
+      try {
+        const order = await apiClient.createOrder(packageId, token);
+        await apiClient.devCompletePayment(order.id, token);
+        const [balance, orders] = await Promise.all([
+          apiClient.getCreditBalance(token),
+          apiClient.listOrders(token)
+        ]);
+        setState({ balance: balance.credits, orders });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          await signOutInternal();
+          return;
+        }
+        setState({ actionError: purchaseError(err) });
+      }
+    },
+    selectOrder(orderId) {
+      setState({ selectedOrderId: orderId });
     }
   };
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { SafeAreaView, View, Text, TextInput, Button, FlatList, Image, StyleSheet } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { createApiClient, type ApiClient, type CreationMode, filterCreationAssets, getAssetFilterLabel, getAssetModeLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
+import { createApiClient, type ApiClient, type CreationMode, filterCreationAssets, getAssetFilterLabel, getAssetModeLabel, summarizeAssetPrompt, type AssetFilter, formatMoney, formatDateTime, formatPackagePrice, getOrderStatusLabel, buildReceiptLines } from "@gw-link-omniai/shared";
 import { createSecureTokenStore, type TokenStore } from "./src/tokenStore";
 import { createMobileAppController, type MobileAppController } from "./src/appModel";
 import { VideoResult } from "./src/VideoResult";
@@ -106,6 +106,53 @@ export default function App({
                 ) : null}
               </View>
             )}
+          />
+          <View style={styles.assetHeader}>
+            <Text>积分套餐</Text>
+          </View>
+          <FlatList
+            data={state.packages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.task}>
+                <Text>{item.displayName} · {formatPackagePrice(item)} · {item.credits} 积分</Text>
+                <Button title="购买" onPress={() => void ctrl.buyPackage(item.id)} />
+              </View>
+            )}
+          />
+          <View style={styles.assetHeader}>
+            <Text>订单</Text>
+          </View>
+          <FlatList
+            data={state.orders}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const expanded = item.id === state.selectedOrderId;
+              const packageName = state.packages.find((p) => p.id === item.packageId)?.displayName ?? item.packageId;
+              return (
+                <View style={styles.task}>
+                  <Text>{item.packageId} · {getOrderStatusLabel(item.status)}</Text>
+                  <Button title={expanded ? "收起" : "查看"} onPress={() => ctrl.selectOrder(expanded ? null : item.id)} />
+                  {expanded ? (
+                    <View>
+                      <Text>订单号：{item.id}</Text>
+                      <Text>套餐：{packageName}</Text>
+                      <Text>积分：{item.credits}</Text>
+                      <Text>金额：{formatMoney(item.amountCents, item.currency)}</Text>
+                      <Text>状态：{getOrderStatusLabel(item.status)}</Text>
+                      <Text>下单时间：{formatDateTime(item.createdAt)}</Text>
+                      {item.paidAt ? <Text>付款时间：{formatDateTime(item.paidAt)}</Text> : null}
+                      <Text>凭证：{item.checkoutRef}</Text>
+                      {item.status === "paid"
+                        ? buildReceiptLines(item, packageName).map((line) => (
+                            <Text key={line.label}>{line.label}：{line.value}</Text>
+                          ))
+                        : null}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            }}
           />
           <View style={styles.assetHeader}>
             <Text>资产库</Text>

@@ -6,9 +6,9 @@ import {
   formatMoney,
   formatPackagePrice,
   getOrderStatusLabel
-} from "../orderModel";
+} from "../orderView";
 
-describe("orderModel", () => {
+describe("orderView", () => {
   it("formats money by currency", () => {
     expect(formatMoney(990, "CNY")).toBe("¥9.90");
     expect(formatMoney(4500, "CNY")).toBe("¥45.00");
