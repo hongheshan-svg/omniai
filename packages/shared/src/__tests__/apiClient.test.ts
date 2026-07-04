@@ -223,14 +223,15 @@ it("lists orders with the bearer token", async () => {
   expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
 });
 
-it("listAllOrders GETs /v1/admin/orders and unwraps orders", async () => {
+it("listAllOrders GETs /v1/admin/orders with the bearer token and unwraps orders", async () => {
   const fetchMock = vi.fn(async () => jsonResponse({ orders: [{ id: "order_1" }] }));
   const client = createApiClient({ baseUrl, fetch: fetchMock as unknown as typeof fetch });
-  const orders = await client.listAllOrders();
+  const orders = await client.listAllOrders("tok-1");
   expect(orders).toEqual([{ id: "order_1" }]);
   const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
   expect(url).toBe("http://api.test/v1/admin/orders");
   expect((init as RequestInit | undefined)?.method ?? "GET").toBe("GET");
+  expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok-1");
 });
 
 it("completes a dev payment with the bearer token", async () => {
