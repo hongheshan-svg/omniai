@@ -739,7 +739,9 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Notes for the implementer
 
-- The admin endpoint is intentionally public + dev-gated (off in production); do NOT add an auth guard — the admin console has no login flow, and `Order` carries no PII. Real admin authz is a documented later slice.
+> **SUPERSEDED by the "## Option A Auth Revision" section below.** The public + no-auth-guard guidance in this note is obsolete — a security review flagged it HIGH, and the shipped endpoint is authenticated + admin-allowlisted + production-hardened. Read the Option A Auth Revision as the source of truth.
+
+- ~~The admin endpoint is intentionally public + dev-gated (off in production); do NOT add an auth guard~~ (SUPERSEDED — the endpoint requires admin authentication; see Option A Auth Revision). Real admin authz is delivered in this slice, not deferred.
 - When adding `devAdminEnabled` (Task 2) and `listAllOrders` (Task 3), the compile breaks are the point: fix every full `ApiConfig` literal and every full-`ApiClient` fake. Run the package's typecheck to find them all.
 - Follow existing patterns: `OrdersSection` mirrors `ModelCatalogSection`; the route test mirrors `payments.test.ts`; `summarizeOrders` is a pure framework-free model like `catalogModel`.
 
