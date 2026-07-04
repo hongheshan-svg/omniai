@@ -408,3 +408,13 @@ refresh balance + orders; 401 → sign out) and `selectOrder`. `App.tsx`
 (typecheck-only) renders a packages list, an orders list with an inline
 查看/收起 detail block, and a receipt for paid orders. Deferred: real
 payment-provider checkout, receipt export/print.
+
+## Receipt Export Slice
+
+`@gw-link-omniai/shared` adds `buildReceiptText(order, packageName)` — a
+plain-text receipt built from `buildReceiptLines` (`"收据"` + one
+`label：value` line each). The desktop `App.tsx` gains an injectable
+`copyText` prop (default `navigator.clipboard.writeText`) and a "复制收据"
+button inside the paid-order receipt block; success shows a `role="status"`
+"已复制收据", failure sets `actionError`. Desktop-only; PDF/print/file export
+deferred.
