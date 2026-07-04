@@ -1,0 +1,7 @@
+{
+  "activeProvider": "fake",
+  "providers": [
+    { "id": "fake", "displayName": "Mock Checkout", "protocol": "mock", "baseUrl": "", "apiKeyEnv": "", "webhookSecretEnv": "GW_LINK_PAYMENT_WEBHOOK_SECRET" },
+    { "id": "stripe", "displayName": "Stripe", "protocol": "http-checkout", "baseUrl": "https://api.stripe.com/v1", "apiKeyEnv": "STRIPE_API_KEY", "webhookSecretEnv": "STRIPE_WEBHOOK_SECRET" }
+  ]
+}

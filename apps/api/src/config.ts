@@ -14,6 +14,8 @@ export interface ApiConfig {
   databaseUrl?: string;
   corsOrigins?: string[];
   paymentWebhookSecret?: string;
+  paymentProvidersConfigPath: string;
+  paymentProvider?: string;
 }
 
 function parsePort(value: string | undefined): number {
@@ -162,6 +164,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     objectStoreDir: env.GW_LINK_OBJECT_STORE_DIR,
     databaseUrl: env.DATABASE_URL,
     corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS),
-    paymentWebhookSecret: env.GW_LINK_PAYMENT_WEBHOOK_SECRET
+    paymentWebhookSecret: env.GW_LINK_PAYMENT_WEBHOOK_SECRET,
+    paymentProvidersConfigPath: env.GW_LINK_PAYMENT_PROVIDERS_CONFIG_PATH ?? "config/payment-providers.json",
+    paymentProvider: env.GW_LINK_PAYMENT_PROVIDER
   };
 }
