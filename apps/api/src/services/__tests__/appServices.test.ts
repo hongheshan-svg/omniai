@@ -17,6 +17,7 @@ function baseConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     devTopupEnabled: true,
     devPaymentsEnabled: true,
     devAdminEnabled: true,
+    adminEmails: [],
     ...overrides
   };
 }

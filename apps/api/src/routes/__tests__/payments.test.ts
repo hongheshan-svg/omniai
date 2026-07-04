@@ -21,6 +21,7 @@ function config(secret?: string): ApiConfig {
     devTopupEnabled: false,
     devPaymentsEnabled: true,
     devAdminEnabled: true,
+    adminEmails: [],
     paymentWebhookSecret: secret
   };
 }

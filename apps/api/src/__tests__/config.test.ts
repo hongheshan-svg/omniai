@@ -13,7 +13,8 @@ describe("loadConfig", () => {
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true,
       devPaymentsEnabled: true,
-      devAdminEnabled: true
+      devAdminEnabled: true,
+      adminEmails: []
     });
   });
 
@@ -36,7 +37,8 @@ describe("loadConfig", () => {
       publicBaseUrl: "http://localhost:9000",
       devTopupEnabled: true,
       devPaymentsEnabled: true,
-      devAdminEnabled: true
+      devAdminEnabled: true,
+      adminEmails: []
     });
   });
 
@@ -194,8 +196,10 @@ describe("loadConfig", () => {
     expect(loadConfig({ NODE_ENV: "production" }).devAdminEnabled).toBe(false);
   });
 
-  it("allows dev admin to be explicitly enabled in production", () => {
-    expect(loadConfig({ NODE_ENV: "production", GW_LINK_DEV_ADMIN_ENABLED: "true" }).devAdminEnabled).toBe(true);
+  it("refuses to enable dev admin in production", () => {
+    expect(() => loadConfig({ NODE_ENV: "production", GW_LINK_DEV_ADMIN_ENABLED: "true" })).toThrow(
+      "GW_LINK_DEV_ADMIN_ENABLED must not be true in production"
+    );
   });
 
   it("allows dev admin to be explicitly disabled outside production", () => {
@@ -206,5 +210,17 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ GW_LINK_DEV_ADMIN_ENABLED: "yes" })).toThrow(
       "Invalid GW_LINK_DEV_ADMIN_ENABLED value: yes"
     );
+  });
+
+  it("defaults admin emails to an empty list", () => {
+    expect(loadConfig({}).adminEmails).toEqual([]);
+  });
+
+  it("parses comma-separated admin emails", () => {
+    expect(loadConfig({ GW_LINK_ADMIN_EMAILS: "a@x.com,b@y.com" }).adminEmails).toEqual(["a@x.com", "b@y.com"]);
+  });
+
+  it("trims whitespace and drops empty entries in admin emails", () => {
+    expect(loadConfig({ GW_LINK_ADMIN_EMAILS: " a@x.com , , b@y.com " }).adminEmails).toEqual(["a@x.com", "b@y.com"]);
   });
 });

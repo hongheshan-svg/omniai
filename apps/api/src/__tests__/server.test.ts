@@ -116,7 +116,8 @@ describe("product API", () => {
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled,
       devPaymentsEnabled: true,
-      devAdminEnabled: true
+      devAdminEnabled: true,
+      adminEmails: []
     };
   }
 
@@ -793,7 +794,8 @@ describe("product API", () => {
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,
         devPaymentsEnabled: true,
-        devAdminEnabled: true
+        devAdminEnabled: true,
+        adminEmails: []
       }
     });
     const response = await server.inject({
@@ -826,7 +828,8 @@ describe("product API", () => {
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,
         devPaymentsEnabled: true,
-        devAdminEnabled: true
+        devAdminEnabled: true,
+        adminEmails: []
       }
     });
     const response = await server.inject({

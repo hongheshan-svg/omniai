@@ -14,7 +14,8 @@ const testConfig = {
   publicBaseUrl: "http://localhost:8787",
   devTopupEnabled: true,
   devPaymentsEnabled: true,
-  devAdminEnabled: true
+  devAdminEnabled: true,
+  adminEmails: []
 };
 
 function buildAssetTestServer() {

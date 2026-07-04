@@ -139,6 +139,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   registerOrderRoutes(server, { orderService, authService });
   registerAdminRoutes(server, {
     orderService,
+    authService,
+    adminEmails: options.config?.adminEmails ?? [],
     devAdminEnabled: options.config?.devAdminEnabled ?? false
   });
   registerPaymentRoutes(server, {

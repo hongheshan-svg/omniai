@@ -20,7 +20,8 @@ function smokeConfig(): ApiConfig {
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: true,
     devPaymentsEnabled: true,
-    devAdminEnabled: true
+    devAdminEnabled: true,
+    adminEmails: []
   };
 }
 

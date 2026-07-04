@@ -9,6 +9,7 @@ export interface ApiConfig {
   devTopupEnabled: boolean;
   devPaymentsEnabled: boolean;
   devAdminEnabled: boolean;
+  adminEmails: string[];
   objectStoreDir?: string;
   databaseUrl?: string;
   corsOrigins?: string[];
@@ -85,12 +86,17 @@ function parseDevPaymentsEnabled(env: NodeJS.ProcessEnv): boolean {
 
 function parseDevAdminEnabled(env: NodeJS.ProcessEnv): boolean {
   const value = env.GW_LINK_DEV_ADMIN_ENABLED;
+  const isProduction = env.NODE_ENV === "production";
 
   if (value === undefined) {
-    return env.NODE_ENV === "production" ? false : true;
+    return isProduction ? false : true;
   }
 
   if (value === "true") {
+    if (isProduction) {
+      throw new Error("GW_LINK_DEV_ADMIN_ENABLED must not be true in production");
+    }
+
     return true;
   }
 
@@ -99,6 +105,17 @@ function parseDevAdminEnabled(env: NodeJS.ProcessEnv): boolean {
   }
 
   throw new Error(`Invalid GW_LINK_DEV_ADMIN_ENABLED value: ${value}`);
+}
+
+function parseAdminEmails(value: string | undefined): string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((email) => email.trim())
+    .filter((email) => email.length > 0);
 }
 
 function parseInitialCredits(value: string | undefined): number {
@@ -141,6 +158,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     devTopupEnabled: parseDevTopupEnabled(env),
     devPaymentsEnabled: parseDevPaymentsEnabled(env),
     devAdminEnabled: parseDevAdminEnabled(env),
+    adminEmails: parseAdminEmails(env.GW_LINK_ADMIN_EMAILS),
     objectStoreDir: env.GW_LINK_OBJECT_STORE_DIR,
     databaseUrl: env.DATABASE_URL,
     corsOrigins: parseCorsOrigins(env.GW_LINK_CORS_ORIGINS),

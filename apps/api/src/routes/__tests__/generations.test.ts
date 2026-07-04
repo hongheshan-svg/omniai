@@ -19,7 +19,8 @@ function buildGenerationTestServer() {
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true,
       devPaymentsEnabled: true,
-      devAdminEnabled: true
+      devAdminEnabled: true,
+      adminEmails: []
     },
     generationService: new InMemoryGenerationService({
       clock: { now: () => fixedNow },
@@ -288,7 +289,8 @@ describe("generation routes", () => {
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,
         devPaymentsEnabled: true,
-        devAdminEnabled: true
+        devAdminEnabled: true,
+        adminEmails: []
       },
       generationService
     });
@@ -327,7 +329,8 @@ describe("generation routes", () => {
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,
         devPaymentsEnabled: true,
-        devAdminEnabled: true
+        devAdminEnabled: true,
+        adminEmails: []
       },
       generationService
     });
