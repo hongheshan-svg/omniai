@@ -293,6 +293,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       await copy(buildReceiptText(order, packageName));
       setCopyNotice("已复制收据");
     } catch {
+      setCopyNotice(undefined);
       setActionError("复制失败，请重试");
     }
   }
