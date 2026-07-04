@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { ApiClient, AuthSession, CreationAsset, CreationAssetRequest, GenerationTask, LoginStartResponse, SessionResponse } from "@gw-link-omniai/shared";
+import type { ApiClient, AuthSession, CreationAsset, CreationAssetRequest, GenerationTask, LoginStartResponse, Order, SessionResponse } from "@gw-link-omniai/shared";
 import { ApiError } from "@gw-link-omniai/shared";
 import type { TokenStore } from "../tokenStore.js";
 import { createMobileAppController } from "../appModel.js";
@@ -32,6 +32,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   let balance = 100;
   let tasks: GenerationTask[] = [];
   let assets: CreationAsset[] = [];
+  let orders: Order[] = [];
   const base: ApiClient = {
     startLogin: async (): Promise<LoginStartResponse> => ({
       challengeId: "ch-1",
@@ -72,10 +73,27 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     getGeneration: async () => { throw new Error("unused"); },
     topUpCredits: async () => { throw new Error("unused"); },
     listModels: async () => { throw new Error("unused"); },
-    listPackages: async () => { throw new Error("unused"); },
-    createOrder: async () => { throw new Error("unused"); },
-    listOrders: async () => { throw new Error("unused"); },
-    devCompletePayment: async () => { throw new Error("unused"); }
+    listPackages: async () => [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }],
+    createOrder: async (packageId: string) => {
+      const order: Order = {
+        id: `order-${orders.length + 1}`,
+        packageId,
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY",
+        status: "pending",
+        checkoutRef: `checkout-${orders.length + 1}`,
+        createdAt: "2026-07-03T00:00:00.000Z"
+      };
+      orders = [order, ...orders];
+      return order;
+    },
+    listOrders: async () => orders,
+    devCompletePayment: async (orderId: string) => {
+      orders = orders.map((o) => (o.id === orderId ? { ...o, status: "paid" as const, paidAt: "2026-07-03T02:30:00.000Z" } : o));
+      balance += 100;
+      return orders.find((o) => o.id === orderId)!;
+    }
   };
   return { ...base, ...overrides };
 }
@@ -425,5 +443,55 @@ describe("MobileAppController", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("loads packages and orders after verifyLogin", async () => {
+    const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    expect(controller.getState().packages).toHaveLength(1);
+    expect(controller.getState().orders).toEqual([]);
+  });
+
+  it("buys a package: balance grows and a paid order appears", async () => {
+    const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    await controller.buyPackage("credits-100");
+    const state = controller.getState();
+    expect(state.balance).toBe(200);
+    expect(state.orders).toHaveLength(1);
+    expect(state.orders[0]?.status).toBe("paid");
+  });
+
+  it("signs out when buyPackage hits 401", async () => {
+    const client = createFakeClient({
+      createOrder: async () => { throw new ApiError("Authentication required", 401); }
+    });
+    const controller = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    await controller.buyPackage("credits-100");
+    expect(controller.getState().stage).toBe("signedOut");
+  });
+
+  it("selects and clears the expanded order", () => {
+    const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    controller.selectOrder("order-1");
+    expect(controller.getState().selectedOrderId).toBe("order-1");
+    controller.selectOrder(null);
+    expect(controller.getState().selectedOrderId).toBeNull();
+  });
+
+  it("resets checkout state on sign out", async () => {
+    const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    await controller.buyPackage("credits-100");
+    await controller.signOut();
+    const state = controller.getState();
+    expect(state.packages).toEqual([]);
+    expect(state.orders).toEqual([]);
+    expect(state.selectedOrderId).toBeNull();
   });
 });
