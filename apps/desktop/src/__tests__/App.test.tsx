@@ -466,6 +466,37 @@ describe("Desktop App", () => {
     expect(within(receipt).getByText("2026-07-03 02:30")).toBeTruthy();
   });
 
+  it("copies a paid order's receipt to the clipboard", async () => {
+    const paidOrder: Order = {
+      id: "order_seed",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "paid",
+      checkoutRef: "checkout_seed",
+      createdAt: "2026-07-03T00:00:00.000Z",
+      paidAt: "2026-07-03T02:30:00.000Z"
+    };
+    const client = createFakeClient({ listOrders: async () => [paidOrder] });
+    const copyText = vi.fn(async () => undefined);
+    render(<App client={client} copyText={copyText} />);
+    // sign in (mirror signIn but with our custom render above)
+    fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
+    await screen.findByText("开发验证码：123456");
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+    await screen.findByRole("button", { name: "Signed in as creator" });
+
+    const ordersSection = screen.getByLabelText("订单");
+    fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
+    fireEvent.click(await within(ordersSection).findByRole("button", { name: "复制收据" }));
+
+    await screen.findByText("已复制收据");
+    expect(copyText).toHaveBeenCalledWith(
+      ["收据", "收据编号：order_seed", "日期：2026-07-03 02:30", "项目：100 积分", "积分：100", "金额：¥9.90", "状态：已支付"].join("\n")
+    );
+  });
+
   it("expands a pending order to show detail without a receipt", async () => {
     const pendingOrder: Order = {
       id: "order_pending",

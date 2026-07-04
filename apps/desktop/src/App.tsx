@@ -13,7 +13,7 @@ import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/share
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
-import { buildReceiptLines, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
+import { buildReceiptLines, buildReceiptText, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
@@ -31,9 +31,10 @@ function errorMessage(error: unknown): string {
   return "请求失败，请稍后再试";
 }
 
-export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: TokenStore } = {}) {
+export function App({ client, tokenStore, copyText }: { client?: ApiClient; tokenStore?: TokenStore; copyText?: (text: string) => Promise<void> } = {}) {
   const api = useMemo(() => client ?? createApiClient(), [client]);
   const store = useMemo(() => tokenStore ?? createLocalStorageTokenStore(), [tokenStore]);
+  const copy = useMemo(() => copyText ?? ((text: string) => navigator.clipboard.writeText(text)), [copyText]);
 
   const [session, setSession] = useState<SessionResponse>(anonymousSession);
   const [token, setToken] = useState<string | undefined>(undefined);
@@ -54,6 +55,7 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
@@ -140,6 +142,7 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
     setPackages([]);
     setOrders([]);
     setSelectedOrderId(null);
+    setCopyNotice(undefined);
     setOptimization(undefined);
     if (message) {
       setAuthError(message);
@@ -281,6 +284,16 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
         return;
       }
       setActionError(errorMessage(error));
+    }
+  }
+
+  async function handleCopyReceipt(order: Order, packageName: string) {
+    setActionError(undefined);
+    try {
+      await copy(buildReceiptText(order, packageName));
+      setCopyNotice("已复制收据");
+    } catch {
+      setActionError("复制失败，请重试");
     }
   }
 
@@ -450,6 +463,7 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
       ) : null}
 
       {actionError ? <p role="alert">{actionError}</p> : null}
+      {copyNotice ? <p role="status">{copyNotice}</p> : null}
 
       <section aria-label="任务中心">
         <h2>任务中心</h2>
@@ -528,14 +542,17 @@ export function App({ client, tokenStore }: { client?: ApiClient; tokenStore?: T
                   {order.paidAt && <p>付款时间：{formatDateTime(order.paidAt)}</p>}
                   <p>凭证：{order.checkoutRef}</p>
                   {order.status === "paid" && (
-                    <dl aria-label="收据">
-                      {buildReceiptLines(order, packageName).map((line) => (
-                        <div key={line.label}>
-                          <dt>{line.label}</dt>
-                          <dd>{line.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
+                    <>
+                      <dl aria-label="收据">
+                        {buildReceiptLines(order, packageName).map((line) => (
+                          <div key={line.label}>
+                            <dt>{line.label}</dt>
+                            <dd>{line.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <button type="button" onClick={() => void handleCopyReceipt(order, packageName)}>复制收据</button>
+                    </>
                   )}
                 </div>
               )}
