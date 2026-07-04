@@ -742,3 +742,161 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - The admin endpoint is intentionally public + dev-gated (off in production); do NOT add an auth guard — the admin console has no login flow, and `Order` carries no PII. Real admin authz is a documented later slice.
 - When adding `devAdminEnabled` (Task 2) and `listAllOrders` (Task 3), the compile breaks are the point: fix every full `ApiConfig` literal and every full-`ApiClient` fake. Run the package's typecheck to find them all.
 - Follow existing patterns: `OrdersSection` mirrors `ModelCatalogSection`; the route test mirrors `payments.test.ts`; `summarizeOrders` is a pure framework-free model like `catalogModel`.
+
+---
+
+## Option A Auth Revision (supersedes Tasks 2, 3, 5)
+
+Automated security review flagged the public `/v1/admin/orders` as HIGH (missing auth / cross-tenant disclosure). Per the chosen resolution, the endpoint becomes **authenticated + admin-allowlisted + hardened against production**, and the admin console gains a **login**. Task 1 (listAll) and Task 4 (summarizeOrders) are unchanged. The tasks below fix-forward the already-committed Task 2/3 code on this branch.
+
+### Task 2A: Authenticated, admin-gated `/v1/admin/orders` (supersedes Task 2)
+
+**Files:** `apps/api/src/config.ts`; `apps/api/src/routes/adminGuard.ts` (new); `apps/api/src/routes/admin.ts`; `apps/api/src/server.ts`; `apps/api/src/routes/__tests__/admin.test.ts`; `apps/api/src/__tests__/config.test.ts`; every full `ApiConfig` literal.
+
+- [ ] **Step 1: config — `adminEmails` + production hardening.** Add `adminEmails: string[];` to `ApiConfig`. Add a parser:
+
+```typescript
+function parseAdminEmails(value: string | undefined): string[] {
+  if (value === undefined) return [];
+  return value.split(",").map((e) => e.trim()).filter((e) => e.length > 0);
+}
+```
+
+Harden `parseDevAdminEnabled` so production can never enable it:
+
+```typescript
+function parseDevAdminEnabled(env: NodeJS.ProcessEnv): boolean {
+  const value = env.GW_LINK_DEV_ADMIN_ENABLED;
+  const isProduction = env.NODE_ENV === "production";
+  if (value === undefined) return isProduction ? false : true;
+  if (value === "true") {
+    if (isProduction) {
+      throw new Error("GW_LINK_DEV_ADMIN_ENABLED must not be true in production");
+    }
+    return true;
+  }
+  if (value === "false") return false;
+  throw new Error(`Invalid GW_LINK_DEV_ADMIN_ENABLED value: ${value}`);
+}
+```
+
+In `loadConfig`, add `adminEmails: parseAdminEmails(env.GW_LINK_ADMIN_EMAILS),`.
+
+- [ ] **Step 2: admin guard.** Create `apps/api/src/routes/adminGuard.ts`:
+
+```typescript
+import type { preHandlerHookHandler } from "fastify";
+import type { AuthService } from "../services/authService";
+import { readBearerToken } from "./bearer";
+
+export function createAdminGuard(authService: AuthService, adminEmails: string[]): preHandlerHookHandler {
+  return async (request, reply) => {
+    const token = readBearerToken(request.headers.authorization);
+    const session = await authService.getSession(token);
+    if (!session.authenticated || !session.user) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+    if (!adminEmails.includes(session.user.destination)) {
+      return reply.status(403).send({ error: "Admin access required" });
+    }
+    request.userId = session.user.id;
+  };
+}
+```
+
+- [ ] **Step 3: rework the route.** Replace `apps/api/src/routes/admin.ts`:
+
+```typescript
+import type { FastifyInstance } from "fastify";
+import type { AuthService } from "../services/authService";
+import type { OrderService } from "../services/orderService";
+import { createAdminGuard } from "./adminGuard";
+
+export function registerAdminRoutes(
+  server: FastifyInstance,
+  deps: { orderService: OrderService; authService: AuthService; adminEmails: string[]; devAdminEnabled: boolean }
+): void {
+  const preHandler = createAdminGuard(deps.authService, deps.adminEmails);
+  server.get("/v1/admin/orders", { preHandler }, async (_request, reply) => {
+    if (!deps.devAdminEnabled) {
+      return reply.status(403).send({ error: "Admin orders are disabled" });
+    }
+    return reply.status(200).send({ orders: await deps.orderService.listAllOrders() });
+  });
+}
+```
+
+- [ ] **Step 4: wire in `server.ts`.** Update the `registerAdminRoutes` call to pass `authService`, `adminEmails: options.config?.adminEmails ?? []`, `devAdminEnabled: options.config?.devAdminEnabled ?? false`.
+
+- [ ] **Step 5: rework the route test** (`apps/api/src/routes/__tests__/admin.test.ts`) so it enshrines SECURE behavior. Add `adminEmails: ["buyer@example.com"]` to the `config()` helper defaults (buyer@example.com is the address `authenticate()` logs in as). Tests:
+  - unauthenticated GET (no bearer) → **401**.
+  - authenticated as a NON-admin (log in as `other@example.com`, i.e. an address not in `adminEmails`) → **403** with `Admin access required`.
+  - admin (`buyer@example.com`) but `config({ devAdminEnabled: false })` → **403** with `Admin orders are disabled`.
+  - admin + enabled → **200**, lists the seeded order.
+
+  Use `Authorization: Bearer <token>` headers; reuse the `authenticate()` helper (parameterize it by destination, or add a second helper for the non-admin login).
+
+- [ ] **Step 6: config test.** In `apps/api/src/__tests__/config.test.ts`: assert `parseDevAdminEnabled` throws when `NODE_ENV=production` and `GW_LINK_DEV_ADMIN_ENABLED=true` (replace the earlier expectation that production+true returned true); assert `adminEmails` parses `"a@x.com,b@y.com"` → `["a@x.com","b@y.com"]` and defaults to `[]`. Add `adminEmails: []` (or the expected value) to any full-object `ApiConfig` expectation.
+
+- [ ] **Step 7: fix every full `ApiConfig` literal.** `grep -rn "devAdminEnabled" apps/api/src --include=*.ts`; add `adminEmails: []` to each full `ApiConfig` object that now lacks it. Then `pnpm --filter @gw-link-omniai/api test && pnpm --filter @gw-link-omniai/api typecheck` must be green/clean.
+
+- [ ] **Step 8: commit** — `fix(api): require admin auth + allowlist for GET /v1/admin/orders; refuse in prod` (with the Co-Authored-By trailer).
+
+### Task 3A: `apiClient.listAllOrders(token)` (supersedes Task 3)
+
+**Files:** `packages/shared/src/apiClient.ts`; `packages/shared/src/__tests__/apiClient.test.ts`. (Desktop/mobile fake stubs `async () => { throw }` already satisfy the new signature — leave them.)
+
+- [ ] **Step 1: update the interface + impl** so the method takes a token and sends it:
+
+```typescript
+  listAllOrders(token: string): Promise<Order[]>;
+```
+
+```typescript
+    async listAllOrders(token) {
+      const { orders } = await send<{ orders: Order[] }>("/v1/admin/orders", { token });
+      return orders;
+    },
+```
+
+- [ ] **Step 2: update the apiClient test** so it passes a token and asserts the `Authorization: Bearer <token>` header is sent (mirror how the existing `listOrders` token test asserts the header). Keep the URL `/v1/admin/orders` + unwrap `{ orders }` assertions.
+
+- [ ] **Step 3:** `pnpm --filter @gw-link-omniai/shared test && pnpm --filter @gw-link-omniai/shared typecheck && pnpm --filter @gw-link-omniai/desktop test && pnpm --filter @gw-link-omniai/mobile test` → all green.
+
+- [ ] **Step 4: commit** — `fix(shared): apiClient.listAllOrders requires a token` (with trailer).
+
+### Task 5A: admin console login + token-scoped OrdersSection (supersedes Task 5)
+
+**Files:** `apps/admin/src/OrdersSection.tsx`; `apps/admin/src/__tests__/OrdersSection.test.tsx`; `apps/admin/src/adminAuthModel.ts` (new, framework-free) + test; `apps/admin/src/appShell.tsx`; `apps/admin/src/__tests__/appShell.test.tsx`.
+
+- [ ] **Step 1: `OrdersSection` takes a `token`.** Signature `OrdersSection({ client, token }: { client?: ApiClient; token?: string })`. When `!token`, render `<p>请先登录</p>` and do not fetch. When `token`, call `client.listAllOrders(token)` in the effect (deps `[client, token]`); keep loading/error (`订单加载失败，请稍后重试`) and the summary+table exactly as in Task 5. Update `OrdersSection.test` to pass a `token="t"` in the success/error tests, and add a test that with no token it shows `请先登录` and never calls the client.
+
+- [ ] **Step 2: `adminAuthModel.ts`** — a small framework-free login controller mirroring the mobile `appModel` shape but minimal:
+
+```typescript
+import { ApiError, type ApiClient } from "@gw-link-omniai/shared";
+
+export type AdminStage = "signedOut" | "codeSent" | "signedIn";
+export interface AdminAuthState { stage: AdminStage; challengeId: string | null; token: string | null; error: string | null; }
+export interface AdminAuthController {
+  getState(): AdminAuthState;
+  subscribe(listener: () => void): () => void;
+  startLogin(email: string): Promise<void>;
+  verify(code: string): Promise<void>;
+}
+export function createAdminAuthController(client: ApiClient): AdminAuthController { /* startLogin -> verifyLogin -> token; map ApiError to a Chinese error */ }
+```
+
+Implement with a listener set + `setState` merge (mirror `apps/mobile/src/appModel.ts`'s controller mechanics). `startLogin` → `client.startLogin({ destination: email })` → `stage: "codeSent"`, store `challengeId`; `verify` → `client.verifyLogin({ challengeId, code })` → `stage: "signedIn"`, store `token`; errors → `error: "登录失败，请重试"`. Add a `adminAuthModel.test.ts` (fake client): startLogin advances to codeSent; verify sets token + signedIn; a failing verify sets error.
+
+- [ ] **Step 3: `appShell` login + wiring.** Make `AdminAppShell` a client component that builds an `adminAuthController` from the client (default `createApiClient({ baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL })`), subscribes via `useSyncExternalStore`. When `stage !== "signedIn"`: render a login form (email input + 发送验证码; when `codeSent`, a code input + 登录) and still render the module list, but pass `token={undefined}` to `OrdersSection` (so it shows 请先登录). When `signedIn`: pass `token={state.token}` to `OrdersSection`. Keep all five module headings rendered. Render `<OrdersSection client={client} token={token} />` under the "Orders" module and `<ModelCatalogSection client={client} />` under "Model Display".
+
+- [ ] **Step 4: update `appShell.test`.** The fake client now needs `listModels`, `listAllOrders`, `startLogin`, `verifyLogin`. Keep the existing "renders modules" assertions (they still hold — headings render regardless of auth). Add a test: fill email → 发送验证码 → fill code → 登录 → the Orders section transitions from `请先登录` to showing the summary (fake `listAllOrders` returns orders; fake `verifyLogin` returns a token).
+
+- [ ] **Step 5:** `pnpm --filter @gw-link-omniai/admin test && pnpm --filter @gw-link-omniai/admin typecheck` → green.
+
+- [ ] **Step 6: commit** — `feat(admin): admin login + token-scoped orders dashboard` (with trailer).
+
+### Task 6 (updated): docs + .env.example
+
+Same as the original Task 6, but the README/mvp-skeleton must describe the AUTHENTICATED admin model (auth guard + `GW_LINK_ADMIN_EMAILS` allowlist + `devAdminEnabled` as an additional kill-switch that throws in production + admin console login), NOT a public endpoint. `.env.example`: add `GW_LINK_ADMIN_EMAILS` (comma-separated admin allowlist) and update the `GW_LINK_DEV_ADMIN_ENABLED` comment to say the endpoint is admin-authenticated and that `true` in production throws at boot.
