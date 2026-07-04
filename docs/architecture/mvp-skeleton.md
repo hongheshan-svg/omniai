@@ -418,3 +418,25 @@ plain-text receipt built from `buildReceiptLines` (`"收据"` + one
 button inside the paid-order receipt block; success shows a `role="status"`
 "已复制收据", failure sets `actionError`. Desktop-only; PDF/print/file export
 deferred.
+
+## Admin Orders Dashboard Slice
+
+`OrderRepository.listAll()` returns every owner's orders (memory + Drizzle,
+ordered by `createdAt`); `OrderService.listAllOrders()` maps them to `Order`.
+`GET /v1/admin/orders` is authenticated and admin-gated, not public:
+`createAdminGuard(authService, adminEmails)` resolves the bearer token and
+returns `401` when unauthenticated, `403 { error: "Admin access required" }`
+when the caller's email is not in the `GW_LINK_ADMIN_EMAILS` allowlist. Past
+the guard, `devAdminEnabled` (`GW_LINK_DEV_ADMIN_ENABLED`) is an additional
+kill-switch — `403 { error: "Admin orders are disabled" }` when off, default
+on outside production and off in production — and `parseDevAdminEnabled`
+throws at boot if `GW_LINK_DEV_ADMIN_ENABLED=true` with
+`NODE_ENV=production`, so the flag can never be live in production.
+`apiClient.listAllOrders(token)` sends the bearer token to the endpoint. The
+admin console gains a framework-free passwordless login controller
+(`adminAuthModel.ts`, mirroring the mobile `appModel` shape: `startLogin` →
+`verify` → a session token) wired into `appShell`; `OrdersSection` shows
+"请先登录" until an admin is signed in, then calls `listAllOrders(token)` and
+renders `summarizeOrders` (counts + paid-only revenue and credits) plus an
+order table. Deferred: real RBAC/roles, a transactions dashboard, and
+filtering/pagination.
