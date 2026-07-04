@@ -118,3 +118,34 @@ export function summarizeOrders(orders: Order[]): OrderDashboardSummary;
 - [ ] `OrdersSection` + appShell 接入 + 测试
 - [ ] 文档 + .env.example
 - [ ] `pnpm test` + `pnpm typecheck` 全绿
+
+---
+
+## 修订：Admin 鉴权（Option A，2026-07-04）
+
+自动化安全审查（两次，HIGH）判定原「公开 + dev 门控」的 `GET /v1/admin/orders` 为**缺失鉴权/越权（跨租户业务数据泄露）**。结论正确：本仓库其它 dev 端点均「鉴权 + dev 门控」，且 `devAdminEnabled` 非生产默认开，等于把跨用户订单端点匿名暴露。故按用户选择改为 **Option A：鉴权 + admin 白名单 + 生产硬拒 + 控制台登录**。
+
+### 鉴权模型
+
+- **admin 邮箱白名单**：config `adminEmails: string[]`（env `GW_LINK_ADMIN_EMAILS`，逗号分隔，解析同 `parseCorsOrigins`，默认 `[]`）。
+- **admin guard**（`apps/api/src/routes/adminGuard.ts`）：`createAdminGuard(authService, adminEmails)` preHandler —
+  - 读 bearer → `authService.getSession(token)`；未鉴权 → 401 `{ error: "Authentication required" }`。
+  - `session.user.destination` 不在 `adminEmails` → 403 `{ error: "Admin access required" }`。
+  - 通过 → `request.userId = session.user.id`。
+- **路由**：`registerAdminRoutes(server, { orderService, authService, adminEmails, devAdminEnabled })`，`GET /v1/admin/orders` 挂 `createAdminGuard` preHandler；handler 内 `!devAdminEnabled → 403`（kill-switch，鉴权之后），否则 200 列全部。
+- **生产硬拒**：`parseDevAdminEnabled` 在 `value==="true" && NODE_ENV==="production"` 时**抛错**（boot 失败），使 stray env 无法在生产暴露端点。dev 门控是额外闸，不是唯一闸。
+- **server 接线**：传 `authService`、`adminEmails: config?.adminEmails ?? []`、`devAdminEnabled`。
+
+### 客户端
+
+- `apiClient.listAllOrders(token: string)`：GET `/v1/admin/orders` **带 token**，解包 `{ orders }`。
+- admin 控制台加**登录流**（复用 shared 免密 `startLogin`/`verifyLogin`）：appShell 持 token/session；未登录显示登录表单；登录后（admin 邮箱）token 流入 `OrdersSection`（`OrdersSection` 接 `token` prop，`listAllOrders(token)`；无 token 显示「请先登录」；非 admin → 端点 403 → 错误文案）。
+
+### 路由测试（改为断言安全行为）
+
+- 未鉴权 → 401；已登录非 admin → 403；admin 但 `devAdminEnabled=false` → 403；admin + 开 → 200 列全部。
+- config：`parseDevAdminEnabled` 生产 + `"true"` → 抛错；`adminEmails` 解析。
+
+### 文档/env
+
+- `.env.example`：`GW_LINK_ADMIN_EMAILS`（admin 白名单）+ 更新 `GW_LINK_DEV_ADMIN_ENABLED` 注释（现为额外 kill-switch，生产恒拒；端点需 admin 鉴权）。
