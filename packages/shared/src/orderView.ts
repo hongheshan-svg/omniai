@@ -33,3 +33,7 @@ export function buildReceiptLines(order: Order, packageName: string): Array<{ la
     { label: "状态", value: "已支付" }
   ];
 }
+
+export function buildReceiptText(order: Order, packageName: string): string {
+  return ["收据", ...buildReceiptLines(order, packageName).map((line) => `${line.label}：${line.value}`)].join("\n");
+}

@@ -3,5 +3,6 @@ export {
   formatPackagePrice,
   getOrderStatusLabel,
   formatDateTime,
-  buildReceiptLines
+  buildReceiptLines,
+  buildReceiptText
 } from "@gw-link-omniai/shared";

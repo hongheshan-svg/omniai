@@ -324,6 +324,16 @@ order-presentation helpers (`formatMoney`, `formatDateTime`,
 `getOrderStatusLabel`, `formatPackagePrice`, `buildReceiptLines`) live in
 `@gw-link-omniai/shared` and are shared by desktop and mobile.
 
+### Receipt Export
+
+A paid order's receipt on the desktop has a "复制收据" button that copies the
+receipt as plain text to the clipboard (`buildReceiptText` in
+`@gw-link-omniai/shared` formats it from the same `buildReceiptLines`). The
+clipboard write is an injectable side effect (`copyText`, default
+`navigator.clipboard.writeText`), so it is unit-tested with a fake. On success
+the UI shows "已复制收据"; on failure it shows "复制失败，请重试". PDF export
+and system print are later work.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.
