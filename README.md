@@ -313,6 +313,17 @@ The paid time comes from `Order.paidAt`, an optional field stamped by the
 webhook credit path when an order is marked paid; unpaid orders have none.
 This is a receipt, not a tax invoice (no tax, title, or tax id).
 
+### Mobile Checkout
+
+The Expo mobile app mirrors the desktop checkout: it lists credit packages,
+"购买" creates an order and completes it in dev via the same
+`devCompletePayment` path (server-side signed webhook; the client never holds
+the secret), then refreshes balance and orders. Each order has a 查看/收起
+toggle showing inline detail and, for paid orders, a receipt. The
+order-presentation helpers (`formatMoney`, `formatDateTime`,
+`getOrderStatusLabel`, `formatPackagePrice`, `buildReceiptLines`) live in
+`@gw-link-omniai/shared` and are shared by desktop and mobile.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

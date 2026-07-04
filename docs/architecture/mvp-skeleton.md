@@ -395,3 +395,16 @@ existing `listOrders` data — no new endpoint. `orderModel.ts` adds
 `selectedOrderId` inline expander. Deferred: a `GET /v1/orders/:id`
 endpoint, mobile order UI, real tax invoices (fapiao/title/tax id), and
 receipt export/print.
+
+## Mobile Checkout Slice
+
+The order-presentation helpers move from `apps/desktop/src/orderModel.ts`
+into `@gw-link-omniai/shared` (`orderView.ts`); the desktop `orderModel.ts`
+becomes a thin re-export so its imports are unchanged, and both desktop and
+mobile consume one source. The mobile controller (`appModel.ts`) gains
+`packages`/`orders`/`selectedOrderId` state, loads packages + orders in
+`loadUserData`, and adds `buyPackage` (createOrder → devCompletePayment →
+refresh balance + orders; 401 → sign out) and `selectOrder`. `App.tsx`
+(typecheck-only) renders a packages list, an orders list with an inline
+查看/收起 detail block, and a receipt for paid orders. Deferred: real
+payment-provider checkout, receipt export/print.
