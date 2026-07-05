@@ -83,6 +83,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         currency: "CNY",
         status: "pending",
         checkoutRef: `checkout-${orders.length + 1}`,
+        checkoutUrl: `https://app.test/checkout/mock?ref=checkout-${orders.length + 1}`,
         createdAt: "2026-07-03T00:00:00.000Z"
       };
       orders = [order, ...orders];
@@ -454,15 +455,16 @@ describe("MobileAppController", () => {
     expect(controller.getState().orders).toEqual([]);
   });
 
-  it("buys a package: balance grows and a paid order appears", async () => {
+  it("buys a package: a pending order with a checkout link appears, balance unchanged", async () => {
     const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
     await controller.startLogin("test@example.com");
     await controller.verifyLogin("000000");
     await controller.buyPackage("credits-100");
     const state = controller.getState();
-    expect(state.balance).toBe(200);
+    expect(state.balance).toBe(100);
     expect(state.orders).toHaveLength(1);
-    expect(state.orders[0]?.status).toBe("paid");
+    expect(state.orders[0]?.status).toBe("pending");
+    expect(state.orders[0]?.checkoutUrl).toBe("https://app.test/checkout/mock?ref=checkout-1");
   });
 
   it("signs out when buyPackage hits 401", async () => {
@@ -473,6 +475,32 @@ describe("MobileAppController", () => {
     await controller.startLogin("test@example.com");
     await controller.verifyLogin("000000");
     await controller.buyPackage("credits-100");
+    expect(controller.getState().stage).toBe("signedOut");
+  });
+
+  it("dev-completes an order: balance grows and the order is paid", async () => {
+    const controller = createMobileAppController({ apiClient: createFakeClient(), tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    await controller.buyPackage("credits-100");
+    const order = controller.getState().orders[0];
+    await controller.devCompleteOrder(order.id);
+    const state = controller.getState();
+    expect(state.balance).toBe(200);
+    expect(state.orders).toHaveLength(1);
+    expect(state.orders[0]?.status).toBe("paid");
+  });
+
+  it("signs out when devCompleteOrder hits 401", async () => {
+    const client = createFakeClient({
+      devCompletePayment: async () => { throw new ApiError("Authentication required", 401); }
+    });
+    const controller = createMobileAppController({ apiClient: client, tokenStore: createFakeTokenStore() });
+    await controller.startLogin("test@example.com");
+    await controller.verifyLogin("000000");
+    await controller.buyPackage("credits-100");
+    const order = controller.getState().orders[0];
+    await controller.devCompleteOrder(order.id);
     expect(controller.getState().stage).toBe("signedOut");
   });
 

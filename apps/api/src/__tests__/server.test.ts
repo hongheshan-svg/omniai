@@ -15,6 +15,7 @@ import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
 import { InMemoryObjectStore } from "../services/objectStore";
 import { FakeAsyncProvider } from "../services/fakeAsyncProvider";
 import { AsyncVideoProvider } from "../services/asyncVideoProvider";
+import { FakeCheckoutProvider } from "../services/fakeCheckoutProvider";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -112,6 +113,7 @@ describe("product API", () => {
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
       packagesConfigPath: "config/credit-packages.json",
+      paymentProvidersConfigPath: "config/payment-providers.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled,
@@ -770,7 +772,8 @@ describe("product API", () => {
           generationService: fakeGenerationService,
           assetService: fakeAssetService,
           modelCatalog: fakeModelCatalog,
-          packageCatalog: fakePackageCatalog
+          packageCatalog: fakePackageCatalog,
+          paymentProvider: new FakeCheckoutProvider("https://app.test")
         })
       ).not.toThrow();
     } finally {
@@ -790,6 +793,7 @@ describe("product API", () => {
         authDevCodesEnabled: true,
         modelConfigPath: "config/models.json",
         packagesConfigPath: "config/credit-packages.json",
+        paymentProvidersConfigPath: "config/payment-providers.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,
@@ -824,6 +828,7 @@ describe("product API", () => {
         authDevCodesEnabled: false,
         modelConfigPath: "config/models.json",
         packagesConfigPath: "config/credit-packages.json",
+        paymentProvidersConfigPath: "config/payment-providers.json",
         initialCredits: 100,
         publicBaseUrl: "http://localhost:8787",
         devTopupEnabled: true,

@@ -354,6 +354,46 @@ carries no user PII, so the dashboard exposes none beyond order records.
 Real RBAC/roles, a transactions dashboard, and filtering/pagination are
 later work.
 
+### Payment Provider (config-driven checkout)
+
+Orders now carry a `checkoutUrl` produced by a pluggable payment provider,
+selected from `config/payment-providers.json` — pointing `POST /v1/orders`
+at a different provider is a config change, not a code change.
+
+- The config catalog (`paymentProviderConfig.ts`) lists provider definitions
+  — `{ id, displayName, protocol, baseUrl, apiKeyEnv, webhookSecretEnv? }` —
+  plus an `activeProvider`. `GW_LINK_PAYMENT_PROVIDER` overrides the active
+  provider id; `GW_LINK_PAYMENT_PROVIDERS_CONFIG_PATH` overrides the config
+  file path. `resolvePaymentProvider` dispatches on `protocol`: `"mock"` →
+  `FakeCheckoutProvider`, anything else → `HttpCheckoutProvider`.
+- `FakeCheckoutProvider` (`id: "fake"`, the default) makes no network call
+  and returns a deterministic
+  `{publicBaseUrl}/checkout/mock?ref=<checkoutRef>` URL. `HttpCheckoutProvider`
+  only calls out for real — POSTing to `{baseUrl}/checkout/sessions` — when
+  the provider's `apiKeyEnv` is set in the environment; without a key it
+  falls back to the exact same mock URL (no network), the same "real call
+  only when the key is set" shape as `OpenAiCompatibleTextProvider`. A
+  failed request, non-OK response, or unexpected JSON shape throws a
+  `PaymentProviderError` (mapped to its `statusCode`, e.g. `502`, on
+  `POST /v1/orders`).
+- `OrderService.createOrder` calls the resolved provider once per order and
+  persists the result as `Order.checkoutUrl` (optional additive field,
+  nullable `checkout_url` column, migration `0006`).
+- The product boundary holds here too: `baseUrl`, `apiKeyEnv`, and
+  `webhookSecretEnv` never reach `Order`, any response, or logs — only the
+  opaque `checkoutUrl` is a product field.
+- The desktop and mobile checkout flows now split "购买" (creates a pending
+  order and, once it has a `checkoutUrl`, shows a "去支付" link) from a
+  separate "（开发）完成支付" button (still the dev-complete webhook path) —
+  "购买" no longer auto-completes the payment.
+- Wiring in a real provider is config-only: add its entry (real `baseUrl` +
+  `protocol`) to `config/payment-providers.json`, point
+  `GW_LINK_PAYMENT_PROVIDER` at its id, and set its `apiKeyEnv` in the
+  environment — no code change needed. Provider-specific request/response
+  adapters (today only one generic HTTP shape is implemented), the checkout
+  redirect-return flow, `payment.failed` handling, and refunds are later
+  work.
+
 ### Real Image Generation
 
 The tenth product-first slice makes image generation real.

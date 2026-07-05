@@ -9,6 +9,7 @@ describe("loadConfig", () => {
       authDevCodesEnabled: true,
       modelConfigPath: "config/models.json",
       packagesConfigPath: "config/credit-packages.json",
+      paymentProvidersConfigPath: "config/payment-providers.json",
       initialCredits: 100,
       publicBaseUrl: "http://localhost:8787",
       devTopupEnabled: true,
@@ -33,6 +34,7 @@ describe("loadConfig", () => {
       authDevCodesEnabled: false,
       modelConfigPath: "/tmp/custom-models.json",
       packagesConfigPath: "config/credit-packages.json",
+      paymentProvidersConfigPath: "config/payment-providers.json",
       initialCredits: 250,
       publicBaseUrl: "http://localhost:9000",
       devTopupEnabled: true,
@@ -56,6 +58,26 @@ describe("loadConfig", () => {
     expect(loadConfig({ GW_LINK_PACKAGES_CONFIG_PATH: "fixtures/credit-packages.json" })).toMatchObject({
       packagesConfigPath: "fixtures/credit-packages.json"
     });
+  });
+
+  it("defaults the payment providers config path", () => {
+    expect(loadConfig({}).paymentProvidersConfigPath).toBe("config/payment-providers.json");
+  });
+
+  it("returns the supplied payment providers config path", () => {
+    expect(
+      loadConfig({ GW_LINK_PAYMENT_PROVIDERS_CONFIG_PATH: "fixtures/payment-providers.json" })
+    ).toMatchObject({
+      paymentProvidersConfigPath: "fixtures/payment-providers.json"
+    });
+  });
+
+  it("omits the payment provider override when not provided", () => {
+    expect(loadConfig({}).paymentProvider).toBeUndefined();
+  });
+
+  it("returns the supplied payment provider override", () => {
+    expect(loadConfig({ GW_LINK_PAYMENT_PROVIDER: "stripe" }).paymentProvider).toBe("stripe");
   });
 
   it("disables auth dev codes by default in production", () => {

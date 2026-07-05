@@ -425,6 +425,42 @@ describe.each(backends)("$name repositories", ({ setup }) => {
     expect((await orders.get("owner-a", "order_1"))?.paidAt).toBe("2026-07-03T01:02:00.000Z");
   });
 
+  it("round-trips an order's checkoutUrl when present, and leaves it undefined when absent", async () => {
+    const { users, orders } = context.bundle;
+    await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));
+
+    await orders.insert(
+      {
+        id: "order_with_url",
+        packageId: "credits-100",
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY",
+        status: "pending",
+        checkoutRef: "checkout_with_url",
+        createdAt: "2026-07-04T00:00:00.000Z",
+        checkoutUrl: "https://pay.example/x"
+      },
+      "owner-a"
+    );
+    expect((await orders.get("owner-a", "order_with_url"))?.checkoutUrl).toBe("https://pay.example/x");
+
+    await orders.insert(
+      {
+        id: "order_without_url",
+        packageId: "credits-100",
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY",
+        status: "pending",
+        checkoutRef: "checkout_without_url",
+        createdAt: "2026-07-04T00:00:01.000Z"
+      },
+      "owner-a"
+    );
+    expect((await orders.get("owner-a", "order_without_url"))?.checkoutUrl).toBeUndefined();
+  });
+
   it("lists all orders across owners", async () => {
     const { users, orders } = context.bundle;
     await users.insert(makeUser({ id: "owner-a", destination: "a@example.com" }));

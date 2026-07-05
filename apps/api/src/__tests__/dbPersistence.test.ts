@@ -16,6 +16,7 @@ function smokeConfig(): ApiConfig {
     authDevCodesEnabled: true,
     modelConfigPath: "config/models.json",
     packagesConfigPath: "config/credit-packages.json",
+    paymentProvidersConfigPath: "config/payment-providers.json",
     initialCredits: 100,
     publicBaseUrl: "http://localhost:8787",
     devTopupEnabled: true,

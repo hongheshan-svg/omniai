@@ -133,6 +133,12 @@ export default function App({
                 <View style={styles.task}>
                   <Text>{item.packageId} · {getOrderStatusLabel(item.status)}</Text>
                   <Button title={expanded ? "收起" : "查看"} onPress={() => ctrl.selectOrder(expanded ? null : item.id)} />
+                  {item.status === "pending" ? (
+                    <View>
+                      {item.checkoutUrl ? <Text>去支付：{item.checkoutUrl}</Text> : null}
+                      <Button title="（开发）完成支付" onPress={() => void ctrl.devCompleteOrder(item.id)} />
+                    </View>
+                  ) : null}
                   {expanded ? (
                     <View>
                       <Text>订单号：{item.id}</Text>

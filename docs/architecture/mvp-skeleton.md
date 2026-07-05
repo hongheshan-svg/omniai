@@ -440,3 +440,49 @@ admin console gains a framework-free passwordless login controller
 renders `summarizeOrders` (counts + paid-only revenue and credits) plus an
 order table. Deferred: real RBAC/roles, a transactions dashboard, and
 filtering/pagination.
+
+## Payment Provider Config Slice
+
+This slice replaces the previously-fixed `FakeCheckoutProvider` construction
+with a config-driven seam, so a real payment provider can be wired in later
+without a code change. `config/payment-providers.json` is a catalog in the
+same spirit as `config/models.json`: an `activeProvider` id plus a
+`providers` array of `{ id, displayName, protocol, baseUrl, apiKeyEnv,
+webhookSecretEnv? }`, parsed/validated by `parsePaymentProvidersConfig`/
+`loadPaymentProvidersConfig` (`paymentProviderConfig.ts`). `ApiConfig` gains
+`paymentProvidersConfigPath` (env `GW_LINK_PAYMENT_PROVIDERS_CONFIG_PATH`,
+default `config/payment-providers.json`) and `paymentProvider` (env
+`GW_LINK_PAYMENT_PROVIDER`, an optional override of the config's
+`activeProvider`). `resolvePaymentProvider(config, { env, publicBaseUrl,
+fetch, activeProviderOverride })` looks up the active definition and
+dispatches on `protocol`: `"mock"` returns a `FakeCheckoutProvider`
+(deterministic `{publicBaseUrl}/checkout/mock?ref=<checkoutRef>`, no
+network); any other protocol returns an `HttpCheckoutProvider`, which
+mirrors `OpenAiCompatibleTextProvider`'s "real call only when the key is
+set" shape — reading `apiKeyEnv` from an injected `env` (default
+`process.env`), it POSTs to `{baseUrl}/checkout/sessions` with `{ reference,
+amountCents, currency, packageId }` and expects back `{ url, id }` when the
+key is present, else it falls back to the identical mock URL with no HTTP
+call at all. A non-OK response, a fetch failure, or an unexpected JSON
+shape throws a `PaymentProviderError` with a `statusCode` (`502`). `Order`
+gains an optional additive `checkoutUrl` (`OrderRecord.checkoutUrl`, a
+nullable `checkout_url` column, migration `0006`, mirroring the `paidAt`
+pattern from the Order Details & Receipt slice); `OrderServiceOptions`
+gains an optional `paymentProvider` (defaulting to a `FakeCheckoutProvider`
+so every existing `OrderServiceImpl`/`InMemoryOrderService` construction
+point keeps compiling) and `publicBaseUrl`. `OrderServiceImpl.createOrder`
+calls `paymentProvider.createCheckout` once per order, right after building
+the `pending` record and before persisting it, and stores the returned
+`checkoutUrl`; a `PaymentProviderError` is re-thrown as an
+`OrderServiceError` with the same `statusCode`, surfaced by `POST
+/v1/orders`. `createServices` and `buildServer` each resolve one
+`PaymentProvider` via `resolvePaymentProvider` (config loaded once, `env:
+process.env`) and inject it into `OrderServiceImpl`, so the seam covers
+both the in-memory and Drizzle code paths. On the client side, the desktop
+and mobile "购买" actions no longer chain straight into
+`devCompletePayment`: they only create the order and re-render the order
+list, so a `pending` order with a `checkoutUrl` shows a "去支付" link; a
+separate "（开发）完成支付" button still drives the existing dev-complete
+webhook path. Deferred: provider-specific request/response adapters (today
+only a generic HTTP shape is implemented), the checkout redirect-return
+flow, `payment.failed` handling, and refunds.
