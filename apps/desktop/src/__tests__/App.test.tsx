@@ -286,7 +286,79 @@ describe("Desktop App", () => {
     openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
-    await within(taskCenter).findByText("已完成");
+    await within(taskCenter).findByText("已完成（1）");
+  });
+
+  it("groups tasks by status with counts", async () => {
+    const base = {
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" as const } },
+      resultPreview: { title: "生成任务", description: "d" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({
+      listGenerations: async () => [
+        { ...base, id: "t1", mode: "text" as const, status: "running" as const },
+        { ...base, id: "t2", mode: "text" as const, status: "succeeded" as const, result: { kind: "text" as const, text: "内容", format: "plain" as const } },
+        { ...base, id: "t3", mode: "text" as const, status: "failed" as const }
+      ]
+    });
+    await signIn(client);
+    openView("任务");
+
+    expect(screen.getByText("进行中（1）")).toBeTruthy();
+    expect(screen.getByText("已完成（1）")).toBeTruthy();
+    expect(screen.getByText("失败（1）")).toBeTruthy();
+  });
+
+  it("retries a failed task with its own request fields", async () => {
+    const failed: GenerationTask = {
+      id: "t-fail",
+      mode: "text",
+      status: "failed",
+      prompt: "原始提示词",
+      optimizedPrompt: "优化提示词",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "失败了" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const fake = createFakeClient();
+    const createGeneration = vi.fn(fake.createGeneration);
+    const client = createFakeClient({ createGeneration, listGenerations: async () => [failed] });
+    await signIn(client);
+    openView("任务");
+
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    const request = createGeneration.mock.calls[0][0];
+    expect(request).toMatchObject({ mode: "text", prompt: "原始提示词", optimizedPrompt: "优化提示词" });
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+  });
+
+  it("opens a task onto the studio canvas", async () => {
+    const done: GenerationTask = {
+      id: "t-done",
+      mode: "text",
+      status: "succeeded",
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text", text: "跳转查看内容", format: "plain" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [done] });
+    await signIn(client);
+    openView("任务");
+    fireEvent.click(screen.getByLabelText("打开任务 t-done"));
+    const canvas = screen.getByLabelText("结果画布");
+    expect(within(canvas).getByText("跳转查看内容")).toBeTruthy();
   });
 
   it("saves a succeeded text task to the asset library", async () => {
@@ -304,17 +376,16 @@ describe("Desktop App", () => {
     expect(await screen.findByRole("button", { name: "文本资产" })).toBeTruthy();
   });
 
-  it("renders a generated image in the task center", async () => {
+  it("renders a generated image on the result canvas", async () => {
     const client = createFakeClient({ optimizePrompt: async () => imageOptimization });
     await signIn(client);
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "生成" }));
-    openView("任务");
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    const img = await within(taskCenter).findByRole("img");
+    const canvas = await screen.findByLabelText("结果画布");
+    const img = await within(canvas).findByRole("img");
     expect((img as HTMLImageElement).getAttribute("src")).toBe("data:image/png;base64,aGVsbG8=");
   });
 
@@ -600,7 +671,7 @@ describe("Desktop App", () => {
     expect(within(taskCenter).getByText("生成中")).toBeTruthy();
     fireEvent.click(within(taskCenter).getByRole("button", { name: "刷新状态" }));
 
-    expect(await within(taskCenter).findByText("已完成")).toBeTruthy();
+    expect(await within(taskCenter).findByText("已完成（1）")).toBeTruthy();
   });
 
   it("renders and saves a generated video", async () => {
@@ -619,11 +690,12 @@ describe("Desktop App", () => {
     const client = createFakeClient({ listGenerations: async () => [videoTask] });
     await signIn(client);
     openView("任务");
+    fireEvent.click(screen.getByLabelText("打开任务 task-vid"));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    expect(taskCenter.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+    const canvas = screen.getByLabelText("结果画布");
+    expect(canvas.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
 
-    fireEvent.click(within(taskCenter).getByRole("button", { name: "保存到资产库" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: "保存到资产库" }));
     openView("资产库");
 
     fireEvent.click(await screen.findByRole("button", { name: "视频资产" }));
@@ -772,7 +844,7 @@ describe("Desktop App", () => {
       const taskCenter = screen.getByLabelText("任务中心");
       await within(taskCenter).findByText("生成中");
       vi.advanceTimersByTime(5000);
-      await within(taskCenter).findByText("已完成");
+      await screen.findByText("已完成（1）");
     } finally {
       vi.useRealTimers();
     }

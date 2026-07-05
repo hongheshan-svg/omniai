@@ -441,6 +441,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   }
 
   async function handleRetryTask(task: GenerationTask) {
+    if (generating) {
+      return;
+    }
     setView("studio");
     await submitTask({
       mode: task.mode,
@@ -556,7 +559,15 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
             />
           ) : null}
           {view === "tasks" ? (
-            <TasksView tasks={tasks} onSaveAsset={(task) => void handleSaveAsset(task)} onRefreshTask={(task) => void handleRefreshTask(task)} />
+            <TasksView
+              tasks={tasks}
+              onOpenTask={(taskId) => {
+                setSelectedTaskId(taskId);
+                setView("studio");
+              }}
+              onRetryTask={(task) => void handleRetryTask(task)}
+              onRefreshTask={(task) => void handleRefreshTask(task)}
+            />
           ) : null}
           {view === "account" ? (
             <AccountView
