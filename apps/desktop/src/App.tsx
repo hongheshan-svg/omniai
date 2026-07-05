@@ -547,7 +547,10 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               assets={assets}
               filter={assetFilter}
               selectedAssetId={selectedAssetId}
-              onFilterChange={setAssetFilter}
+              onFilterChange={(filter) => {
+                setAssetFilter(filter);
+                setSelectedAssetId(null);
+              }}
               onSelectAsset={setSelectedAssetId}
               onCopyAssetText={(asset) => void handleCopyAssetText(asset)}
             />

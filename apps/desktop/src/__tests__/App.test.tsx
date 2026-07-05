@@ -436,6 +436,22 @@ describe("Desktop App", () => {
     expect(screen.queryByLabelText("资产详情")).toBeNull();
   });
 
+  it("closes the asset detail panel when the filter changes", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    expect(screen.getByLabelText("资产详情")).toBeTruthy();
+
+    const filters = screen.getByRole("navigation", { name: "资产过滤" });
+    fireEvent.click(within(filters).getByRole("button", { name: "视频" }));
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+
+    fireEvent.click(within(filters).getByRole("button", { name: "全部" }));
+    expect(screen.getByRole("button", { name: "生成任务" })).toBeTruthy();
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
   it("copies a text asset from the detail panel", async () => {
     const copyText = vi.fn(async () => undefined);
     const client = createFakeClient({ listAssets: async () => [textAsset] });
