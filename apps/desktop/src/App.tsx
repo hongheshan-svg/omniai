@@ -375,30 +375,35 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   }
 
   async function handleGenerate() {
-    if (!token) {
+    if (!token || generating) {
       return;
     }
-    let activeOptimization = optimization;
-    if (
-      !activeOptimization ||
-      activeOptimization.mode !== selectedMode ||
-      activeOptimization.originalPrompt !== promptText
-    ) {
-      setActionError(undefined);
-      try {
-        activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
-        setOptimization(activeOptimization);
-      } catch (error) {
-        setActionError(errorMessage(error));
-        return;
+    setGenerating(true);
+    try {
+      let activeOptimization = optimization;
+      if (
+        !activeOptimization ||
+        activeOptimization.mode !== selectedMode ||
+        activeOptimization.originalPrompt !== promptText
+      ) {
+        setActionError(undefined);
+        try {
+          activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+          setOptimization(activeOptimization);
+        } catch (error) {
+          setActionError(errorMessage(error));
+          return;
+        }
       }
+      await submitTask({
+        mode: activeOptimization.mode,
+        prompt: activeOptimization.originalPrompt,
+        optimizedPrompt: activeOptimization.optimizedPrompt,
+        preset: activeOptimization.preset
+      });
+    } finally {
+      setGenerating(false);
     }
-    await submitTask({
-      mode: activeOptimization.mode,
-      prompt: activeOptimization.originalPrompt,
-      optimizedPrompt: activeOptimization.optimizedPrompt,
-      preset: activeOptimization.preset
-    });
   }
 
   async function handleRetryTask(task: GenerationTask) {

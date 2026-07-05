@@ -4,6 +4,7 @@ import type {
   AuthSession,
   CreationAsset,
   GenerationTask,
+  GenerationTaskRequest,
   LoginStartResponse,
   Order,
   PromptOptimization
@@ -288,6 +289,44 @@ describe("Desktop App", () => {
     const canvas = await screen.findByLabelText("结果画布");
     await within(canvas).findByText("真实生成文案");
     expect(optimizePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits only one generation when 生成 is double-clicked while optimizing", async () => {
+    const optimizeResolvers: Array<(value: PromptOptimization) => void> = [];
+    const optimizePrompt = vi.fn(
+      () =>
+        new Promise<PromptOptimization>((resolve) => {
+          optimizeResolvers.push(resolve);
+        })
+    );
+    const createGeneration = vi.fn(async (request: GenerationTaskRequest) => ({
+      id: "task-once",
+      mode: request.mode,
+      status: "succeeded" as const,
+      prompt: request.prompt,
+      optimizedPrompt: request.optimizedPrompt,
+      preset: request.preset,
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text" as const, text: "真实生成文案", format: "markdown" as const },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    }));
+    const client = createFakeClient({ optimizePrompt, createGeneration, listGenerations: async () => [] });
+    await signIn(client);
+
+    fireEvent.change(screen.getByLabelText("文本创作需求"), { target: { value: "写一段品牌故事" } });
+    const generateButton = screen.getByRole("button", { name: "生成" });
+    fireEvent.click(generateButton);
+    fireEvent.click(generateButton);
+    expect((generateButton as HTMLButtonElement).disabled).toBe(true);
+    for (const resolve of optimizeResolvers) {
+      resolve(textOptimization);
+    }
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(optimizePrompt).toHaveBeenCalledTimes(1);
+    expect(createGeneration).toHaveBeenCalledTimes(1);
   });
 
   it("shows a shimmer skeleton while the task is generating", async () => {
