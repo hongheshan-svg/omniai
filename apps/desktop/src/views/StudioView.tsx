@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import type { CreationMode, GenerationTask, ProductModel, PromptOptimization } from "@gw-link-omniai/shared";
 import { getStudioModeContent, getStudioModes } from "../studioModel";
+import type { IndustryTemplate } from "../templatesModel";
+import { HistoryStrip } from "../components/HistoryStrip";
 import { Inspector } from "../components/Inspector";
 import { PromptBar } from "../components/PromptBar";
-import { ResultCanvas } from "../components/ResultCanvas";
+import { ResultCanvasBody } from "../components/ResultCanvas";
+import { TemplateGallery } from "../components/TemplateGallery";
 
 export interface StudioViewProps {
   mode: CreationMode;
@@ -13,6 +16,8 @@ export interface StudioViewProps {
   generating: boolean;
   models: ProductModel[];
   selectedModelId?: string;
+  tasks: GenerationTask[];
+  selectedTaskId: string | null;
   onModeChange(mode: CreationMode): void;
   onPromptChange(text: string): void;
   onOptimize(): void;
@@ -21,6 +26,9 @@ export interface StudioViewProps {
   onRetryTask(task: GenerationTask): void;
   onModelChange(modelId: string): void;
   onOptimizedPromptChange(text: string): void;
+  onSelectTask(taskId: string): void;
+  onShowTemplates(): void;
+  onApplyTemplate(template: IndustryTemplate): void;
 }
 
 export function StudioView({
@@ -31,6 +39,8 @@ export function StudioView({
   generating,
   models,
   selectedModelId,
+  tasks,
+  selectedTaskId,
   onModeChange,
   onPromptChange,
   onOptimize,
@@ -38,7 +48,10 @@ export function StudioView({
   onSaveAsset,
   onRetryTask,
   onModelChange,
-  onOptimizedPromptChange
+  onOptimizedPromptChange,
+  onSelectTask,
+  onShowTemplates,
+  onApplyTemplate
 }: StudioViewProps) {
   const studioModes = useMemo(() => getStudioModes(), []);
   const content = useMemo(() => getStudioModeContent(mode), [mode]);
@@ -47,7 +60,15 @@ export function StudioView({
   return (
     <div className="studio">
       <div className="studio-center">
-        <ResultCanvas task={selectedTask} onSave={onSaveAsset} onRetry={onRetryTask} />
+        <section aria-label="结果画布" className="canvas">
+          {selectedTask ? (
+            <ResultCanvasBody task={selectedTask} onSave={onSaveAsset} onRetry={onRetryTask} />
+          ) : (
+            <TemplateGallery onApply={onApplyTemplate} />
+          )}
+        </section>
+
+        <HistoryStrip tasks={tasks} selectedTaskId={selectedTaskId} onSelect={onSelectTask} />
 
         <PromptBar
           mode={mode}
@@ -60,6 +81,7 @@ export function StudioView({
           onPromptChange={onPromptChange}
           onOptimize={onOptimize}
           onGenerate={onGenerate}
+          onShowTemplates={onShowTemplates}
         />
       </div>
 

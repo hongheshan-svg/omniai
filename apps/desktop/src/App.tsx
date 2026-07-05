@@ -20,6 +20,7 @@ import { selectActiveTaskIds } from "./generationModel";
 import { buildReceiptText } from "./orderModel";
 import { countActiveTasks, getWorkspaceNavItems, viewForShortcutDigit, type WorkspaceView } from "./navModel";
 import { getDesktopSessionCta } from "./sessionModel";
+import type { IndustryTemplate } from "./templatesModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
 import { AccountView } from "./views/AccountView";
 import { AssetsView } from "./views/AssetsView";
@@ -431,6 +432,14 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     });
   }
 
+  function handleApplyTemplate(template: IndustryTemplate) {
+    setSelectedMode(template.mode);
+    setPromptText(template.prompt);
+    setOptimization(undefined);
+    setSelectedModelId(undefined);
+    setSelectedTaskId(null);
+  }
+
   if (!session.authenticated) {
     return (
       <AuthScreen
@@ -494,6 +503,8 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               generating={generating}
               models={models}
               selectedModelId={selectedModelId}
+              tasks={tasks}
+              selectedTaskId={selectedTaskId}
               onModeChange={(mode) => {
                 setSelectedMode(mode);
                 setOptimization(undefined);
@@ -508,6 +519,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               onOptimizedPromptChange={(text) =>
                 setOptimization((prev) => (prev ? { ...prev, optimizedPrompt: text } : prev))
               }
+              onSelectTask={setSelectedTaskId}
+              onShowTemplates={() => setSelectedTaskId(null)}
+              onApplyTemplate={handleApplyTemplate}
             />
           ) : null}
           {view === "assets" ? <AssetsView assets={assets} filter={assetFilter} onFilterChange={setAssetFilter} /> : null}

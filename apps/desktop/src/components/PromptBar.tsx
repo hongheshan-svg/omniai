@@ -12,6 +12,7 @@ export interface PromptBarProps {
   onPromptChange(text: string): void;
   onOptimize(): void;
   onGenerate(): void;
+  onShowTemplates(): void;
 }
 
 export function PromptBar({
@@ -24,7 +25,8 @@ export function PromptBar({
   onModeChange,
   onPromptChange,
   onOptimize,
-  onGenerate
+  onGenerate,
+  onShowTemplates
 }: PromptBarProps) {
   return (
     <div className="prompt-dock">
@@ -55,6 +57,9 @@ export function PromptBar({
           }}
         />
         <div className="prompt-actions">
+          <button type="button" className="btn-ghost btn-sm" onClick={onShowTemplates}>
+            模板
+          </button>
           <button type="button" className="btn-ghost btn-sm" onClick={onOptimize} disabled={generating}>
             优化提示词
           </button>

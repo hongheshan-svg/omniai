@@ -751,6 +751,54 @@ describe("Desktop App", () => {
     expect(screen.getByRole("navigation", { name: "Studio modes" })).toBeTruthy();
   });
 
+  it("fills the prompt bar from an industry template", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    const gallery = screen.getByLabelText("灵感模板");
+    fireEvent.click(within(gallery).getByRole("button", { name: "产品主图" }));
+
+    const modeNav = screen.getByRole("navigation", { name: "Studio modes" });
+    expect(within(modeNav).getByRole("button", { name: "图片创作" }).getAttribute("aria-pressed")).toBe("true");
+    const promptInput = screen.getByLabelText("图片创作需求") as HTMLTextAreaElement;
+    expect(promptInput.value).toContain("陶瓷咖啡杯");
+  });
+
+  it("selects a past task from the history strip", async () => {
+    const past: GenerationTask = {
+      id: "task-past",
+      mode: "text",
+      status: "succeeded",
+      prompt: "旧任务",
+      optimizedPrompt: "旧任务优化",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text", text: "历史生成内容", format: "plain" },
+      createdAt: "2026-07-04T00:00:00.000Z",
+      updatedAt: "2026-07-04T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [past] });
+    await signIn(client);
+
+    fireEvent.click(screen.getByLabelText("查看任务 task-past"));
+    const canvas = screen.getByLabelText("结果画布");
+    expect(within(canvas).getByText("历史生成内容")).toBeTruthy();
+  });
+
+  it("returns to the template gallery via the template button", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+
+    fireEvent.click(screen.getByRole("button", { name: "模板" }));
+    expect(screen.getByLabelText("灵感模板")).toBeTruthy();
+  });
+
   it("shows an active-task badge on the tasks nav item", async () => {
     const runningTask: GenerationTask = {
       id: "task-run",
