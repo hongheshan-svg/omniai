@@ -47,7 +47,8 @@
 └──┴─┴──────────────────────────┴──┴────────────┘
 ```
 
-- **IconRail（左，60px 常驻）**：logo、四个视图按钮（创作 / 资产库 / 任务 / 账户），任务按钮带进行中数量角标（queued+running），底部点数余额徽章。
+- **IconRail（左，60px 常驻）**：logo、四个视图按钮（创作 / 资产库 / 任务 / 账户），任务按钮带进行中数量角标（queued+running）。
+- **顶栏（slim）**：当前视图标题、点数余额徽章、会话 CTA（`Signed in as …`）、登出——保证会话相关测试锚点稳定。
 - **StudioView（创作）**：
   - **ResultCanvas**：展示"当前选中任务"。无选中且无任务 → 分行业模板墙（TemplateGallery）；任务 queued/running → 骨架屏 + 流光 + 模型名；succeeded → 按 `result.kind` 渲染（text 精排版式 + 复制按钮、image `<img>` 全幅、video `<video controls>`），保留现有"保存到资产库"按钮；failed → 错误态 + 重试按钮。
   - **HistoryStrip**：最近 12 个任务缩略（按 createdAt 降序），image/video 用缩略图、text 用模式图标，点击选中到画布。
@@ -55,7 +56,7 @@
   - **Inspector（右，300px）**：模型选择下拉（`/v1/models` 按当前模式过滤，选择覆盖 `preset.modelId`，默认跟随优化建议；每次新的优化结果返回时重置为优化建议值）、优化后提示词可编辑区、preset 参数只读展示（仅现有 `PresetSuggestion` 字段）、点数预估明细（优化前用所选模型 `creditUnitCost`，优化后用 `preset.creditEstimate`）。
 - **AssetsView（资产库）**：类型筛选胶囊（全部/图片/视频/文本）+ 响应式网格；卡片悬停浮层（类型、时间）；点击打开**详情侧板**（大预览、title、prompt、optimizedPrompt、modelId、createdAt、下载链接/复制文本）；空状态引导去创作。
 - **TasksView（任务）**：按状态分组（进行中 / 已完成 / 失败）；失败任务"重试"按钮 = `submitGeneration({ mode, prompt, optimizedPrompt, preset })`（字段全部来自任务自身）；点击任务跳转创作视图并选中到画布。保留现有 5 秒轮询。
-- **AccountView（账户）**：登录身份卡、点数余额卡 + 充值入口、套餐购买（弹层流程：购买建单 → 显示"去支付"链接 + dev 完成按钮，沿用 Slice 29 语义）、订单列表 + 详情/收据导出（沿用 Slice 25/27 功能）、登出。
+- **AccountView（账户）**：登录身份卡、点数余额卡 + 充值入口、套餐购买（弹层流程：购买建单 → 显示"去支付"链接 + dev 完成按钮，沿用 Slice 29 语义）、订单列表 + 详情/收据导出（沿用 Slice 25/27 功能）。登出在顶栏。
 - **AuthScreen（登录）**：沿用现有 passwordless 流程 + devCode 展示，视觉升级为深空玻璃卡片。
 
 共享状态（session、tasks、assets、credits、orders、packages、toasts、当前视图、画布选中任务）由 `App.tsx` 持有，props 下传；不引入状态库/Context/路由库。
@@ -172,7 +173,7 @@ export function dismissToast(toasts: readonly Toast[], id: string): Toast[];
 
 - **全局 toast（右上角）**：轮询检测到任务 `succeeded`（"生成完成"）/`failed`（"生成失败"）、购买建单成功、dev 支付完成、收据已复制、API 错误（`ApiError.message`）。
 - **快捷键**（App 全局 keydown）：`Cmd/Ctrl+Enter`（焦点在提示词输入框时）= 生成；`Cmd/Ctrl+1..4` = 切视图（经 `viewForShortcutDigit`）；`Esc` = 关闭资产详情侧板 / 购买弹层。除以上组合外不拦截输入框按键。
-- **三态**：四个视图各自定义空状态（含行动引导）、加载骨架、错误横幅（带重试回调）。
+- **三态**：四个视图各自定义空状态（含行动引导）；加载骨架用于生成中画布（流光），余额等零散数据用占位文案；用户数据加载失败显示错误横幅 + 「重新加载」。
 - **生成主流程**：提示词条"生成"一键 optimize+submit → 任务立即出现在画布（骨架）+ 历史条 + 任务角标 → 轮询更新 → 完成后画布自动展示结果 + toast。画布"当前选中任务"默认跟随最新提交的任务。
 - **认证失效**：API 返回 401 时清除会话回登录屏（沿用现有行为）。
 
