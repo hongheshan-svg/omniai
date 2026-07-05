@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GenerationTask } from "@gw-link-omniai/shared";
-import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "../generationModel";
+import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt, selectActiveTaskIds } from "../generationModel";
 
 describe("generationModel", () => {
   it("returns status labels", () => {
@@ -48,6 +48,15 @@ describe("generationModel", () => {
     };
 
     expect(summarizeGenerationPrompt(task)).toBe("短提示词");
+  });
+
+  it("selects queued and running task ids as active", () => {
+    const tasks = [
+      task("g1", "queued"),
+      task("g2", "running"),
+      task("g3", "succeeded")
+    ];
+    expect(selectActiveTaskIds(tasks)).toEqual(["g1", "g2"]);
   });
 });
 

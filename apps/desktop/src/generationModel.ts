@@ -24,3 +24,9 @@ export function summarizeGenerationPrompt(task: GenerationTask, maxLength = 48):
 export function selectRunningTaskIds(tasks: GenerationTask[]): string[] {
   return tasks.filter((task) => task.status === "running").map((task) => task.id);
 }
+
+export function selectActiveTaskIds(tasks: GenerationTask[]): string[] {
+  return tasks
+    .filter((task) => task.status === "queued" || task.status === "running")
+    .map((task) => task.id);
+}
