@@ -600,8 +600,26 @@ describe("Desktop App", () => {
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    expect(await screen.findByText("积分不足，无法生成")).toBeTruthy();
+    const host = screen.getByLabelText("通知");
+    expect(await within(host).findByText("积分不足，无法生成")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
+  });
+
+  it("dismisses a toast manually", async () => {
+    const client = createFakeClient({
+      createGeneration: async () => {
+        throw new ApiError("Insufficient credits", 402);
+      }
+    });
+    await signIn(client);
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const host = screen.getByLabelText("通知");
+    await within(host).findByText("积分不足，无法生成");
+    fireEvent.click(within(host).getByRole("button", { name: "关闭通知" }));
+    expect(within(host).queryByText("积分不足，无法生成")).toBeNull();
   });
 
   it("restores the session on startup from a stored token", async () => {
@@ -917,6 +935,39 @@ describe("Desktop App", () => {
     }
   });
 
+  it("toasts when a polled task completes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const running: GenerationTask = {
+        id: "t-poll",
+        mode: "text",
+        status: "running",
+        prompt: "p",
+        optimizedPrompt: "op",
+        preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+        resultPreview: { title: "生成任务", description: "进行中" },
+        createdAt: "2026-07-05T00:00:00.000Z",
+        updatedAt: "2026-07-05T00:00:00.000Z"
+      };
+      const done: GenerationTask = { ...running, status: "succeeded", result: { kind: "text", text: "完成内容", format: "plain" } };
+      let polled = false;
+      const client = createFakeClient({
+        listGenerations: async () => [running],
+        getGeneration: async () => {
+          polled = true;
+          return done;
+        }
+      });
+      await signIn(client);
+      await vi.advanceTimersByTimeAsync(5100);
+      expect(polled).toBe(true);
+      const host = screen.getByLabelText("通知");
+      await within(host).findByText("生成完成");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not poll when there are no running tasks", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     try {
@@ -1018,5 +1069,31 @@ describe("Desktop App", () => {
     await signIn(client);
     const nav = screen.getByRole("navigation", { name: "Workspace views" });
     expect(within(nav).getByText("1")).toBeTruthy();
+  });
+
+  it("shows a reload banner when user data fails to load", async () => {
+    let packageCalls = 0;
+    const client = createFakeClient({
+      listPackages: async () => {
+        packageCalls += 1;
+        if (packageCalls === 1) {
+          throw new ApiError("boom", 500);
+        }
+        return [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }];
+      }
+    });
+    await signIn(client);
+    await screen.findByText("部分数据加载失败");
+    fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
+    openView("账户");
+    // Package names render inside the purchase modal; open it to confirm the
+    // reload actually repopulated `packages` state. The package name text
+    // ("100 积分") also appears in the package's meta line ("100" + " 积分"),
+    // so scope to the modal and allow multiple matches instead of a single
+    // findByText, which would throw on ambiguity.
+    await screen.findByRole("button", { name: "选购套餐" });
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const modal = await screen.findByLabelText("购买积分");
+    await within(modal).findAllByText("100 积分");
   });
 });

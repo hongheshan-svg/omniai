@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
@@ -15,12 +15,14 @@ import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/share
 import { buildAssetRequestFromTask, type AssetFilter } from "@gw-link-omniai/shared";
 import { AuthScreen } from "./components/AuthScreen";
 import { IconRail } from "./components/IconRail";
+import { ToastHost } from "./components/ToastHost";
 import { formatCreditBalance } from "./creditModel";
 import { selectActiveTaskIds } from "./generationModel";
 import { buildReceiptText } from "./orderModel";
 import { countActiveTasks, getWorkspaceNavItems, viewForShortcutDigit, type WorkspaceView } from "./navModel";
 import { getDesktopSessionCta } from "./sessionModel";
 import type { IndustryTemplate } from "./templatesModel";
+import { dismissToast, expireToasts, pushToast, type Toast, type ToastKind } from "./toastModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
 import { AccountView } from "./views/AccountView";
 import { AssetsView } from "./views/AssetsView";
@@ -67,14 +69,37 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
-  const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [view, setView] = useState<WorkspaceView>("studio");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [loadError, setLoadError] = useState<string | undefined>(undefined);
+  const toastIdRef = useRef(0);
+  const tasksRef = useRef<GenerationTask[]>([]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  function notify(kind: ToastKind, message: string) {
+    toastIdRef.current += 1;
+    setToasts((prev) =>
+      pushToast(prev, { id: `toast-${toastIdRef.current}`, kind, message, createdAt: new Date().toISOString() })
+    );
+  }
+
+  useEffect(() => {
+    if (toasts.length === 0) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setToasts((prev) => expireToasts(prev, new Date().toISOString()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [toasts.length]);
 
   async function loadUserData(authToken: string) {
     const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders, loadedModels] = await Promise.all([
@@ -117,8 +142,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       }
       try {
         await loadUserData(stored);
+        setLoadError(undefined);
       } catch {
-        // Session is restored; a transient data-load failure must not clear the token.
+        setLoadError("部分数据加载失败");
       }
     }
     void restoreSession();
@@ -189,12 +215,13 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setLatestOrderId(null);
     setSelectedAssetId(null);
     setPurchaseOpen(false);
-    setCopyNotice(undefined);
     setOptimization(undefined);
     setModels([]);
     setSelectedModelId(undefined);
     setSelectedTaskId(null);
     setView("studio");
+    setToasts([]);
+    setLoadError(undefined);
     if (message) {
       setAuthError(message);
     }
@@ -225,7 +252,12 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       setChallengeId(undefined);
       setDevCode(undefined);
       setCode("");
-      await loadUserData(authSession.token);
+      try {
+        await loadUserData(authSession.token);
+        setLoadError(undefined);
+      } catch {
+        setLoadError("部分数据加载失败");
+      }
     } catch (error) {
       setAuthError(errorMessage(error));
     }
@@ -242,14 +274,24 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     handleSignedOut();
   }
 
+  function notifyIfCompleted(updated: GenerationTask) {
+    const before = tasksRef.current.find((existing) => existing.id === updated.id);
+    if (before && (before.status === "queued" || before.status === "running")) {
+      if (updated.status === "succeeded") {
+        notify("success", "生成完成");
+      } else if (updated.status === "failed") {
+        notify("error", "生成失败");
+      }
+    }
+  }
+
   async function handleOptimize() {
-    setActionError(undefined);
     try {
       const result = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
       setOptimization(result);
       setSelectedModelId(result.preset.modelId);
     } catch (error) {
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -257,7 +299,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       await api.createAsset(buildAssetRequestFromTask(task), token);
       setAssets(await api.listAssets(token));
@@ -266,7 +307,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -274,16 +315,16 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       const updated = await api.getGeneration(task.id, token);
+      notifyIfCompleted(updated);
       setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -294,6 +335,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     for (const id of ids) {
       try {
         const updated = await api.getGeneration(id, token);
+        notifyIfCompleted(updated);
         setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
@@ -309,7 +351,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       setBalance(await api.topUpCredits(100, token));
     } catch (error) {
@@ -317,7 +358,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -325,17 +366,17 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       const created = await api.createOrder(pkg.id, token);
       setLatestOrderId(created.id);
       setOrders(await api.listOrders(token));
+      notify("success", "订单已创建，请完成支付");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -343,28 +384,26 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       await api.devCompletePayment(orderId, token);
       setBalance(await api.getCreditBalance(token));
       setOrders(await api.listOrders(token));
+      notify("success", "支付完成，点数已到账");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
   async function handleCopyReceipt(order: Order, packageName: string) {
-    setActionError(undefined);
     try {
       await copy(buildReceiptText(order, packageName));
-      setCopyNotice("已复制收据");
+      notify("success", "已复制收据");
     } catch {
-      setCopyNotice(undefined);
-      setActionError("复制失败，请重试");
+      notify("error", "复制失败，请重试");
     }
   }
 
@@ -374,10 +413,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     }
     try {
       await copy(asset.content.text);
-      setCopyNotice("已复制文本");
+      notify("success", "已复制文本");
     } catch {
-      setCopyNotice(undefined);
-      setActionError("复制失败，请重试");
+      notify("error", "复制失败，请重试");
     }
   }
 
@@ -385,7 +423,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     setGenerating(true);
     try {
       const created = await api.createGeneration(request, token);
@@ -399,10 +436,10 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         return;
       }
       if (error instanceof ApiError && error.status === 402) {
-        setActionError("积分不足，无法生成");
+        notify("error", "积分不足，无法生成");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     } finally {
       setGenerating(false);
     }
@@ -421,14 +458,13 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         activeOptimization.mode !== selectedMode ||
         activeOptimization.originalPrompt !== promptText
       ) {
-        setActionError(undefined);
         try {
           activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
           freshOptimization = true;
           setOptimization(activeOptimization);
           setSelectedModelId(activeOptimization.preset.modelId);
         } catch (error) {
-          setActionError(errorMessage(error));
+          notify("error", errorMessage(error));
           return;
         }
       }
@@ -469,19 +505,22 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
 
   if (!session.authenticated) {
     return (
-      <AuthScreen
-        destination={destination}
-        challengeId={challengeId}
-        devCode={devCode}
-        maskedDestination={maskedDestination}
-        code={code}
-        authError={authError}
-        sessionCta={getDesktopSessionCta(session)}
-        onDestinationChange={setDestination}
-        onCodeChange={setCode}
-        onStartLogin={() => void handleStartLogin()}
-        onVerifyLogin={() => void handleVerifyLogin()}
-      />
+      <>
+        <AuthScreen
+          destination={destination}
+          challengeId={challengeId}
+          devCode={devCode}
+          maskedDestination={maskedDestination}
+          code={code}
+          authError={authError}
+          sessionCta={getDesktopSessionCta(session)}
+          onDestinationChange={setDestination}
+          onCodeChange={setCode}
+          onStartLogin={() => void handleStartLogin()}
+          onVerifyLogin={() => void handleVerifyLogin()}
+        />
+        <ToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => dismissToast(prev, id))} />
+      </>
     );
   }
 
@@ -510,15 +549,22 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         </header>
 
         <div className="view">
-          {actionError ? (
-            <p role="alert" className="alert alert--error" style={{ marginBottom: 12 }}>
-              {actionError}
-            </p>
-          ) : null}
-          {copyNotice ? (
-            <p role="status" className="alert alert--ok" style={{ marginBottom: 12 }}>
-              {copyNotice}
-            </p>
+          {loadError ? (
+            <div role="alert" className="alert alert--error" style={{ marginBottom: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <span>{loadError}</span>
+              <button
+                type="button"
+                className="btn-sm"
+                onClick={() => {
+                  if (token) {
+                    setLoadError(undefined);
+                    void loadUserData(token).catch(() => setLoadError("部分数据加载失败"));
+                  }
+                }}
+              >
+                重新加载
+              </button>
+            </div>
           ) : null}
 
           {view === "studio" ? (
@@ -595,6 +641,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
           ) : null}
         </div>
       </div>
+      <ToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => dismissToast(prev, id))} />
     </div>
   );
 }
