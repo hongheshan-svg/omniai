@@ -118,7 +118,11 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       balance += amount;
       return { credits: balance, unit: "credit" as const };
     },
-    listModels: async () => { throw new Error("unused"); },
+    listModels: async () => [
+      { id: "gw-text-balanced", displayName: "均衡文本", capability: "text" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 1 },
+      { id: "gw-text-quality", displayName: "高质量文本", capability: "text" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 2 },
+      { id: "gw-image-creative", displayName: "创意图像", capability: "image" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 2 }
+    ],
     listPackages: async () => [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }],
     createOrder: async (packageId: string) => {
       const checkoutRef = `checkout-${orders.length + 1}`;
@@ -215,6 +219,48 @@ describe("Desktop App", () => {
     const canvas = await screen.findByLabelText("结果画布");
     await within(canvas).findByText("真实生成文案");
     expect(within(canvas).getByText("gw-text-balanced")).toBeTruthy();
+  });
+
+  it("overrides the suggested model before generating", async () => {
+    const createGeneration = vi.fn(createFakeClient().createGeneration);
+    const client = createFakeClient({ createGeneration });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.change(screen.getByLabelText("模型选择"), { target: { value: "gw-text-quality" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    await screen.findByLabelText("结果画布");
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    expect(createGeneration.mock.calls[0][0].preset.modelId).toBe("gw-text-quality");
+  });
+
+  it("resets the model override when a fresh optimization arrives", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.change(screen.getByLabelText("模型选择"), { target: { value: "gw-text-quality" } });
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await vi.waitFor(() => {
+      expect((screen.getByLabelText("模型选择") as HTMLSelectElement).value).toBe("gw-text-balanced");
+    });
+  });
+
+  it("edits the optimized prompt before generating", async () => {
+    const createGeneration = vi.fn(createFakeClient().createGeneration);
+    const client = createFakeClient({ createGeneration });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.change(screen.getByLabelText("优化后提示词"), { target: { value: "改写后的提示词" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    expect(createGeneration.mock.calls[0][0].optimizedPrompt).toBe("改写后的提示词");
   });
 
   it("keeps the generated task listed in the tasks view", async () => {

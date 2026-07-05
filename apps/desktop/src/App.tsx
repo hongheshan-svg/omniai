@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
@@ -7,6 +7,7 @@ import type {
   GenerationTask,
   GenerationTaskRequest,
   Order,
+  ProductModel,
   PromptOptimization,
   SessionResponse
 } from "@gw-link-omniai/shared";
@@ -56,6 +57,12 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [selectedMode, setSelectedMode] = useState<CreationMode>("text");
   const [promptText, setPromptText] = useState("");
   const [optimization, setOptimization] = useState<PromptOptimization | undefined>(undefined);
+  const [models, setModels] = useState<ProductModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
+  // Tracks the promptText actually sent on the last successful optimize call, so
+  // handleGenerate can tell "prompt hasn't changed since we optimized" apart from
+  // a server-echoed originalPrompt that may not byte-match promptText.
+  const lastOptimizedPromptRef = useRef<string | undefined>(undefined);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<CreationAsset[]>([]);
   const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
@@ -70,18 +77,20 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [generating, setGenerating] = useState(false);
 
   async function loadUserData(authToken: string) {
-    const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders] = await Promise.all([
+    const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders, loadedModels] = await Promise.all([
       api.listGenerations(authToken),
       api.listAssets(authToken),
       api.getCreditBalance(authToken),
       api.listPackages(),
-      api.listOrders(authToken)
+      api.listOrders(authToken),
+      api.listModels()
     ]);
     setTasks(loadedTasks);
     setAssets(loadedAssets);
     setBalance(loadedBalance);
     setPackages(loadedPackages);
     setOrders(loadedOrders);
+    setModels(loadedModels);
   }
 
   useEffect(() => {
@@ -175,6 +184,8 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setSelectedOrderId(null);
     setCopyNotice(undefined);
     setOptimization(undefined);
+    setModels([]);
+    setSelectedModelId(undefined);
     setSelectedTaskId(null);
     setView("studio");
     if (message) {
@@ -227,7 +238,10 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   async function handleOptimize() {
     setActionError(undefined);
     try {
-      setOptimization(await api.optimizePrompt({ mode: selectedMode, prompt: promptText }));
+      const result = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+      setOptimization(result);
+      setSelectedModelId(result.preset.modelId);
+      lastOptimizedPromptRef.current = promptText;
     } catch (error) {
       setActionError(errorMessage(error));
     }
@@ -381,25 +395,32 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setGenerating(true);
     try {
       let activeOptimization = optimization;
+      let freshOptimization = false;
       if (
         !activeOptimization ||
         activeOptimization.mode !== selectedMode ||
-        activeOptimization.originalPrompt !== promptText
+        lastOptimizedPromptRef.current !== promptText
       ) {
         setActionError(undefined);
         try {
           activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+          freshOptimization = true;
           setOptimization(activeOptimization);
+          setSelectedModelId(activeOptimization.preset.modelId);
+          lastOptimizedPromptRef.current = promptText;
         } catch (error) {
           setActionError(errorMessage(error));
           return;
         }
       }
+      const resolvedModelId = freshOptimization
+        ? activeOptimization.preset.modelId
+        : selectedModelId ?? activeOptimization.preset.modelId;
       await submitTask({
         mode: activeOptimization.mode,
         prompt: activeOptimization.originalPrompt,
         optimizedPrompt: activeOptimization.optimizedPrompt,
-        preset: activeOptimization.preset
+        preset: { ...activeOptimization.preset, modelId: resolvedModelId }
       });
     } finally {
       setGenerating(false);
@@ -477,15 +498,22 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               optimization={optimization}
               selectedTask={selectedTask}
               generating={generating}
+              models={models}
+              selectedModelId={selectedModelId}
               onModeChange={(mode) => {
                 setSelectedMode(mode);
                 setOptimization(undefined);
+                setSelectedModelId(undefined);
               }}
               onPromptChange={setPromptText}
               onOptimize={() => void handleOptimize()}
               onGenerate={() => void handleGenerate()}
               onSaveAsset={(task) => void handleSaveAsset(task)}
               onRetryTask={(task) => void handleRetryTask(task)}
+              onModelChange={setSelectedModelId}
+              onOptimizedPromptChange={(text) =>
+                setOptimization((prev) => (prev ? { ...prev, optimizedPrompt: text } : prev))
+              }
             />
           ) : null}
           {view === "assets" ? <AssetsView assets={assets} filter={assetFilter} onFilterChange={setAssetFilter} /> : null}
