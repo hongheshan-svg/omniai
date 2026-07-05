@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GenerationTask } from "@gw-link-omniai/shared";
-import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt, selectActiveTaskIds } from "../generationModel";
+import {
+  getGenerationStatusLabel,
+  selectRunningTaskIds,
+  summarizeGenerationPrompt,
+  selectActiveTaskIds,
+  sortByCreatedAtDesc
+} from "../generationModel";
 
 describe("generationModel", () => {
   it("returns status labels", () => {
@@ -73,6 +79,23 @@ function task(id: string, status: GenerationTask["status"]): GenerationTask {
     updatedAt: "2026-07-03T00:00:00.000Z"
   };
 }
+
+describe("sortByCreatedAtDesc", () => {
+  it("sorts mixed-order items strictly newest-first without mutating the input", () => {
+    const items = [
+      { id: "b", createdAt: "2026-07-02T00:00:00.000Z" },
+      { id: "a", createdAt: "2026-07-01T00:00:00.000Z" },
+      { id: "d", createdAt: "2026-07-04T00:00:00.000Z" },
+      { id: "c", createdAt: "2026-07-03T00:00:00.000Z" }
+    ];
+    const original = [...items];
+
+    const sorted = sortByCreatedAtDesc(items);
+
+    expect(sorted.map((item) => item.id)).toEqual(["d", "c", "b", "a"]);
+    expect(items).toEqual(original);
+  });
+});
 
 describe("selectRunningTaskIds", () => {
   it("returns only running task ids, preserving order", () => {

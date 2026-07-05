@@ -96,7 +96,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         createdAt: "2026-06-21T00:00:00.000Z",
         updatedAt: "2026-06-21T00:00:00.000Z"
       };
-      tasks = [task, ...tasks];
+      // Repositories return generations ascending by createdAt, so new tasks append.
+      tasks = [...tasks, task];
       balance -= request.mode === "image" ? 2 : 1;
       return task;
     },
@@ -114,7 +115,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         preset: request.preset,
         createdAt: "2026-06-21T00:00:00.000Z"
       };
-      assets = [asset, ...assets];
+      // Repositories return assets ascending by createdAt, so new assets append.
+      assets = [...assets, asset];
       return asset;
     },
     listAssets: async () => assets,
@@ -1037,6 +1039,34 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByLabelText("查看任务 task-past"));
     const canvas = screen.getByLabelText("结果画布");
     expect(within(canvas).getByText("历史生成内容")).toBeTruthy();
+  });
+
+  it("shows the 12 newest tasks in the history strip when the repository returns them ascending", async () => {
+    const tasks: GenerationTask[] = Array.from({ length: 13 }, (_, index) => {
+      const n = index + 1;
+      return {
+        id: `task-${n}`,
+        mode: "text",
+        status: "succeeded",
+        prompt: "p",
+        optimizedPrompt: "op",
+        preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+        resultPreview: { title: "生成任务", description: "已生成。" },
+        result: { kind: "text", text: `内容 ${n}`, format: "plain" },
+        createdAt: `2026-07-${String(n).padStart(2, "0")}T00:00:00.000Z`,
+        updatedAt: `2026-07-${String(n).padStart(2, "0")}T00:00:00.000Z`
+      };
+    });
+    // Ascending createdAt, matching production repository order (oldest first).
+    const client = createFakeClient({ listGenerations: async () => tasks });
+    await signIn(client);
+
+    const history = screen.getByRole("toolbar", { name: "历史任务" });
+    const buttons = within(history).getAllByRole("button");
+    expect(buttons).toHaveLength(12);
+    expect(within(history).getByLabelText("查看任务 task-13")).toBeTruthy();
+    expect(within(history).queryByLabelText("查看任务 task-1")).toBeNull();
+    expect(buttons[0].getAttribute("aria-label")).toBe("查看任务 task-13");
   });
 
   it("returns to the template gallery via the template button", async () => {

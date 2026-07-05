@@ -1,4 +1,5 @@
 import type { GenerationTask } from "@gw-link-omniai/shared";
+import { sortByCreatedAtDesc } from "../generationModel";
 
 const modeGlyphs: Record<GenerationTask["mode"], string> = {
   text: "文",
@@ -13,7 +14,7 @@ export interface HistoryStripProps {
 }
 
 export function HistoryStrip({ tasks, selectedTaskId, onSelect }: HistoryStripProps) {
-  const recent = tasks.slice(0, 12);
+  const recent = sortByCreatedAtDesc(tasks).slice(0, 12);
   if (recent.length === 0) {
     return null;
   }

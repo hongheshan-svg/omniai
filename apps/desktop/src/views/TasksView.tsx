@@ -1,5 +1,5 @@
 import type { GenerationTask, GenerationTaskStatus } from "@gw-link-omniai/shared";
-import { getGenerationStatusLabel, summarizeGenerationPrompt } from "../generationModel";
+import { getGenerationStatusLabel, summarizeGenerationPrompt, sortByCreatedAtDesc } from "../generationModel";
 import { getStudioModeContent } from "../studioModel";
 
 export interface TasksViewProps {
@@ -25,7 +25,7 @@ export function TasksView({ tasks, onOpenTask, onRetryTask, onRefreshTask }: Tas
         </div>
       ) : (
         groups.map((group) => {
-          const groupTasks = tasks.filter((task) => group.statuses.includes(task.status));
+          const groupTasks = sortByCreatedAtDesc(tasks.filter((task) => group.statuses.includes(task.status)));
           if (groupTasks.length === 0) {
             return null;
           }

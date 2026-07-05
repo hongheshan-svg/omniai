@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { CreationAsset } from "@gw-link-omniai/shared";
 import { filterCreationAssets, getAssetFilterLabel, type AssetFilter } from "@gw-link-omniai/shared";
 import { formatDateTime } from "../orderModel";
+import { sortByCreatedAtDesc } from "../generationModel";
 
 const assetFilters: AssetFilter[] = ["all", "text", "image", "video"];
 
@@ -15,7 +16,7 @@ export interface AssetsViewProps {
 }
 
 export function AssetsView({ assets, filter, selectedAssetId, onFilterChange, onSelectAsset, onCopyAssetText }: AssetsViewProps) {
-  const filteredAssets = useMemo(() => filterCreationAssets(assets, filter), [assets, filter]);
+  const filteredAssets = useMemo(() => sortByCreatedAtDesc(filterCreationAssets(assets, filter)), [assets, filter]);
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId);
 
   return (
