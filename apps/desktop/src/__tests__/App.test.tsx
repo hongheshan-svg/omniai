@@ -65,7 +65,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     }),
     verifyLogin: async () => authSession,
     logout: async () => undefined,
-    optimizePrompt: async () => textOptimization,
+    optimizePrompt: async (request) => ({ ...textOptimization, mode: request.mode, originalPrompt: request.prompt }),
     createGeneration: async (request) => {
       const result =
         request.mode === "image"

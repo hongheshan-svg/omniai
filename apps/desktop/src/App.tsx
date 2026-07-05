@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
@@ -59,10 +59,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [optimization, setOptimization] = useState<PromptOptimization | undefined>(undefined);
   const [models, setModels] = useState<ProductModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
-  // Tracks the promptText actually sent on the last successful optimize call, so
-  // handleGenerate can tell "prompt hasn't changed since we optimized" apart from
-  // a server-echoed originalPrompt that may not byte-match promptText.
-  const lastOptimizedPromptRef = useRef<string | undefined>(undefined);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<CreationAsset[]>([]);
   const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
@@ -241,7 +237,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       const result = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
       setOptimization(result);
       setSelectedModelId(result.preset.modelId);
-      lastOptimizedPromptRef.current = promptText;
     } catch (error) {
       setActionError(errorMessage(error));
     }
@@ -399,7 +394,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       if (
         !activeOptimization ||
         activeOptimization.mode !== selectedMode ||
-        lastOptimizedPromptRef.current !== promptText
+        activeOptimization.originalPrompt !== promptText
       ) {
         setActionError(undefined);
         try {
@@ -407,7 +402,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
           freshOptimization = true;
           setOptimization(activeOptimization);
           setSelectedModelId(activeOptimization.preset.modelId);
-          lastOptimizedPromptRef.current = promptText;
         } catch (error) {
           setActionError(errorMessage(error));
           return;
