@@ -37,6 +37,19 @@ const imageOptimization: PromptOptimization = {
   createdAt: "2026-06-22T00:00:00.000Z"
 };
 
+const textAsset: CreationAsset = {
+  id: "asset-1",
+  mode: "text",
+  title: "生成任务",
+  content: { kind: "text", text: "已保存的文案", format: "plain" },
+  preview: { title: "生成任务", description: "已保存。" },
+  source: { taskId: "task-1", taskStatus: "succeeded" },
+  prompt: "帮我写文案",
+  optimizedPrompt: "请生成一段文案。",
+  preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+  createdAt: "2026-07-01T00:00:00.000Z"
+};
+
 const authSession: AuthSession = {
   token: "tok-1",
   user: {
@@ -165,8 +178,8 @@ function createFakeTokenStore(initial?: string): TokenStore {
   };
 }
 
-async function signIn(client: ApiClient) {
-  render(<App client={client} />);
+async function signIn(client: ApiClient, options: { copyText?: (text: string) => Promise<void> } = {}) {
+  render(<App client={client} copyText={options.copyText} />);
   fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
   await screen.findByText("开发验证码：123456");
   fireEvent.click(screen.getByRole("button", { name: "登录" }));
@@ -288,9 +301,7 @@ describe("Desktop App", () => {
     fireEvent.click(await within(canvas).findByRole("button", { name: "保存到资产库" }));
     openView("资产库");
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    await within(assetLibrary).findByText("文本资产");
-    expect(within(assetLibrary).getByText("已保存。")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "文本资产" })).toBeTruthy();
   });
 
   it("renders a generated image in the task center", async () => {
@@ -399,26 +410,63 @@ describe("Desktop App", () => {
     await within(canvas).findByText("生成中");
   });
 
-  it("lists the user's assets read-only (no save button)", async () => {
-    const asset: CreationAsset = {
-      id: "a1",
-      mode: "text",
-      title: "文本资产",
-      content: { kind: "text", text: "已生成文案", format: "markdown" },
-      preview: { title: "文本资产", description: "占位文本资产。" },
-      source: { taskId: "t1", taskStatus: "succeeded" },
-      prompt: "帮我写一个咖啡店新品发布文案",
-      optimizedPrompt: "请生成一段新品推广文案。",
-      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
-      createdAt: "2026-06-21T00:00:00.000Z"
-    };
-    const client = createFakeClient({ listAssets: async () => [asset] });
+  it("lists assets in a grid and opens the detail panel", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
     await signIn(client);
     openView("资产库");
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "保存到资产库" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+
+    const panel = screen.getByLabelText("资产详情");
+    expect(within(panel).getByText("帮我写文案")).toBeTruthy();
+    expect(within(panel).getByText("gw-text-balanced")).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "关闭" }));
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
+  it("closes the asset detail panel with Escape", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    expect(screen.getByLabelText("资产详情")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
+  it("copies a text asset from the detail panel", async () => {
+    const copyText = vi.fn(async () => undefined);
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client, { copyText });
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制文本" }));
+    await screen.findByText("已复制文本");
+    expect(copyText).toHaveBeenCalledWith("已保存的文案");
+  });
+
+  it("offers a download link for media assets", async () => {
+    const imageAsset: CreationAsset = {
+      id: "asset-img",
+      mode: "image",
+      title: "海报图",
+      content: { kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "海报" },
+      preview: { title: "海报图", description: "已保存。" },
+      source: { taskId: "task-2", taskStatus: "succeeded" },
+      prompt: "一张海报",
+      optimizedPrompt: "一张精修海报",
+      preset: { modelId: "gw-image-creative", parameters: {}, creditEstimate: { credits: 2, unit: "credit" } },
+      createdAt: "2026-07-01T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listAssets: async () => [imageAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "海报图" }));
+    const panel = screen.getByLabelText("资产详情");
+    const link = within(panel).getByRole("link", { name: "下载" });
+    expect(link.getAttribute("href")).toBe("data:image/png;base64,aGVsbG8=");
   });
 
   it("surfaces a login error", async () => {
@@ -562,9 +610,9 @@ describe("Desktop App", () => {
     fireEvent.click(within(taskCenter).getByRole("button", { name: "保存到资产库" }));
     openView("资产库");
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    await within(assetLibrary).findByText("视频资产");
-    expect(assetLibrary.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+    fireEvent.click(await screen.findByRole("button", { name: "视频资产" }));
+    const panel = screen.getByLabelText("资产详情");
+    expect(panel.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
   });
 
   it("tops up the balance from the account view", async () => {

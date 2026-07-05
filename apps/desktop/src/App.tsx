@@ -68,6 +68,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [view, setView] = useState<WorkspaceView>("studio");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -153,6 +154,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
           setView(next);
         }
       }
+      if (event.key === "Escape") {
+        setSelectedAssetId(null);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -179,6 +183,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setPackages([]);
     setOrders([]);
     setSelectedOrderId(null);
+    setSelectedAssetId(null);
     setCopyNotice(undefined);
     setOptimization(undefined);
     setModels([]);
@@ -357,6 +362,19 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     }
   }
 
+  async function handleCopyAssetText(asset: CreationAsset) {
+    if (asset.content.kind !== "text") {
+      return;
+    }
+    try {
+      await copy(asset.content.text);
+      setCopyNotice("已复制文本");
+    } catch {
+      setCopyNotice(undefined);
+      setActionError("复制失败，请重试");
+    }
+  }
+
   async function submitTask(request: GenerationTaskRequest) {
     if (!token) {
       return;
@@ -524,7 +542,16 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               onApplyTemplate={handleApplyTemplate}
             />
           ) : null}
-          {view === "assets" ? <AssetsView assets={assets} filter={assetFilter} onFilterChange={setAssetFilter} /> : null}
+          {view === "assets" ? (
+            <AssetsView
+              assets={assets}
+              filter={assetFilter}
+              selectedAssetId={selectedAssetId}
+              onFilterChange={setAssetFilter}
+              onSelectAsset={setSelectedAssetId}
+              onCopyAssetText={(asset) => void handleCopyAssetText(asset)}
+            />
+          ) : null}
           {view === "tasks" ? (
             <TasksView tasks={tasks} onSaveAsset={(task) => void handleSaveAsset(task)} onRefreshTask={(task) => void handleRefreshTask(task)} />
           ) : null}
