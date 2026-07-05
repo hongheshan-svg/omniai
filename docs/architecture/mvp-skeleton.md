@@ -486,3 +486,14 @@ separate "（开发）完成支付" button still drives the existing dev-complet
 webhook path. Deferred: provider-specific request/response adapters (today
 only a generic HTTP shape is implemented), the checkout redirect-return
 flow, `payment.failed` handling, and refunds.
+
+## Admin Next.js `.js` resolution
+
+`@gw-link-omniai/shared` is consumed as TypeScript source and its barrel uses
+NodeNext-style `.js` specifiers (e.g. `export … from "./apiClient.js"`), which
+`tsx`/`vitest`/`tsc` resolve to the real `.ts` files. Next.js's webpack does
+not do this by default, so `apps/admin/next.config.mjs` sets
+`resolve.extensionAlias` (`.js` → `.ts`/`.tsx`) in addition to
+`transpilePackages`. Without it `next dev`/`next build` fails to resolve the
+shared barrel (the app's vitest tests still pass, so this only surfaces when
+the admin is actually run in a browser).
