@@ -29,6 +29,7 @@ export interface MobileAppController {
   saveAsset(task: GenerationTask): Promise<void>;
   signOut(): Promise<void>;
   buyPackage(packageId: string): Promise<void>;
+  devCompleteOrder(orderId: string): Promise<void>;
   selectOrder(orderId: string | null): void;
 }
 
@@ -287,8 +288,24 @@ export function createMobileAppController(deps: {
       }
       setState({ actionError: null });
       try {
-        const order = await apiClient.createOrder(packageId, token);
-        await apiClient.devCompletePayment(order.id, token);
+        await apiClient.createOrder(packageId, token);
+        setState({ orders: await apiClient.listOrders(token) });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          await signOutInternal();
+          return;
+        }
+        setState({ actionError: purchaseError(err) });
+      }
+    },
+    async devCompleteOrder(orderId) {
+      const token = state.token;
+      if (!token) {
+        return;
+      }
+      setState({ actionError: null });
+      try {
+        await apiClient.devCompletePayment(orderId, token);
         const [balance, orders] = await Promise.all([
           apiClient.getCreditBalance(token),
           apiClient.listOrders(token)
