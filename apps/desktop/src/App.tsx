@@ -11,6 +11,7 @@ import type {
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
 import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
+import { AuthScreen } from "./components/AuthScreen";
 import { formatCreditBalance } from "./creditModel";
 import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
 import { buildReceiptLines, buildReceiptText, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
@@ -346,63 +347,19 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
 
   if (!session.authenticated) {
     return (
-      <main className="auth">
-        <div className="auth-card">
-          <div className="auth-brand">
-            <span className="logo" aria-hidden="true" />
-            <h1>GW-LINK OmniAI</h1>
-          </div>
-          <p className="sub">多模态 AI 创作工作台 · 文本 / 图片 / 视频</p>
-
-          <section aria-label="登录" className="stack">
-            <div className="field">
-              <label htmlFor="login-destination">登录邮箱或手机号</label>
-              <input
-                id="login-destination"
-                name="destination"
-                placeholder="you@example.com"
-                value={destination}
-                onChange={(event) => setDestination(event.target.value)}
-              />
-            </div>
-            <button type="button" className="btn-primary" onClick={handleStartLogin}>
-              发送验证码
-            </button>
-
-            {challengeId ? (
-              <div className="stack">
-                <p className="sent">验证码已发送至 {maskedDestination}</p>
-                {devCode ? <p className="devcode">开发验证码：{devCode}</p> : null}
-                <div className="field">
-                  <label htmlFor="login-code">验证码</label>
-                  <input
-                    id="login-code"
-                    name="code"
-                    placeholder="6 位验证码"
-                    value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                  />
-                </div>
-                <button type="button" className="btn-primary" onClick={handleVerifyLogin}>
-                  登录
-                </button>
-              </div>
-            ) : null}
-
-            {authError ? (
-              <p role="alert" className="alert alert--error" style={{ margin: 0 }}>
-                {authError}
-              </p>
-            ) : null}
-          </section>
-
-          <div style={{ marginTop: 18, textAlign: "center" }}>
-            <button type="button" className="user-btn">
-              {getDesktopSessionCta(session)}
-            </button>
-          </div>
-        </div>
-      </main>
+      <AuthScreen
+        destination={destination}
+        challengeId={challengeId}
+        devCode={devCode}
+        maskedDestination={maskedDestination}
+        code={code}
+        authError={authError}
+        sessionCta={getDesktopSessionCta(session)}
+        onDestinationChange={setDestination}
+        onCodeChange={setCode}
+        onStartLogin={() => void handleStartLogin()}
+        onVerifyLogin={() => void handleVerifyLogin()}
+      />
     );
   }
 
