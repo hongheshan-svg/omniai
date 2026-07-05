@@ -1,22 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CreationAsset,
   CreationMode,
   CreditAmount,
   CreditPackage,
   GenerationTask,
+  GenerationTaskRequest,
   Order,
+  ProductModel,
   PromptOptimization,
   SessionResponse
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
-import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
+import { buildAssetRequestFromTask, type AssetFilter } from "@gw-link-omniai/shared";
+import { AuthScreen } from "./components/AuthScreen";
+import { IconRail } from "./components/IconRail";
+import { ToastHost } from "./components/ToastHost";
 import { formatCreditBalance } from "./creditModel";
-import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
-import { buildReceiptLines, buildReceiptText, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
+import { selectActiveTaskIds } from "./generationModel";
+import { buildReceiptText } from "./orderModel";
+import { countActiveTasks, getWorkspaceNavItems, viewForShortcutDigit, type WorkspaceView } from "./navModel";
 import { getDesktopSessionCta } from "./sessionModel";
-import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
+import type { IndustryTemplate } from "./templatesModel";
+import { dismissToast, expireToasts, pushToast, type Toast, type ToastKind } from "./toastModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
+import { AccountView } from "./views/AccountView";
+import { AssetsView } from "./views/AssetsView";
+import { StudioView } from "./views/StudioView";
+import { TasksView } from "./views/TasksView";
 
 const anonymousSession: SessionResponse = { authenticated: false, user: null, expiresAt: null };
 const POLL_INTERVAL_MS = 5000;
@@ -49,36 +60,62 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [selectedMode, setSelectedMode] = useState<CreationMode>("text");
   const [promptText, setPromptText] = useState("");
   const [optimization, setOptimization] = useState<PromptOptimization | undefined>(undefined);
+  const [models, setModels] = useState<ProductModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<CreationAsset[]>([]);
   const [balance, setBalance] = useState<CreditAmount | undefined>(undefined);
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
+  const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
-  const [actionError, setActionError] = useState<string | undefined>(undefined);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [view, setView] = useState<WorkspaceView>("studio");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [loadError, setLoadError] = useState<string | undefined>(undefined);
+  const toastIdRef = useRef(0);
+  const tasksRef = useRef<GenerationTask[]>([]);
 
-  const studioModes = useMemo(() => getStudioModes(), []);
-  const content = useMemo(() => getStudioModeContent(selectedMode), [selectedMode]);
-  const templates = useMemo(() => getStudioTemplates(selectedMode), [selectedMode]);
-  const assetFilters: AssetFilter[] = ["all", "text", "image", "video"];
-  const filteredAssets = useMemo(() => filterCreationAssets(assets, assetFilter), [assets, assetFilter]);
-  const promptInputId = `${selectedMode}-studio-prompt`;
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  function notify(kind: ToastKind, message: string) {
+    toastIdRef.current += 1;
+    setToasts((prev) =>
+      pushToast(prev, { id: `toast-${toastIdRef.current}`, kind, message, createdAt: new Date().toISOString() })
+    );
+  }
+
+  useEffect(() => {
+    if (toasts.length === 0) {
+      return;
+    }
+    const interval = setInterval(() => {
+      setToasts((prev) => expireToasts(prev, new Date().toISOString()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [toasts.length]);
 
   async function loadUserData(authToken: string) {
-    const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders] = await Promise.all([
+    const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders, loadedModels] = await Promise.all([
       api.listGenerations(authToken),
       api.listAssets(authToken),
       api.getCreditBalance(authToken),
       api.listPackages(),
-      api.listOrders(authToken)
+      api.listOrders(authToken),
+      api.listModels()
     ]);
     setTasks(loadedTasks);
     setAssets(loadedAssets);
     setBalance(loadedBalance);
     setPackages(loadedPackages);
     setOrders(loadedOrders);
+    setModels(loadedModels);
   }
 
   useEffect(() => {
@@ -105,8 +142,9 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       }
       try {
         await loadUserData(stored);
+        setLoadError(undefined);
       } catch {
-        // Session is restored; a transient data-load failure must not clear the token.
+        setLoadError("部分数据加载失败");
       }
     }
     void restoreSession();
@@ -116,21 +154,53 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, store]);
 
-  const runningKey = selectRunningTaskIds(tasks).join(",");
+  const activeKey = selectActiveTaskIds(tasks).join(",");
   useEffect(() => {
     if (!token) {
       return;
     }
-    const runningIds = runningKey ? runningKey.split(",") : [];
-    if (runningIds.length === 0) {
+    const activeIds = activeKey ? activeKey.split(",") : [];
+    if (activeIds.length === 0) {
       return;
     }
     const interval = setInterval(() => {
-      void pollRunningTasks(runningIds);
+      void pollRunningTasks(activeIds);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, token, runningKey]);
+  }, [api, token, activeKey]);
+
+  useEffect(() => {
+    if (!session.authenticated) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        const next = viewForShortcutDigit(event.key);
+        if (next) {
+          event.preventDefault();
+          setView(next);
+        }
+      }
+      if (event.key === "Escape") {
+        setSelectedAssetId(null);
+        setPurchaseOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [session.authenticated]);
+
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId),
+    [tasks, selectedTaskId]
+  );
+
+  function upsertTask(list: GenerationTask[], task: GenerationTask): GenerationTask[] {
+    return list.some((existing) => existing.id === task.id)
+      ? list.map((existing) => (existing.id === task.id ? task : existing))
+      : [task, ...list];
+  }
 
   function handleSignedOut(message?: string) {
     store.clear();
@@ -142,8 +212,16 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setPackages([]);
     setOrders([]);
     setSelectedOrderId(null);
-    setCopyNotice(undefined);
+    setLatestOrderId(null);
+    setSelectedAssetId(null);
+    setPurchaseOpen(false);
     setOptimization(undefined);
+    setModels([]);
+    setSelectedModelId(undefined);
+    setSelectedTaskId(null);
+    setView("studio");
+    setToasts([]);
+    setLoadError(undefined);
     if (message) {
       setAuthError(message);
     }
@@ -174,7 +252,12 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       setChallengeId(undefined);
       setDevCode(undefined);
       setCode("");
-      await loadUserData(authSession.token);
+      try {
+        await loadUserData(authSession.token);
+        setLoadError(undefined);
+      } catch {
+        setLoadError("部分数据加载失败");
+      }
     } catch (error) {
       setAuthError(errorMessage(error));
     }
@@ -191,12 +274,24 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     handleSignedOut();
   }
 
+  function notifyIfCompleted(updated: GenerationTask) {
+    const before = tasksRef.current.find((existing) => existing.id === updated.id);
+    if (before && (before.status === "queued" || before.status === "running")) {
+      if (updated.status === "succeeded") {
+        notify("success", "生成完成");
+      } else if (updated.status === "failed") {
+        notify("error", "生成失败");
+      }
+    }
+  }
+
   async function handleOptimize() {
-    setActionError(undefined);
     try {
-      setOptimization(await api.optimizePrompt({ mode: selectedMode, prompt: promptText }));
+      const result = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+      setOptimization(result);
+      setSelectedModelId(result.preset.modelId);
     } catch (error) {
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -204,7 +299,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       await api.createAsset(buildAssetRequestFromTask(task), token);
       setAssets(await api.listAssets(token));
@@ -213,7 +307,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -221,16 +315,16 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       const updated = await api.getGeneration(task.id, token);
+      notifyIfCompleted(updated);
       setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -241,6 +335,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     for (const id of ids) {
       try {
         const updated = await api.getGeneration(id, token);
+        notifyIfCompleted(updated);
         setTasks((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)));
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
@@ -256,7 +351,6 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       setBalance(await api.topUpCredits(100, token));
     } catch (error) {
@@ -264,7 +358,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -272,16 +366,17 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
-      await api.createOrder(pkg.id, token);
+      const created = await api.createOrder(pkg.id, token);
+      setLatestOrderId(created.id);
       setOrders(await api.listOrders(token));
+      notify("success", "订单已创建，请完成支付");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
@@ -289,47 +384,51 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     if (!token) {
       return;
     }
-    setActionError(undefined);
     try {
       await api.devCompletePayment(orderId, token);
       setBalance(await api.getCreditBalance(token));
       setOrders(await api.listOrders(token));
+      notify("success", "支付完成，点数已到账");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleSignedOut("登录已失效，请重新登录");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
     }
   }
 
   async function handleCopyReceipt(order: Order, packageName: string) {
-    setActionError(undefined);
     try {
       await copy(buildReceiptText(order, packageName));
-      setCopyNotice("已复制收据");
+      notify("success", "已复制收据");
     } catch {
-      setCopyNotice(undefined);
-      setActionError("复制失败，请重试");
+      notify("error", "复制失败，请重试");
     }
   }
 
-  async function handleSubmitGeneration() {
-    if (!optimization || !token) {
+  async function handleCopyAssetText(asset: CreationAsset) {
+    if (asset.content.kind !== "text") {
       return;
     }
-    setActionError(undefined);
     try {
-      await api.createGeneration(
-        {
-          mode: optimization.mode,
-          prompt: optimization.originalPrompt,
-          optimizedPrompt: optimization.optimizedPrompt,
-          preset: optimization.preset
-        },
-        token
-      );
-      setTasks(await api.listGenerations(token));
+      await copy(asset.content.text);
+      notify("success", "已复制文本");
+    } catch {
+      notify("error", "复制失败，请重试");
+    }
+  }
+
+  async function submitTask(request: GenerationTaskRequest) {
+    if (!token) {
+      return;
+    }
+    setGenerating(true);
+    try {
+      const created = await api.createGeneration(request, token);
+      setSelectedTaskId(created.id);
+      const listed = await api.listGenerations(token);
+      setTasks(upsertTask(listed, created));
       setBalance(await api.getCreditBalance(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -337,290 +436,212 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         return;
       }
       if (error instanceof ApiError && error.status === 402) {
-        setActionError("积分不足，无法生成");
+        notify("error", "积分不足，无法生成");
         return;
       }
-      setActionError(errorMessage(error));
+      notify("error", errorMessage(error));
+    } finally {
+      setGenerating(false);
     }
+  }
+
+  async function handleGenerate() {
+    if (!token || generating) {
+      return;
+    }
+    setGenerating(true);
+    try {
+      let activeOptimization = optimization;
+      let freshOptimization = false;
+      if (
+        !activeOptimization ||
+        activeOptimization.mode !== selectedMode ||
+        activeOptimization.originalPrompt !== promptText
+      ) {
+        try {
+          activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+          freshOptimization = true;
+          setOptimization(activeOptimization);
+          setSelectedModelId(activeOptimization.preset.modelId);
+        } catch (error) {
+          notify("error", errorMessage(error));
+          return;
+        }
+      }
+      const resolvedModelId = freshOptimization
+        ? activeOptimization.preset.modelId
+        : selectedModelId ?? activeOptimization.preset.modelId;
+      await submitTask({
+        mode: activeOptimization.mode,
+        prompt: activeOptimization.originalPrompt,
+        optimizedPrompt: activeOptimization.optimizedPrompt,
+        preset: { ...activeOptimization.preset, modelId: resolvedModelId }
+      });
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleRetryTask(task: GenerationTask) {
+    if (generating) {
+      return;
+    }
+    setView("studio");
+    await submitTask({
+      mode: task.mode,
+      prompt: task.prompt,
+      optimizedPrompt: task.optimizedPrompt,
+      preset: task.preset
+    });
+  }
+
+  function handleApplyTemplate(template: IndustryTemplate) {
+    setSelectedMode(template.mode);
+    setPromptText(template.prompt);
+    setOptimization(undefined);
+    setSelectedModelId(undefined);
+    setSelectedTaskId(null);
   }
 
   if (!session.authenticated) {
     return (
-      <main>
-        <header>
-          <h1>GW-LINK OmniAI</h1>
-          <button type="button">{getDesktopSessionCta(session)}</button>
+      <>
+        <AuthScreen
+          destination={destination}
+          challengeId={challengeId}
+          devCode={devCode}
+          maskedDestination={maskedDestination}
+          code={code}
+          authError={authError}
+          sessionCta={getDesktopSessionCta(session)}
+          onDestinationChange={setDestination}
+          onCodeChange={setCode}
+          onStartLogin={() => void handleStartLogin()}
+          onVerifyLogin={() => void handleVerifyLogin()}
+        />
+        <ToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => dismissToast(prev, id))} />
+      </>
+    );
+  }
+
+  const navItems = getWorkspaceNavItems();
+  const activeLabel = navItems.find((item) => item.view === view)?.label ?? "创作";
+
+  return (
+    <div className="workspace">
+      <IconRail items={navItems} active={view} activeTaskCount={countActiveTasks(tasks)} onSelect={setView} />
+      <div className="main">
+        <header className="topbar">
+          <h1>{activeLabel}</h1>
+          <div className="spacer" />
+          {balance ? (
+            <span className="chip">
+              <span className="spark" aria-hidden="true" />
+              {formatCreditBalance(balance)}
+            </span>
+          ) : null}
+          <button type="button" className="user-btn">
+            {getDesktopSessionCta(session)}
+          </button>
+          <button type="button" className="btn-sm" onClick={() => void handleLogout()}>
+            登出
+          </button>
         </header>
 
-        <section aria-label="登录">
-          <h2>登录</h2>
-          <div>
-            <label htmlFor="login-destination">登录邮箱或手机号</label>
-            <input
-              id="login-destination"
-              name="destination"
-              value={destination}
-              onChange={(event) => setDestination(event.target.value)}
-            />
-            <button type="button" onClick={handleStartLogin}>
-              发送验证码
-            </button>
-          </div>
-
-          {challengeId ? (
-            <div>
-              <p>验证码已发送至 {maskedDestination}</p>
-              {devCode ? <p>开发验证码：{devCode}</p> : null}
-              <label htmlFor="login-code">验证码</label>
-              <input
-                id="login-code"
-                name="code"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-              <button type="button" onClick={handleVerifyLogin}>
-                登录
+        <div className="view">
+          {loadError ? (
+            <div role="alert" className="alert alert--error" style={{ marginBottom: 12, display: "flex", gap: 10, alignItems: "center" }}>
+              <span>{loadError}</span>
+              <button
+                type="button"
+                className="btn-sm"
+                onClick={() => {
+                  if (token) {
+                    setLoadError(undefined);
+                    void loadUserData(token).catch(() => setLoadError("部分数据加载失败"));
+                  }
+                }}
+              >
+                重新加载
               </button>
             </div>
           ) : null}
 
-          {authError ? <p role="alert">{authError}</p> : null}
-        </section>
-      </main>
-    );
-  }
-
-  return (
-    <main>
-      <header>
-        <h1>GW-LINK OmniAI</h1>
-        <button type="button">{getDesktopSessionCta(session)}</button>
-        {balance ? <p>{formatCreditBalance(balance)}</p> : null}
-        {balance ? (
-          <button type="button" onClick={handleTopUp}>
-            充值
-          </button>
-        ) : null}
-        <button type="button" onClick={handleLogout}>
-          登出
-        </button>
-      </header>
-
-      <nav aria-label="Studio modes">
-        {studioModes.map((mode) => (
-          <button
-            key={mode.mode}
-            type="button"
-            aria-pressed={selectedMode === mode.mode}
-            onClick={() => {
-              setSelectedMode(mode.mode);
-              setOptimization(undefined);
-            }}
-          >
-            {mode.title}
-          </button>
-        ))}
-      </nav>
-
-      <section aria-labelledby="current-studio-mode-title">
-        <h2 id="current-studio-mode-title">{content.title}</h2>
-        <p>{content.description}</p>
-        <div>
-          <label htmlFor={promptInputId}>{content.promptLabel}</label>
-          <textarea
-            id={promptInputId}
-            name={`${selectedMode}Prompt`}
-            placeholder={content.promptPlaceholder}
-            value={promptText}
-            onChange={(event) => setPromptText(event.target.value)}
-          />
+          {view === "studio" ? (
+            <StudioView
+              mode={selectedMode}
+              promptText={promptText}
+              optimization={optimization}
+              selectedTask={selectedTask}
+              generating={generating}
+              models={models}
+              selectedModelId={selectedModelId}
+              tasks={tasks}
+              selectedTaskId={selectedTaskId}
+              onModeChange={(mode) => {
+                setSelectedMode(mode);
+                setOptimization(undefined);
+                setSelectedModelId(undefined);
+              }}
+              onPromptChange={setPromptText}
+              onOptimize={() => void handleOptimize()}
+              onGenerate={() => void handleGenerate()}
+              onSaveAsset={(task) => void handleSaveAsset(task)}
+              onRetryTask={(task) => void handleRetryTask(task)}
+              onModelChange={setSelectedModelId}
+              onOptimizedPromptChange={(text) =>
+                setOptimization((prev) => (prev ? { ...prev, optimizedPrompt: text } : prev))
+              }
+              onSelectTask={setSelectedTaskId}
+              onShowTemplates={() => setSelectedTaskId(null)}
+              onApplyTemplate={handleApplyTemplate}
+            />
+          ) : null}
+          {view === "assets" ? (
+            <AssetsView
+              assets={assets}
+              filter={assetFilter}
+              selectedAssetId={selectedAssetId}
+              onFilterChange={(filter) => {
+                setAssetFilter(filter);
+                setSelectedAssetId(null);
+              }}
+              onSelectAsset={setSelectedAssetId}
+              onCopyAssetText={(asset) => void handleCopyAssetText(asset)}
+            />
+          ) : null}
+          {view === "tasks" ? (
+            <TasksView
+              tasks={tasks}
+              onOpenTask={(taskId) => {
+                setSelectedTaskId(taskId);
+                setView("studio");
+              }}
+              onRetryTask={(task) => void handleRetryTask(task)}
+              onRefreshTask={(task) => void handleRefreshTask(task)}
+            />
+          ) : null}
+          {view === "account" ? (
+            <AccountView
+              session={session}
+              balance={balance}
+              packages={packages}
+              orders={orders}
+              selectedOrderId={selectedOrderId}
+              latestOrderId={latestOrderId}
+              purchaseOpen={purchaseOpen}
+              onTopUp={() => void handleTopUp()}
+              onBuy={(pkg) => void handleBuy(pkg)}
+              onDevComplete={(orderId) => void handleDevComplete(orderId)}
+              onSelectOrder={setSelectedOrderId}
+              onCopyReceipt={(order, packageName) => void handleCopyReceipt(order, packageName)}
+              onOpenPurchase={() => setPurchaseOpen(true)}
+              onClosePurchase={() => setPurchaseOpen(false)}
+            />
+          ) : null}
         </div>
-
-        <section aria-label="提示词模板">
-          <h3>提示词模板</h3>
-          <ul>
-            {templates.map((template) => (
-              <li key={template.id}>
-                <h4>{template.name}</h4>
-                <p>{template.description}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <button type="button" onClick={handleOptimize}>
-          优化提示词
-        </button>
-      </section>
-
-      {optimization ? (
-        <section aria-label="提示词优化结果">
-          <h2>优化结果</h2>
-          <p>{optimization.optimizedPrompt}</p>
-          <dl>
-            {optimization.sections.map((part) => (
-              <div key={part.label}>
-                <dt>{part.label}</dt>
-                <dd>{part.value}</dd>
-              </div>
-            ))}
-          </dl>
-          <section aria-labelledby="preset-suggestion-title">
-            <h3 id="preset-suggestion-title">推荐参数</h3>
-            <p>{optimization.preset.modelId}</p>
-            <p>
-              预计点数：{optimization.preset.creditEstimate.credits}{" "}
-              {optimization.preset.creditEstimate.credits === 1 ? "credit" : "credits"}
-            </p>
-          </section>
-          <button type="button" onClick={handleSubmitGeneration}>
-            提交生成
-          </button>
-        </section>
-      ) : null}
-
-      {actionError ? <p role="alert">{actionError}</p> : null}
-      {copyNotice ? <p role="status">{copyNotice}</p> : null}
-
-      <section aria-label="任务中心">
-        <h2>任务中心</h2>
-        {tasks.length === 0 ? (
-          <p>暂无生成任务</p>
-        ) : (
-          <ol>
-            {tasks.map((task) => {
-              const taskMode = getStudioModeContent(task.mode);
-              const taskCredits = task.preset.creditEstimate.credits;
-              return (
-                <li key={task.id}>
-                  <article>
-                    <h3>{taskMode.title}</h3>
-                    <p>{getGenerationStatusLabel(task.status)}</p>
-                    <p>{summarizeGenerationPrompt(task)}</p>
-                    <p>{task.preset.modelId}</p>
-                    <p>
-                      预计点数：{taskCredits} {taskCredits === 1 ? "credit" : "credits"}
-                    </p>
-                    {task.result?.kind === "text" ? <p>{task.result.text}</p> : null}
-                    {task.result?.kind === "image" ? (
-                      <img src={task.result.url} alt={task.result.alt} />
-                    ) : null}
-                    {task.result?.kind === "video" ? (
-                      <video controls src={task.result.url} poster={task.result.posterUrl} />
-                    ) : null}
-                    {task.status === "succeeded" && task.result ? (
-                      <button type="button" onClick={() => handleSaveAsset(task)}>
-                        保存到资产库
-                      </button>
-                    ) : null}
-                    {task.status === "running" ? (
-                      <button type="button" onClick={() => handleRefreshTask(task)}>
-                        刷新状态
-                      </button>
-                    ) : null}
-                  </article>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </section>
-
-      <section aria-label="套餐">
-        <h2>积分套餐</h2>
-        {packages.map((pkg) => (
-          <article key={pkg.id}>
-            <p>{pkg.displayName} · {formatPackagePrice(pkg)} · {pkg.credits} 积分</p>
-            <button type="button" onClick={() => handleBuy(pkg)}>购买 {pkg.displayName}</button>
-          </article>
-        ))}
-      </section>
-      <section aria-label="订单">
-        <h2>订单</h2>
-        {orders.map((order) => {
-          const expanded = order.id === selectedOrderId;
-          const packageName = packages.find((p) => p.id === order.packageId)?.displayName ?? order.packageId;
-          return (
-            <article key={order.id}>
-              <p>
-                {order.packageId} · <span>{getOrderStatusLabel(order.status)}</span>{" "}
-                <button type="button" onClick={() => setSelectedOrderId(expanded ? null : order.id)}>
-                  {expanded ? "收起" : "查看"}
-                </button>
-              </p>
-              {order.status === "pending" && (
-                <p>
-                  {order.checkoutUrl ? <a href={order.checkoutUrl}>去支付</a> : null}{" "}
-                  <button type="button" onClick={() => void handleDevComplete(order.id)}>（开发）完成支付</button>
-                </p>
-              )}
-              {expanded && (
-                <div aria-label="订单详情">
-                  <p>订单号：{order.id}</p>
-                  <p>套餐：{packageName}</p>
-                  <p>积分：{order.credits}</p>
-                  <p>金额：{formatMoney(order.amountCents, order.currency)}</p>
-                  <p>状态：{getOrderStatusLabel(order.status)}</p>
-                  <p>下单时间：{formatDateTime(order.createdAt)}</p>
-                  {order.paidAt && <p>付款时间：{formatDateTime(order.paidAt)}</p>}
-                  <p>凭证：{order.checkoutRef}</p>
-                  {order.status === "paid" && (
-                    <>
-                      <dl aria-label="收据">
-                        {buildReceiptLines(order, packageName).map((line) => (
-                          <div key={line.label}>
-                            <dt>{line.label}</dt>
-                            <dd>{line.value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                      <button type="button" onClick={() => void handleCopyReceipt(order, packageName)}>复制收据</button>
-                    </>
-                  )}
-                </div>
-              )}
-            </article>
-          );
-        })}
-      </section>
-
-      <section aria-label="资产库">
-        <h2>资产库</h2>
-        <nav aria-label="资产过滤">
-          {assetFilters.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              aria-pressed={assetFilter === filter}
-              onClick={() => setAssetFilter(filter)}
-            >
-              {getAssetFilterLabel(filter)}
-            </button>
-          ))}
-        </nav>
-        {filteredAssets.length === 0 ? (
-          <p>暂无资产</p>
-        ) : (
-          <ol>
-            {filteredAssets.map((asset) => (
-              <li key={asset.id}>
-                <article>
-                  <h3>{asset.title}</h3>
-                  <p>{asset.preview.description}</p>
-                  {asset.content.kind === "image" ? (
-                    <img src={asset.content.url} alt={asset.content.alt} />
-                  ) : null}
-                  {asset.content.kind === "video" ? (
-                    <video controls src={asset.content.url} poster={asset.content.posterUrl} />
-                  ) : null}
-                  <p>{summarizeAssetPrompt(asset)}</p>
-                  <p>{asset.preset.modelId}</p>
-                </article>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </main>
+      </div>
+      <ToastHost toasts={toasts} onDismiss={(id) => setToasts((prev) => dismissToast(prev, id))} />
+    </div>
   );
 }

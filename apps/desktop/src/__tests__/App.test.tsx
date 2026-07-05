@@ -4,6 +4,7 @@ import type {
   AuthSession,
   CreationAsset,
   GenerationTask,
+  GenerationTaskRequest,
   LoginStartResponse,
   Order,
   PromptOptimization
@@ -36,6 +37,19 @@ const imageOptimization: PromptOptimization = {
   createdAt: "2026-06-22T00:00:00.000Z"
 };
 
+const textAsset: CreationAsset = {
+  id: "asset-1",
+  mode: "text",
+  title: "生成任务",
+  content: { kind: "text", text: "已保存的文案", format: "plain" },
+  preview: { title: "生成任务", description: "已保存。" },
+  source: { taskId: "task-1", taskStatus: "succeeded" },
+  prompt: "帮我写文案",
+  optimizedPrompt: "请生成一段文案。",
+  preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+  createdAt: "2026-07-01T00:00:00.000Z"
+};
+
 const authSession: AuthSession = {
   token: "tok-1",
   user: {
@@ -64,7 +78,7 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     }),
     verifyLogin: async () => authSession,
     logout: async () => undefined,
-    optimizePrompt: async () => textOptimization,
+    optimizePrompt: async (request) => ({ ...textOptimization, mode: request.mode, originalPrompt: request.prompt }),
     createGeneration: async (request) => {
       const result =
         request.mode === "image"
@@ -82,7 +96,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         createdAt: "2026-06-21T00:00:00.000Z",
         updatedAt: "2026-06-21T00:00:00.000Z"
       };
-      tasks = [task, ...tasks];
+      // Repositories return generations ascending by createdAt, so new tasks append.
+      tasks = [...tasks, task];
       balance -= request.mode === "image" ? 2 : 1;
       return task;
     },
@@ -100,7 +115,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         preset: request.preset,
         createdAt: "2026-06-21T00:00:00.000Z"
       };
-      assets = [asset, ...assets];
+      // Repositories return assets ascending by createdAt, so new assets append.
+      assets = [...assets, asset];
       return asset;
     },
     listAssets: async () => assets,
@@ -117,7 +133,11 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
       balance += amount;
       return { credits: balance, unit: "credit" as const };
     },
-    listModels: async () => { throw new Error("unused"); },
+    listModels: async () => [
+      { id: "gw-text-balanced", displayName: "均衡文本", capability: "text" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 1 },
+      { id: "gw-text-quality", displayName: "高质量文本", capability: "text" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 2 },
+      { id: "gw-image-creative", displayName: "创意图像", capability: "image" as const, tags: [], visibility: "visible" as const, minimumPlan: "free" as const, creditUnitCost: 2 }
+    ],
     listPackages: async () => [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }],
     createOrder: async (packageId: string) => {
       const checkoutRef = `checkout-${orders.length + 1}`;
@@ -132,7 +152,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         checkoutUrl: `https://app.test/checkout/mock?ref=${checkoutRef}`,
         createdAt: "2026-07-03T00:00:00.000Z"
       };
-      orders = [order, ...orders];
+      // Repositories return orders ascending by createdAt, so new orders append.
+      orders = [...orders, order];
       return order;
     },
     listOrders: async () => orders,
@@ -160,12 +181,17 @@ function createFakeTokenStore(initial?: string): TokenStore {
   };
 }
 
-async function signIn(client: ApiClient) {
-  render(<App client={client} />);
+async function signIn(client: ApiClient, options: { copyText?: (text: string) => Promise<void> } = {}) {
+  render(<App client={client} copyText={options.copyText} />);
   fireEvent.click(screen.getByRole("button", { name: "发送验证码" }));
   await screen.findByText("开发验证码：123456");
   fireEvent.click(screen.getByRole("button", { name: "登录" }));
   await screen.findByRole("button", { name: "Signed in as creator" });
+}
+
+function openView(label: "创作" | "资产库" | "任务" | "账户") {
+  const nav = screen.getByRole("navigation", { name: "Workspace views" });
+  fireEvent.click(within(nav).getByRole("button", { name: label }));
 }
 
 describe("Desktop App", () => {
@@ -198,30 +224,144 @@ describe("Desktop App", () => {
     expect(within(modeNavigation).getByRole("button", { name: "文本创作" })).toBeTruthy();
   });
 
-  it("optimizes then submits a generation into the task center", async () => {
+  it("optimizes then generates onto the canvas", async () => {
     const client = createFakeClient();
     await signIn(client);
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    await within(taskCenter).findByText("已完成");
-    expect(within(taskCenter).getByText("gw-text-balanced")).toBeTruthy();
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(within(canvas).getByText("gw-text-balanced")).toBeTruthy();
   });
 
-  it("shows the generated text in the task center", async () => {
+  it("overrides the suggested model before generating", async () => {
+    const createGeneration = vi.fn(createFakeClient().createGeneration);
+    const client = createFakeClient({ createGeneration });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.change(screen.getByLabelText("模型选择"), { target: { value: "gw-text-quality" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    await screen.findByLabelText("结果画布");
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    expect(createGeneration.mock.calls[0][0].preset.modelId).toBe("gw-text-quality");
+  });
+
+  it("resets the model override when a fresh optimization arrives", async () => {
     const client = createFakeClient();
     await signIn(client);
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.change(screen.getByLabelText("模型选择"), { target: { value: "gw-text-quality" } });
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await vi.waitFor(() => {
+      expect((screen.getByLabelText("模型选择") as HTMLSelectElement).value).toBe("gw-text-balanced");
+    });
+  });
+
+  it("edits the optimized prompt before generating", async () => {
+    const createGeneration = vi.fn(createFakeClient().createGeneration);
+    const client = createFakeClient({ createGeneration });
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.change(screen.getByLabelText("优化后提示词"), { target: { value: "改写后的提示词" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    expect(createGeneration.mock.calls[0][0].optimizedPrompt).toBe("改写后的提示词");
+  });
+
+  it("keeps the generated task listed in the tasks view", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
-    await within(taskCenter).findByText("真实生成文案");
-    expect(within(taskCenter).getByText("已完成")).toBeTruthy();
+    await within(taskCenter).findByText("已完成（1）");
+  });
+
+  it("groups tasks by status with counts", async () => {
+    const base = {
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" as const } },
+      resultPreview: { title: "生成任务", description: "d" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({
+      listGenerations: async () => [
+        { ...base, id: "t1", mode: "text" as const, status: "running" as const },
+        { ...base, id: "t2", mode: "text" as const, status: "succeeded" as const, result: { kind: "text" as const, text: "内容", format: "plain" as const } },
+        { ...base, id: "t3", mode: "text" as const, status: "failed" as const }
+      ]
+    });
+    await signIn(client);
+    openView("任务");
+
+    expect(screen.getByText("进行中（1）")).toBeTruthy();
+    expect(screen.getByText("已完成（1）")).toBeTruthy();
+    expect(screen.getByText("失败（1）")).toBeTruthy();
+  });
+
+  it("retries a failed task with its own request fields", async () => {
+    const failed: GenerationTask = {
+      id: "t-fail",
+      mode: "text",
+      status: "failed",
+      prompt: "原始提示词",
+      optimizedPrompt: "优化提示词",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "失败了" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const fake = createFakeClient();
+    const createGeneration = vi.fn(fake.createGeneration);
+    const client = createFakeClient({ createGeneration, listGenerations: async () => [failed] });
+    await signIn(client);
+    openView("任务");
+
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+
+    await vi.waitFor(() => expect(createGeneration).toHaveBeenCalled());
+    const request = createGeneration.mock.calls[0][0];
+    expect(request).toMatchObject({ mode: "text", prompt: "原始提示词", optimizedPrompt: "优化提示词" });
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+  });
+
+  it("opens a task onto the studio canvas", async () => {
+    const done: GenerationTask = {
+      id: "t-done",
+      mode: "text",
+      status: "succeeded",
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text", text: "跳转查看内容", format: "plain" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [done] });
+    await signIn(client);
+    openView("任务");
+    fireEvent.click(screen.getByLabelText("打开任务 t-done"));
+    const canvas = screen.getByLabelText("结果画布");
+    expect(within(canvas).getByText("跳转查看内容")).toBeTruthy();
   });
 
   it("saves a succeeded text task to the asset library", async () => {
@@ -230,26 +370,25 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    fireEvent.click(await within(canvas).findByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    await within(assetLibrary).findByText("文本资产");
-    expect(within(assetLibrary).getByText("已保存。")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "文本资产" })).toBeTruthy();
   });
 
-  it("renders a generated image in the task center", async () => {
+  it("renders a generated image on the result canvas", async () => {
     const client = createFakeClient({ optimizePrompt: async () => imageOptimization });
     await signIn(client);
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    const img = await within(taskCenter).findByRole("img");
+    const canvas = await screen.findByLabelText("结果画布");
+    const img = await within(canvas).findByRole("img");
     expect((img as HTMLImageElement).getAttribute("src")).toBe("data:image/png;base64,aGVsbG8=");
   });
 
@@ -259,35 +398,165 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    fireEvent.click(await within(canvas).findByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("图片资产");
     expect(within(assetLibrary).getByRole("img")).toBeTruthy();
   });
 
-  it("lists the user's assets read-only (no save button)", async () => {
-    const asset: CreationAsset = {
-      id: "a1",
-      mode: "text",
-      title: "文本资产",
-      content: { kind: "text", text: "已生成文案", format: "markdown" },
-      preview: { title: "文本资产", description: "占位文本资产。" },
-      source: { taskId: "t1", taskStatus: "succeeded" },
-      prompt: "帮我写一个咖啡店新品发布文案",
-      optimizedPrompt: "请生成一段新品推广文案。",
-      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
-      createdAt: "2026-06-21T00:00:00.000Z"
-    };
-    const client = createFakeClient({ listAssets: async () => [asset] });
+  it("generates in one click without a prior optimize", async () => {
+    const optimizePrompt = vi.fn(async () => textOptimization);
+    const client = createFakeClient({ optimizePrompt });
     await signIn(client);
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("文本创作需求"), { target: { value: "写一段品牌故事" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(optimizePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits only one generation when 生成 is double-clicked while optimizing", async () => {
+    const optimizeResolvers: Array<(value: PromptOptimization) => void> = [];
+    const optimizePrompt = vi.fn(
+      () =>
+        new Promise<PromptOptimization>((resolve) => {
+          optimizeResolvers.push(resolve);
+        })
+    );
+    const createGeneration = vi.fn(async (request: GenerationTaskRequest) => ({
+      id: "task-once",
+      mode: request.mode,
+      status: "succeeded" as const,
+      prompt: request.prompt,
+      optimizedPrompt: request.optimizedPrompt,
+      preset: request.preset,
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text" as const, text: "真实生成文案", format: "markdown" as const },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    }));
+    const client = createFakeClient({ optimizePrompt, createGeneration, listGenerations: async () => [] });
+    await signIn(client);
+
+    fireEvent.change(screen.getByLabelText("文本创作需求"), { target: { value: "写一段品牌故事" } });
+    const generateButton = screen.getByRole("button", { name: "生成" });
+    fireEvent.click(generateButton);
+    fireEvent.click(generateButton);
+    expect((generateButton as HTMLButtonElement).disabled).toBe(true);
+    for (const resolve of optimizeResolvers) {
+      resolve(textOptimization);
+    }
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(optimizePrompt).toHaveBeenCalledTimes(1);
+    expect(createGeneration).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a shimmer skeleton while the task is generating", async () => {
+    const client = createFakeClient({
+      createGeneration: async (request) => ({
+        id: "task-running",
+        mode: request.mode,
+        status: "running" as const,
+        prompt: request.prompt,
+        optimizedPrompt: request.optimizedPrompt,
+        preset: request.preset,
+        resultPreview: { title: "生成任务", description: "进行中" },
+        createdAt: "2026-07-05T00:00:00.000Z",
+        updatedAt: "2026-07-05T00:00:00.000Z"
+      }),
+      listGenerations: async () => []
+    });
+    await signIn(client);
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("生成中");
+  });
+
+  it("lists assets in a grid and opens the detail panel", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client);
+    openView("资产库");
+
     expect(screen.queryByRole("button", { name: "保存到资产库" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+
+    const panel = screen.getByLabelText("资产详情");
+    expect(within(panel).getByText("帮我写文案")).toBeTruthy();
+    expect(within(panel).getByText("gw-text-balanced")).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "关闭" }));
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
+  it("closes the asset detail panel with Escape", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    expect(screen.getByLabelText("资产详情")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
+  it("closes the asset detail panel when the filter changes", async () => {
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    expect(screen.getByLabelText("资产详情")).toBeTruthy();
+
+    const filters = screen.getByRole("navigation", { name: "资产过滤" });
+    fireEvent.click(within(filters).getByRole("button", { name: "视频" }));
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+
+    fireEvent.click(within(filters).getByRole("button", { name: "全部" }));
+    expect(screen.getByRole("button", { name: "生成任务" })).toBeTruthy();
+    expect(screen.queryByLabelText("资产详情")).toBeNull();
+  });
+
+  it("copies a text asset from the detail panel", async () => {
+    const copyText = vi.fn(async () => undefined);
+    const client = createFakeClient({ listAssets: async () => [textAsset] });
+    await signIn(client, { copyText });
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "生成任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制文本" }));
+    await screen.findByText("已复制文本");
+    expect(copyText).toHaveBeenCalledWith("已保存的文案");
+  });
+
+  it("offers a download link for media assets", async () => {
+    const imageAsset: CreationAsset = {
+      id: "asset-img",
+      mode: "image",
+      title: "海报图",
+      content: { kind: "image", url: "data:image/png;base64,aGVsbG8=", alt: "海报" },
+      preview: { title: "海报图", description: "已保存。" },
+      source: { taskId: "task-2", taskStatus: "succeeded" },
+      prompt: "一张海报",
+      optimizedPrompt: "一张精修海报",
+      preset: { modelId: "gw-image-creative", parameters: {}, creditEstimate: { credits: 2, unit: "credit" } },
+      createdAt: "2026-07-01T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listAssets: async () => [imageAsset] });
+    await signIn(client);
+    openView("资产库");
+    fireEvent.click(screen.getByRole("button", { name: "海报图" }));
+    const panel = screen.getByLabelText("资产详情");
+    const link = within(panel).getByRole("link", { name: "下载" });
+    expect(link.getAttribute("href")).toBe("data:image/png;base64,aGVsbG8=");
   });
 
   it("surfaces a login error", async () => {
@@ -316,7 +585,7 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
     expect(await screen.findByText("积分：99")).toBeTruthy();
   });
@@ -331,10 +600,28 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    expect(await screen.findByText("积分不足，无法生成")).toBeTruthy();
+    const host = screen.getByLabelText("通知");
+    expect(await within(host).findByText("积分不足，无法生成")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();
+  });
+
+  it("dismisses a toast manually", async () => {
+    const client = createFakeClient({
+      createGeneration: async () => {
+        throw new ApiError("Insufficient credits", 402);
+      }
+    });
+    await signIn(client);
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const host = screen.getByLabelText("通知");
+    await within(host).findByText("积分不足，无法生成");
+    fireEvent.click(within(host).getByRole("button", { name: "关闭通知" }));
+    expect(within(host).queryByText("积分不足，无法生成")).toBeNull();
   });
 
   it("restores the session on startup from a stored token", async () => {
@@ -399,12 +686,13 @@ describe("Desktop App", () => {
       getGeneration: async () => succeededTask
     });
     await signIn(client);
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     expect(within(taskCenter).getByText("生成中")).toBeTruthy();
     fireEvent.click(within(taskCenter).getByRole("button", { name: "刷新状态" }));
 
-    expect(await within(taskCenter).findByText("已完成")).toBeTruthy();
+    expect(await within(taskCenter).findByText("已完成（1）")).toBeTruthy();
   });
 
   it("renders and saves a generated video", async () => {
@@ -422,43 +710,116 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listGenerations: async () => [videoTask] });
     await signIn(client);
+    openView("任务");
+    fireEvent.click(screen.getByLabelText("打开任务 task-vid"));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    expect(taskCenter.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+    const canvas = screen.getByLabelText("结果画布");
+    expect(canvas.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
 
-    fireEvent.click(within(taskCenter).getByRole("button", { name: "保存到资产库" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
-    const assetLibrary = screen.getByLabelText("资产库");
-    await within(assetLibrary).findByText("视频资产");
-    expect(assetLibrary.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
+    fireEvent.click(await screen.findByRole("button", { name: "视频资产" }));
+    const panel = screen.getByLabelText("资产详情");
+    expect(panel.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
   });
 
-  it("tops up the balance from the header", async () => {
+  it("tops up the balance from the account view", async () => {
     const client = createFakeClient();
     await signIn(client);
-    await screen.findByText("积分：100");
+    openView("账户");
+    const creditSection = screen.getByLabelText("点数");
+    await within(creditSection).findByText("积分：100");
 
-    fireEvent.click(screen.getByRole("button", { name: "充值" }));
+    fireEvent.click(within(creditSection).getByRole("button", { name: "充值" }));
 
-    expect(await screen.findByText("积分：200")).toBeTruthy();
+    expect(await within(creditSection).findByText("积分：200")).toBeTruthy();
   });
 
   it("buys a package (pending + pay link), then dev-completes it", async () => {
     const client = createFakeClient();
     await signIn(client);
-    await screen.findByText("积分：100");
+    openView("账户");
+    const creditSection = screen.getByLabelText("点数");
+    await within(creditSection).findByText("积分：100");
 
-    fireEvent.click(screen.getByRole("button", { name: "购买 100 积分" }));
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const purchaseModal = screen.getByLabelText("购买积分");
+    fireEvent.click(within(purchaseModal).getByRole("button", { name: "购买 100 积分" }));
 
     const orders = screen.getByLabelText("订单");
     expect(await within(orders).findByText("待支付")).toBeTruthy();
-    const payLink = await within(orders).findByRole("link", { name: "去支付" });
+    const payLink = await within(purchaseModal).findByRole("link", { name: "去支付" });
     expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-1");
-    expect(screen.getByText("积分：100")).toBeTruthy();
+    expect(within(creditSection).getByText("积分：100")).toBeTruthy();
 
-    fireEvent.click(await within(orders).findByRole("button", { name: "（开发）完成支付" }));
-    expect(await screen.findByText("积分：200")).toBeTruthy();
-    expect(await within(orders).findByText("已支付")).toBeTruthy();
+    fireEvent.click(await within(purchaseModal).findByRole("button", { name: "（开发）完成支付" }));
+    expect(await within(creditSection).findByText("积分：200")).toBeTruthy();
+    expect(await within(purchaseModal).findByText("已支付")).toBeTruthy();
+  });
+
+  it("shows the signed-in identity on the account view", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("账户");
+    const card = screen.getByLabelText("账户信息");
+    expect(within(card).getByText("creator")).toBeTruthy();
+    expect(within(card).getByText("creator@example.com")).toBeTruthy();
+  });
+
+  it("closes the purchase modal with Escape", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("账户");
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    expect(screen.getByLabelText("购买积分")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByLabelText("购买积分")).toBeNull();
+  });
+
+  it("shows the just-created pending order in the modal even when an older paid order exists", async () => {
+    const olderPaidOrder: Order = {
+      id: "order_seed_paid",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "paid",
+      checkoutRef: "checkout_seed",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      paidAt: "2026-07-01T01:00:00.000Z"
+    };
+    let seededOrders: Order[] = [olderPaidOrder];
+    const client = createFakeClient({
+      listOrders: async () => seededOrders,
+      createOrder: async (packageId: string) => {
+        const order: Order = {
+          id: "order-new",
+          packageId,
+          credits: 100,
+          amountCents: 990,
+          currency: "CNY",
+          status: "pending",
+          checkoutRef: "checkout-new",
+          checkoutUrl: "https://app.test/checkout/mock?ref=checkout-new",
+          createdAt: "2026-07-03T00:00:00.000Z"
+        };
+        // Ascending by createdAt: the new order comes LAST, like the real repositories.
+        seededOrders = [...seededOrders, order];
+        return order;
+      }
+    });
+    await signIn(client);
+    openView("账户");
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const purchaseModal = screen.getByLabelText("购买积分");
+
+    fireEvent.click(within(purchaseModal).getByRole("button", { name: "购买 100 积分" }));
+
+    const payLink = await within(purchaseModal).findByRole("link", { name: "去支付" });
+    expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-new");
+    expect(within(purchaseModal).getByRole("button", { name: "（开发）完成支付" })).toBeTruthy();
+    expect(within(purchaseModal).queryByText("已支付")).toBeNull();
   });
 
   it("expands a paid order to show detail and a receipt", async () => {
@@ -475,6 +836,7 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listOrders: async () => [paidOrder] });
     await signIn(client);
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -504,6 +866,7 @@ describe("Desktop App", () => {
     await screen.findByText("开发验证码：123456");
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await screen.findByRole("button", { name: "Signed in as creator" });
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -528,6 +891,7 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listOrders: async () => [pendingOrder] });
     await signIn(client);
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -562,11 +926,45 @@ describe("Desktop App", () => {
         getGeneration: async () => succeeded
       });
       await signIn(client);
+      openView("任务");
 
       const taskCenter = screen.getByLabelText("任务中心");
       await within(taskCenter).findByText("生成中");
       vi.advanceTimersByTime(5000);
-      await within(taskCenter).findByText("已完成");
+      await screen.findByText("已完成（1）");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("toasts when a polled task completes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const running: GenerationTask = {
+        id: "t-poll",
+        mode: "text",
+        status: "running",
+        prompt: "p",
+        optimizedPrompt: "op",
+        preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+        resultPreview: { title: "生成任务", description: "进行中" },
+        createdAt: "2026-07-05T00:00:00.000Z",
+        updatedAt: "2026-07-05T00:00:00.000Z"
+      };
+      const done: GenerationTask = { ...running, status: "succeeded", result: { kind: "text", text: "完成内容", format: "plain" } };
+      let polled = false;
+      const client = createFakeClient({
+        listGenerations: async () => [running],
+        getGeneration: async () => {
+          polled = true;
+          return done;
+        }
+      });
+      await signIn(client);
+      await vi.advanceTimersByTimeAsync(5100);
+      expect(polled).toBe(true);
+      const host = screen.getByLabelText("通知");
+      await within(host).findByText("生成完成");
     } finally {
       vi.useRealTimers();
     }
@@ -585,5 +983,147 @@ describe("Desktop App", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("switches workspace views from the icon rail", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("资产库");
+    expect(screen.getByLabelText("资产库")).toBeTruthy();
+    openView("任务");
+    expect(screen.getByLabelText("任务中心")).toBeTruthy();
+    openView("账户");
+    expect(screen.getByLabelText("订单")).toBeTruthy();
+    openView("创作");
+    expect(screen.getByRole("navigation", { name: "Studio modes" })).toBeTruthy();
+  });
+
+  it("switches views with Cmd+digit shortcuts", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    fireEvent.keyDown(window, { key: "3", metaKey: true });
+    expect(screen.getByLabelText("任务中心")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "1", metaKey: true });
+    expect(screen.getByRole("navigation", { name: "Studio modes" })).toBeTruthy();
+  });
+
+  it("fills the prompt bar from an industry template", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    const gallery = screen.getByLabelText("灵感模板");
+    fireEvent.click(within(gallery).getByRole("button", { name: "产品主图" }));
+
+    const modeNav = screen.getByRole("navigation", { name: "Studio modes" });
+    expect(within(modeNav).getByRole("button", { name: "图片创作" }).getAttribute("aria-pressed")).toBe("true");
+    const promptInput = screen.getByLabelText("图片创作需求") as HTMLTextAreaElement;
+    expect(promptInput.value).toContain("陶瓷咖啡杯");
+  });
+
+  it("selects a past task from the history strip", async () => {
+    const past: GenerationTask = {
+      id: "task-past",
+      mode: "text",
+      status: "succeeded",
+      prompt: "旧任务",
+      optimizedPrompt: "旧任务优化",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "已生成。" },
+      result: { kind: "text", text: "历史生成内容", format: "plain" },
+      createdAt: "2026-07-04T00:00:00.000Z",
+      updatedAt: "2026-07-04T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [past] });
+    await signIn(client);
+
+    fireEvent.click(screen.getByLabelText("查看任务 task-past"));
+    const canvas = screen.getByLabelText("结果画布");
+    expect(within(canvas).getByText("历史生成内容")).toBeTruthy();
+  });
+
+  it("shows the 12 newest tasks in the history strip when the repository returns them ascending", async () => {
+    const tasks: GenerationTask[] = Array.from({ length: 13 }, (_, index) => {
+      const n = index + 1;
+      return {
+        id: `task-${n}`,
+        mode: "text",
+        status: "succeeded",
+        prompt: "p",
+        optimizedPrompt: "op",
+        preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+        resultPreview: { title: "生成任务", description: "已生成。" },
+        result: { kind: "text", text: `内容 ${n}`, format: "plain" },
+        createdAt: `2026-07-${String(n).padStart(2, "0")}T00:00:00.000Z`,
+        updatedAt: `2026-07-${String(n).padStart(2, "0")}T00:00:00.000Z`
+      };
+    });
+    // Ascending createdAt, matching production repository order (oldest first).
+    const client = createFakeClient({ listGenerations: async () => tasks });
+    await signIn(client);
+
+    const history = screen.getByRole("toolbar", { name: "历史任务" });
+    const buttons = within(history).getAllByRole("button");
+    expect(buttons).toHaveLength(12);
+    expect(within(history).getByLabelText("查看任务 task-13")).toBeTruthy();
+    expect(within(history).queryByLabelText("查看任务 task-1")).toBeNull();
+    expect(buttons[0].getAttribute("aria-label")).toBe("查看任务 task-13");
+  });
+
+  it("returns to the template gallery via the template button", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+
+    fireEvent.click(screen.getByRole("button", { name: "模板" }));
+    expect(screen.getByLabelText("灵感模板")).toBeTruthy();
+  });
+
+  it("shows an active-task badge on the tasks nav item", async () => {
+    const runningTask: GenerationTask = {
+      id: "task-run",
+      mode: "text",
+      status: "running",
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "进行中" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [runningTask] });
+    await signIn(client);
+    const nav = screen.getByRole("navigation", { name: "Workspace views" });
+    expect(within(nav).getByText("1")).toBeTruthy();
+  });
+
+  it("shows a reload banner when user data fails to load", async () => {
+    let packageCalls = 0;
+    const client = createFakeClient({
+      listPackages: async () => {
+        packageCalls += 1;
+        if (packageCalls === 1) {
+          throw new ApiError("boom", 500);
+        }
+        return [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }];
+      }
+    });
+    await signIn(client);
+    await screen.findByText("部分数据加载失败");
+    fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
+    openView("账户");
+    // Package names render inside the purchase modal; open it to confirm the
+    // reload actually repopulated `packages` state. The package name text
+    // ("100 积分") also appears in the package's meta line ("100" + " 积分"),
+    // so scope to the modal and allow multiple matches instead of a single
+    // findByText, which would throw on ambiguity.
+    await screen.findByRole("button", { name: "选购套餐" });
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const modal = await screen.findByLabelText("购买积分");
+    await within(modal).findAllByText("100 积分");
   });
 });

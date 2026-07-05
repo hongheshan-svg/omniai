@@ -497,3 +497,7 @@ not do this by default, so `apps/admin/next.config.mjs` sets
 `transpilePackages`. Without it `next dev`/`next build` fails to resolve the
 shared barrel (the app's vitest tests still pass, so this only surfaces when
 the admin is actually run in a browser).
+
+## Desktop Studio Redesign Slice
+
+桌面端（Slice 30 起）为三栏生成器工作台：左侧图标导航（创作/资产库/任务/账户，任务角标）、中部结果画布 + 历史条 + 悬浮提示词条（一键 optimize+submit）、右侧参数检查器（模型覆盖、优化词编辑）。资产库为网格 + 详情侧板，任务中心按状态分组支持失败重试，商务功能收纳进账户视图（购买走弹层）。全局 toast、Cmd/Ctrl+Enter 与 Cmd/Ctrl+1..4 快捷键。视觉为深空 token 化设计系统（`apps/desktop/src/styles/`），无新增依赖。
