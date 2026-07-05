@@ -203,32 +203,30 @@ describe("Desktop App", () => {
     expect(within(modeNavigation).getByRole("button", { name: "文本创作" })).toBeTruthy();
   });
 
-  it("optimizes then submits a generation into the task center", async () => {
+  it("optimizes then generates onto the canvas", async () => {
     const client = createFakeClient();
     await signIn(client);
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(within(canvas).getByText("gw-text-balanced")).toBeTruthy();
+  });
+
+  it("keeps the generated task listed in the tasks view", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
     openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     await within(taskCenter).findByText("已完成");
-    expect(within(taskCenter).getByText("gw-text-balanced")).toBeTruthy();
-  });
-
-  it("shows the generated text in the task center", async () => {
-    const client = createFakeClient();
-    await signIn(client);
-
-    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
-    await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    openView("任务");
-
-    const taskCenter = screen.getByLabelText("任务中心");
-    await within(taskCenter).findByText("真实生成文案");
-    expect(within(taskCenter).getByText("已完成")).toBeTruthy();
   });
 
   it("saves a succeeded text task to the asset library", async () => {
@@ -237,11 +235,10 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    openView("任务");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    fireEvent.click(await within(canvas).findByRole("button", { name: "保存到资产库" }));
     openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
@@ -255,7 +252,7 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
     openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
@@ -269,16 +266,52 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
-    openView("任务");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
-    const taskCenter = screen.getByLabelText("任务中心");
-    fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    const canvas = await screen.findByLabelText("结果画布");
+    fireEvent.click(await within(canvas).findByRole("button", { name: "保存到资产库" }));
     openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("图片资产");
     expect(within(assetLibrary).getByRole("img")).toBeTruthy();
+  });
+
+  it("generates in one click without a prior optimize", async () => {
+    const optimizePrompt = vi.fn(async () => textOptimization);
+    const client = createFakeClient({ optimizePrompt });
+    await signIn(client);
+
+    fireEvent.change(screen.getByLabelText("文本创作需求"), { target: { value: "写一段品牌故事" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("真实生成文案");
+    expect(optimizePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a shimmer skeleton while the task is generating", async () => {
+    const client = createFakeClient({
+      createGeneration: async (request) => ({
+        id: "task-running",
+        mode: request.mode,
+        status: "running" as const,
+        prompt: request.prompt,
+        optimizedPrompt: request.optimizedPrompt,
+        preset: request.preset,
+        resultPreview: { title: "生成任务", description: "进行中" },
+        createdAt: "2026-07-05T00:00:00.000Z",
+        updatedAt: "2026-07-05T00:00:00.000Z"
+      }),
+      listGenerations: async () => []
+    });
+    await signIn(client);
+    fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
+    await screen.findByLabelText("提示词优化结果");
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+
+    const canvas = await screen.findByLabelText("结果画布");
+    await within(canvas).findByText("生成中");
   });
 
   it("lists the user's assets read-only (no save button)", async () => {
@@ -329,7 +362,7 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
     expect(await screen.findByText("积分：99")).toBeTruthy();
   });
@@ -344,7 +377,7 @@ describe("Desktop App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
-    fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成" }));
 
     expect(await screen.findByText("积分不足，无法生成")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Signed in as creator" })).toBeTruthy();

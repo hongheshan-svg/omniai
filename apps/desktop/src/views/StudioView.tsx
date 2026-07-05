@@ -1,98 +1,68 @@
 import { useMemo } from "react";
-import type { CreationMode, PromptOptimization } from "@gw-link-omniai/shared";
-import { getStudioModeContent, getStudioModes, getStudioTemplates } from "../studioModel";
+import type { CreationMode, GenerationTask, PromptOptimization } from "@gw-link-omniai/shared";
+import { getStudioModeContent, getStudioModes } from "../studioModel";
+import { PromptBar } from "../components/PromptBar";
+import { ResultCanvas } from "../components/ResultCanvas";
 
 export interface StudioViewProps {
   mode: CreationMode;
   promptText: string;
   optimization?: PromptOptimization;
+  selectedTask?: GenerationTask;
+  generating: boolean;
   onModeChange(mode: CreationMode): void;
   onPromptChange(text: string): void;
   onOptimize(): void;
-  onSubmit(): void;
+  onGenerate(): void;
+  onSaveAsset(task: GenerationTask): void;
+  onRetryTask(task: GenerationTask): void;
 }
 
-export function StudioView({ mode, promptText, optimization, onModeChange, onPromptChange, onOptimize, onSubmit }: StudioViewProps) {
+export function StudioView({
+  mode,
+  promptText,
+  optimization,
+  selectedTask,
+  generating,
+  onModeChange,
+  onPromptChange,
+  onOptimize,
+  onGenerate,
+  onSaveAsset,
+  onRetryTask
+}: StudioViewProps) {
   const studioModes = useMemo(() => getStudioModes(), []);
   const content = useMemo(() => getStudioModeContent(mode), [mode]);
-  const templates = useMemo(() => getStudioTemplates(mode), [mode]);
-  const promptInputId = `${mode}-studio-prompt`;
+  const estimateCredits = optimization ? optimization.preset.creditEstimate.credits : undefined;
 
   return (
-    <div className="stack">
-      <nav aria-label="Studio modes" className="mode-pills">
-        {studioModes.map((candidate) => (
-          <button
-            key={candidate.mode}
-            type="button"
-            aria-pressed={mode === candidate.mode}
-            onClick={() => onModeChange(candidate.mode)}
-          >
-            {candidate.title}
-          </button>
-        ))}
-      </nav>
+    <div className="studio">
+      <div className="studio-center">
+        <ResultCanvas task={selectedTask} onSave={onSaveAsset} onRetry={onRetryTask} />
 
-      <section aria-labelledby="current-studio-mode-title" className="card">
-        <h2 id="current-studio-mode-title">{content.title}</h2>
-        <p className="muted">{content.description}</p>
-        <div className="field" style={{ marginTop: 12 }}>
-          <label htmlFor={promptInputId}>{content.promptLabel}</label>
-          <textarea
-            id={promptInputId}
-            name={`${mode}Prompt`}
-            placeholder={content.promptPlaceholder}
-            value={promptText}
-            onChange={(event) => onPromptChange(event.target.value)}
-          />
-        </div>
-
-        <section aria-label="提示词模板" style={{ marginTop: 12 }}>
-          <h3>提示词模板</h3>
-          <ul className="items" style={{ marginTop: 8 }}>
-            {templates.map((template) => (
-              <li key={template.id} className="item">
-                <h4>{template.name}</h4>
-                <p className="muted">{template.description}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <div className="row" style={{ marginTop: 14 }}>
-          <button type="button" className="btn-primary" onClick={onOptimize}>
-            优化提示词
-          </button>
-        </div>
-      </section>
-
-      {optimization ? (
-        <section aria-label="提示词优化结果" className="card">
-          <h2>优化结果</h2>
-          <p style={{ marginTop: 8 }}>{optimization.optimizedPrompt}</p>
-          <dl className="receipt">
-            {optimization.sections.map((part) => (
-              <div key={part.label}>
-                <dt>{part.label}</dt>
-                <dd>{part.value}</dd>
-              </div>
-            ))}
-          </dl>
-          <section aria-labelledby="preset-suggestion-title" style={{ marginTop: 10 }}>
-            <h3 id="preset-suggestion-title">推荐参数</h3>
-            <p className="muted">{optimization.preset.modelId}</p>
-            <p className="muted">
-              预计点数：{optimization.preset.creditEstimate.credits}{" "}
-              {optimization.preset.creditEstimate.credits === 1 ? "credit" : "credits"}
+        {optimization ? (
+          <section aria-label="提示词优化结果" className="card">
+            <h3>优化结果</h3>
+            <p style={{ marginTop: 6 }}>{optimization.optimizedPrompt}</p>
+            <p className="muted" style={{ marginTop: 6 }}>
+              {optimization.preset.modelId} · 预计点数 {optimization.preset.creditEstimate.credits}
             </p>
           </section>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button type="button" className="btn-primary" onClick={onSubmit}>
-              提交生成
-            </button>
-          </div>
-        </section>
-      ) : null}
+        ) : null}
+
+        <PromptBar
+          mode={mode}
+          modes={studioModes}
+          content={content}
+          promptText={promptText}
+          estimateCredits={estimateCredits}
+          generating={generating}
+          onModeChange={onModeChange}
+          onPromptChange={onPromptChange}
+          onOptimize={onOptimize}
+          onGenerate={onGenerate}
+        />
+      </div>
     </div>
   );
 }

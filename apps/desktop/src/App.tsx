@@ -5,6 +5,7 @@ import type {
   CreditAmount,
   CreditPackage,
   GenerationTask,
+  GenerationTaskRequest,
   Order,
   PromptOptimization,
   SessionResponse
@@ -65,6 +66,8 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [view, setView] = useState<WorkspaceView>("studio");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   async function loadUserData(authToken: string) {
     const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders] = await Promise.all([
@@ -149,6 +152,17 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [session.authenticated]);
 
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId),
+    [tasks, selectedTaskId]
+  );
+
+  function upsertTask(list: GenerationTask[], task: GenerationTask): GenerationTask[] {
+    return list.some((existing) => existing.id === task.id)
+      ? list.map((existing) => (existing.id === task.id ? task : existing))
+      : [task, ...list];
+  }
+
   function handleSignedOut(message?: string) {
     store.clear();
     setToken(undefined);
@@ -161,6 +175,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setSelectedOrderId(null);
     setCopyNotice(undefined);
     setOptimization(undefined);
+    setSelectedTaskId(null);
     setView("studio");
     if (message) {
       setAuthError(message);
@@ -332,22 +347,17 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     }
   }
 
-  async function handleSubmitGeneration() {
-    if (!optimization || !token) {
+  async function submitTask(request: GenerationTaskRequest) {
+    if (!token) {
       return;
     }
     setActionError(undefined);
+    setGenerating(true);
     try {
-      await api.createGeneration(
-        {
-          mode: optimization.mode,
-          prompt: optimization.originalPrompt,
-          optimizedPrompt: optimization.optimizedPrompt,
-          preset: optimization.preset
-        },
-        token
-      );
-      setTasks(await api.listGenerations(token));
+      const created = await api.createGeneration(request, token);
+      setSelectedTaskId(created.id);
+      const listed = await api.listGenerations(token);
+      setTasks(upsertTask(listed, created));
       setBalance(await api.getCreditBalance(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -359,7 +369,46 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
         return;
       }
       setActionError(errorMessage(error));
+    } finally {
+      setGenerating(false);
     }
+  }
+
+  async function handleGenerate() {
+    if (!token) {
+      return;
+    }
+    let activeOptimization = optimization;
+    if (
+      !activeOptimization ||
+      activeOptimization.mode !== selectedMode ||
+      activeOptimization.originalPrompt !== promptText
+    ) {
+      setActionError(undefined);
+      try {
+        activeOptimization = await api.optimizePrompt({ mode: selectedMode, prompt: promptText });
+        setOptimization(activeOptimization);
+      } catch (error) {
+        setActionError(errorMessage(error));
+        return;
+      }
+    }
+    await submitTask({
+      mode: activeOptimization.mode,
+      prompt: activeOptimization.originalPrompt,
+      optimizedPrompt: activeOptimization.optimizedPrompt,
+      preset: activeOptimization.preset
+    });
+  }
+
+  async function handleRetryTask(task: GenerationTask) {
+    setView("studio");
+    await submitTask({
+      mode: task.mode,
+      prompt: task.prompt,
+      optimizedPrompt: task.optimizedPrompt,
+      preset: task.preset
+    });
   }
 
   if (!session.authenticated) {
@@ -421,13 +470,17 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               mode={selectedMode}
               promptText={promptText}
               optimization={optimization}
+              selectedTask={selectedTask}
+              generating={generating}
               onModeChange={(mode) => {
                 setSelectedMode(mode);
                 setOptimization(undefined);
               }}
               onPromptChange={setPromptText}
               onOptimize={() => void handleOptimize()}
-              onSubmit={() => void handleSubmitGeneration()}
+              onGenerate={() => void handleGenerate()}
+              onSaveAsset={(task) => void handleSaveAsset(task)}
+              onRetryTask={(task) => void handleRetryTask(task)}
             />
           ) : null}
           {view === "assets" ? <AssetsView assets={assets} filter={assetFilter} onFilterChange={setAssetFilter} /> : null}
