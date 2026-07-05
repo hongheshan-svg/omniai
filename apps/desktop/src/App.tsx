@@ -10,14 +10,19 @@ import type {
   SessionResponse
 } from "@gw-link-omniai/shared";
 import { ApiError, createApiClient, type ApiClient } from "@gw-link-omniai/shared";
-import { buildAssetRequestFromTask, filterCreationAssets, getAssetFilterLabel, summarizeAssetPrompt, type AssetFilter } from "@gw-link-omniai/shared";
+import { buildAssetRequestFromTask, type AssetFilter } from "@gw-link-omniai/shared";
 import { AuthScreen } from "./components/AuthScreen";
+import { IconRail } from "./components/IconRail";
 import { formatCreditBalance } from "./creditModel";
-import { getGenerationStatusLabel, selectRunningTaskIds, summarizeGenerationPrompt } from "./generationModel";
-import { buildReceiptLines, buildReceiptText, formatDateTime, formatMoney, formatPackagePrice, getOrderStatusLabel } from "./orderModel";
+import { selectActiveTaskIds } from "./generationModel";
+import { buildReceiptText } from "./orderModel";
+import { countActiveTasks, getWorkspaceNavItems, viewForShortcutDigit, type WorkspaceView } from "./navModel";
 import { getDesktopSessionCta } from "./sessionModel";
-import { getStudioModeContent, getStudioModes, getStudioTemplates } from "./studioModel";
 import { createLocalStorageTokenStore, type TokenStore } from "./tokenStore";
+import { AccountView } from "./views/AccountView";
+import { AssetsView } from "./views/AssetsView";
+import { StudioView } from "./views/StudioView";
+import { TasksView } from "./views/TasksView";
 
 const anonymousSession: SessionResponse = { authenticated: false, user: null, expiresAt: null };
 const POLL_INTERVAL_MS = 5000;
@@ -59,13 +64,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
-
-  const studioModes = useMemo(() => getStudioModes(), []);
-  const content = useMemo(() => getStudioModeContent(selectedMode), [selectedMode]);
-  const templates = useMemo(() => getStudioTemplates(selectedMode), [selectedMode]);
-  const assetFilters: AssetFilter[] = ["all", "text", "image", "video"];
-  const filteredAssets = useMemo(() => filterCreationAssets(assets, assetFilter), [assets, assetFilter]);
-  const promptInputId = `${selectedMode}-studio-prompt`;
+  const [view, setView] = useState<WorkspaceView>("studio");
 
   async function loadUserData(authToken: string) {
     const [loadedTasks, loadedAssets, loadedBalance, loadedPackages, loadedOrders] = await Promise.all([
@@ -117,21 +116,38 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, store]);
 
-  const runningKey = selectRunningTaskIds(tasks).join(",");
+  const activeKey = selectActiveTaskIds(tasks).join(",");
   useEffect(() => {
     if (!token) {
       return;
     }
-    const runningIds = runningKey ? runningKey.split(",") : [];
-    if (runningIds.length === 0) {
+    const activeIds = activeKey ? activeKey.split(",") : [];
+    if (activeIds.length === 0) {
       return;
     }
     const interval = setInterval(() => {
-      void pollRunningTasks(runningIds);
+      void pollRunningTasks(activeIds);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, token, runningKey]);
+  }, [api, token, activeKey]);
+
+  useEffect(() => {
+    if (!session.authenticated) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        const next = viewForShortcutDigit(event.key);
+        if (next) {
+          event.preventDefault();
+          setView(next);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [session.authenticated]);
 
   function handleSignedOut(message?: string) {
     store.clear();
@@ -145,6 +161,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setSelectedOrderId(null);
     setCopyNotice(undefined);
     setOptimization(undefined);
+    setView("studio");
     if (message) {
       setAuthError(message);
     }
@@ -363,295 +380,73 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     );
   }
 
+  const navItems = getWorkspaceNavItems();
+  const activeLabel = navItems.find((item) => item.view === view)?.label ?? "创作";
+
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="logo" aria-hidden="true" />
-          <div>
-            <div className="name">OmniAI</div>
-            <div className="tag">创作工作台</div>
-          </div>
-        </div>
-
-        <div>
-          <div className="side-label">创作模式</div>
-          <nav aria-label="Studio modes" className="side-nav">
-            {studioModes.map((mode) => (
-              <button
-                key={mode.mode}
-                type="button"
-                aria-pressed={selectedMode === mode.mode}
-                onClick={() => {
-                  setSelectedMode(mode.mode);
-                  setOptimization(undefined);
-                }}
-              >
-                <span className="dot" aria-hidden="true" />
-                {mode.title}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="side-foot">
-          {balance ? (
-            <div className="chip">
-              <span className="spark" aria-hidden="true" />
-              {formatCreditBalance(balance)}
-            </div>
-          ) : null}
-          {balance ? (
-            <button type="button" className="btn-sm" onClick={handleTopUp}>
-              充值
-            </button>
-          ) : null}
-        </div>
-      </aside>
-
+    <div className="workspace">
+      <IconRail items={navItems} active={view} activeTaskCount={countActiveTasks(tasks)} onSelect={setView} />
       <div className="main">
         <header className="topbar">
-          <h1>GW-LINK OmniAI</h1>
+          <h1>{activeLabel}</h1>
           <div className="spacer" />
+          {balance ? (
+            <span className="chip">
+              <span className="spark" aria-hidden="true" />
+              {formatCreditBalance(balance)}
+            </span>
+          ) : null}
           <button type="button" className="user-btn">
             {getDesktopSessionCta(session)}
           </button>
-          <button type="button" className="btn-sm" onClick={handleLogout}>
+          <button type="button" className="btn-sm" onClick={() => void handleLogout()}>
             登出
           </button>
         </header>
 
-        {actionError ? <p role="alert" className="alert alert--error">{actionError}</p> : null}
-        {copyNotice ? <p role="status" className="alert alert--ok">{copyNotice}</p> : null}
-
-        <div className="content">
-          <section aria-labelledby="current-studio-mode-title" className="panel col-span">
-            <h2 id="current-studio-mode-title">{content.title}</h2>
-            <p className="desc">{content.description}</p>
-            <div className="field">
-              <label htmlFor={promptInputId}>{content.promptLabel}</label>
-              <textarea
-                id={promptInputId}
-                name={`${selectedMode}Prompt`}
-                placeholder={content.promptPlaceholder}
-                value={promptText}
-                onChange={(event) => setPromptText(event.target.value)}
-              />
-            </div>
-
-            <section aria-label="提示词模板">
-              <h3>提示词模板</h3>
-              <ul className="templates">
-                {templates.map((template) => (
-                  <li key={template.id}>
-                    <h4>{template.name}</h4>
-                    <p>{template.description}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <div className="row" style={{ marginTop: 14 }}>
-              <button type="button" className="btn-primary" onClick={handleOptimize}>
-                优化提示词
-              </button>
-            </div>
-          </section>
-
-          {optimization ? (
-            <section aria-label="提示词优化结果" className="panel col-span">
-              <h2>优化结果</h2>
-              <p className="desc">{optimization.optimizedPrompt}</p>
-              <dl className="receipt">
-                {optimization.sections.map((part) => (
-                  <div key={part.label}>
-                    <dt>{part.label}</dt>
-                    <dd>{part.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <section aria-labelledby="preset-suggestion-title">
-                <h3 id="preset-suggestion-title">推荐参数</h3>
-                <p className="muted">{optimization.preset.modelId}</p>
-                <p className="muted">
-                  预计点数：{optimization.preset.creditEstimate.credits}{" "}
-                  {optimization.preset.creditEstimate.credits === 1 ? "credit" : "credits"}
-                </p>
-              </section>
-              <div className="row" style={{ marginTop: 12 }}>
-                <button type="button" className="btn-primary" onClick={handleSubmitGeneration}>
-                  提交生成
-                </button>
-              </div>
-            </section>
+        <div className="view">
+          {actionError ? (
+            <p role="alert" className="alert alert--error" style={{ marginBottom: 12 }}>
+              {actionError}
+            </p>
+          ) : null}
+          {copyNotice ? (
+            <p role="status" className="alert alert--ok" style={{ marginBottom: 12 }}>
+              {copyNotice}
+            </p>
           ) : null}
 
-          <section aria-label="任务中心" className="panel">
-            <h2>任务中心</h2>
-            {tasks.length === 0 ? (
-              <p className="empty">暂无生成任务</p>
-            ) : (
-              <ol className="items">
-                {tasks.map((task) => {
-                  const taskMode = getStudioModeContent(task.mode);
-                  const taskCredits = task.preset.creditEstimate.credits;
-                  return (
-                    <li key={task.id}>
-                      <article className="item">
-                        <h3>{taskMode.title}</h3>
-                        <p>
-                          <span className={`status status--${task.status}`}>{getGenerationStatusLabel(task.status)}</span>
-                        </p>
-                        <p>{summarizeGenerationPrompt(task)}</p>
-                        <p className="muted">{task.preset.modelId}</p>
-                        <p className="muted">
-                          预计点数 {taskCredits} {taskCredits === 1 ? "credit" : "credits"}
-                        </p>
-                        {task.result?.kind === "text" ? <p>{task.result.text}</p> : null}
-                        {task.result?.kind === "image" ? (
-                          <img src={task.result.url} alt={task.result.alt} />
-                        ) : null}
-                        {task.result?.kind === "video" ? (
-                          <video controls src={task.result.url} poster={task.result.posterUrl} />
-                        ) : null}
-                        <div className="actions">
-                          {task.status === "succeeded" && task.result ? (
-                            <button type="button" className="btn-sm" onClick={() => handleSaveAsset(task)}>
-                              保存到资产库
-                            </button>
-                          ) : null}
-                          {task.status === "running" ? (
-                            <button type="button" className="btn-sm" onClick={() => handleRefreshTask(task)}>
-                              刷新状态
-                            </button>
-                          ) : null}
-                        </div>
-                      </article>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
-
-          <section aria-label="资产库" className="panel">
-            <h2>资产库</h2>
-            <nav aria-label="资产过滤" className="filters">
-              {assetFilters.map((filter) => (
-                <button
-                  key={filter}
-                  type="button"
-                  aria-pressed={assetFilter === filter}
-                  onClick={() => setAssetFilter(filter)}
-                >
-                  {getAssetFilterLabel(filter)}
-                </button>
-              ))}
-            </nav>
-            {filteredAssets.length === 0 ? (
-              <p className="empty">暂无资产</p>
-            ) : (
-              <ol className="items">
-                {filteredAssets.map((asset) => (
-                  <li key={asset.id}>
-                    <article className="item">
-                      <h3>{asset.title}</h3>
-                      <p>{asset.preview.description}</p>
-                      {asset.content.kind === "image" ? (
-                        <img src={asset.content.url} alt={asset.content.alt} />
-                      ) : null}
-                      {asset.content.kind === "video" ? (
-                        <video controls src={asset.content.url} poster={asset.content.posterUrl} />
-                      ) : null}
-                      <p className="muted">{summarizeAssetPrompt(asset)}</p>
-                      <p className="muted">{asset.preset.modelId}</p>
-                    </article>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <section aria-label="套餐" className="panel">
-            <h2>积分套餐</h2>
-            <div className="stack">
-              {packages.map((pkg) => (
-                <div className="pkg" key={pkg.id}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{pkg.displayName}</div>
-                    <div className="pkg-meta">{pkg.credits} 积分</div>
-                  </div>
-                  <div className="row">
-                    <span className="pkg-price">{formatPackagePrice(pkg)}</span>
-                    <button type="button" className="btn-primary btn-sm" onClick={() => handleBuy(pkg)}>
-                      购买 {pkg.displayName}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section aria-label="订单" className="panel">
-            <h2>订单</h2>
-            {orders.length === 0 ? (
-              <p className="empty">暂无订单</p>
-            ) : (
-              <div className="stack">
-                {orders.map((order) => {
-                  const expanded = order.id === selectedOrderId;
-                  const packageName = packages.find((p) => p.id === order.packageId)?.displayName ?? order.packageId;
-                  return (
-                    <div className="item" key={order.id}>
-                      <div className="row" style={{ justifyContent: "space-between" }}>
-                        <span>
-                          {packageName} · <span className={`status status--${order.status}`}>{getOrderStatusLabel(order.status)}</span>
-                        </span>
-                        <button type="button" className="btn-sm" onClick={() => setSelectedOrderId(expanded ? null : order.id)}>
-                          {expanded ? "收起" : "查看"}
-                        </button>
-                      </div>
-                      {order.status === "pending" && (
-                        <div className="actions">
-                          {order.checkoutUrl ? <a href={order.checkoutUrl}>去支付</a> : null}
-                          <button type="button" className="btn-sm" onClick={() => void handleDevComplete(order.id)}>
-                            （开发）完成支付
-                          </button>
-                        </div>
-                      )}
-                      {expanded && (
-                        <div aria-label="订单详情" className="detail">
-                          <p>订单号：{order.id}</p>
-                          <p>套餐：{packageName}</p>
-                          <p>积分：{order.credits}</p>
-                          <p>金额：{formatMoney(order.amountCents, order.currency)}</p>
-                          <p>状态：{getOrderStatusLabel(order.status)}</p>
-                          <p>下单时间：{formatDateTime(order.createdAt)}</p>
-                          {order.paidAt && <p>付款时间：{formatDateTime(order.paidAt)}</p>}
-                          <p>凭证：{order.checkoutRef}</p>
-                          {order.status === "paid" && (
-                            <>
-                              <dl aria-label="收据" className="receipt">
-                                {buildReceiptLines(order, packageName).map((line) => (
-                                  <div key={line.label}>
-                                    <dt>{line.label}</dt>
-                                    <dd>{line.value}</dd>
-                                  </div>
-                                ))}
-                              </dl>
-                              <button type="button" className="btn-sm" onClick={() => void handleCopyReceipt(order, packageName)}>
-                                复制收据
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+          {view === "studio" ? (
+            <StudioView
+              mode={selectedMode}
+              promptText={promptText}
+              optimization={optimization}
+              onModeChange={(mode) => {
+                setSelectedMode(mode);
+                setOptimization(undefined);
+              }}
+              onPromptChange={setPromptText}
+              onOptimize={() => void handleOptimize()}
+              onSubmit={() => void handleSubmitGeneration()}
+            />
+          ) : null}
+          {view === "assets" ? <AssetsView assets={assets} filter={assetFilter} onFilterChange={setAssetFilter} /> : null}
+          {view === "tasks" ? (
+            <TasksView tasks={tasks} onSaveAsset={(task) => void handleSaveAsset(task)} onRefreshTask={(task) => void handleRefreshTask(task)} />
+          ) : null}
+          {view === "account" ? (
+            <AccountView
+              balance={balance}
+              packages={packages}
+              orders={orders}
+              selectedOrderId={selectedOrderId}
+              onTopUp={() => void handleTopUp()}
+              onBuy={(pkg) => void handleBuy(pkg)}
+              onDevComplete={(orderId) => void handleDevComplete(orderId)}
+              onSelectOrder={setSelectedOrderId}
+              onCopyReceipt={(order, packageName) => void handleCopyReceipt(order, packageName)}
+            />
+          ) : null}
         </div>
       </div>
     </div>

@@ -168,6 +168,11 @@ async function signIn(client: ApiClient) {
   await screen.findByRole("button", { name: "Signed in as creator" });
 }
 
+function openView(label: "创作" | "资产库" | "任务" | "账户") {
+  const nav = screen.getByRole("navigation", { name: "Workspace views" });
+  fireEvent.click(within(nav).getByRole("button", { name: label }));
+}
+
 describe("Desktop App", () => {
   it("shows the sign-in entry when unauthenticated", () => {
     render(<App client={createFakeClient()} />);
@@ -205,6 +210,7 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     await within(taskCenter).findByText("已完成");
@@ -218,6 +224,7 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     await within(taskCenter).findByText("真实生成文案");
@@ -231,9 +238,11 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("文本资产");
@@ -247,6 +256,7 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     const img = await within(taskCenter).findByRole("img");
@@ -260,9 +270,11 @@ describe("Desktop App", () => {
     fireEvent.click(screen.getByRole("button", { name: "优化提示词" }));
     await screen.findByLabelText("提示词优化结果");
     fireEvent.click(screen.getByRole("button", { name: "提交生成" }));
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     fireEvent.click(await within(taskCenter).findByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("图片资产");
@@ -284,6 +296,7 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listAssets: async () => [asset] });
     await signIn(client);
+    openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     expect(within(assetLibrary).getByText("文本资产")).toBeTruthy();
@@ -399,6 +412,7 @@ describe("Desktop App", () => {
       getGeneration: async () => succeededTask
     });
     await signIn(client);
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     expect(within(taskCenter).getByText("生成中")).toBeTruthy();
@@ -422,31 +436,37 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listGenerations: async () => [videoTask] });
     await signIn(client);
+    openView("任务");
 
     const taskCenter = screen.getByLabelText("任务中心");
     expect(taskCenter.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
 
     fireEvent.click(within(taskCenter).getByRole("button", { name: "保存到资产库" }));
+    openView("资产库");
 
     const assetLibrary = screen.getByLabelText("资产库");
     await within(assetLibrary).findByText("视频资产");
     expect(assetLibrary.querySelector("video")?.getAttribute("src")).toBe("https://cdn/v.mp4");
   });
 
-  it("tops up the balance from the header", async () => {
+  it("tops up the balance from the account view", async () => {
     const client = createFakeClient();
     await signIn(client);
-    await screen.findByText("积分：100");
+    openView("账户");
+    const creditSection = screen.getByLabelText("点数");
+    await within(creditSection).findByText("积分：100");
 
-    fireEvent.click(screen.getByRole("button", { name: "充值" }));
+    fireEvent.click(within(creditSection).getByRole("button", { name: "充值" }));
 
-    expect(await screen.findByText("积分：200")).toBeTruthy();
+    expect(await within(creditSection).findByText("积分：200")).toBeTruthy();
   });
 
   it("buys a package (pending + pay link), then dev-completes it", async () => {
     const client = createFakeClient();
     await signIn(client);
-    await screen.findByText("积分：100");
+    openView("账户");
+    const creditSection = screen.getByLabelText("点数");
+    await within(creditSection).findByText("积分：100");
 
     fireEvent.click(screen.getByRole("button", { name: "购买 100 积分" }));
 
@@ -454,10 +474,10 @@ describe("Desktop App", () => {
     expect(await within(orders).findByText("待支付")).toBeTruthy();
     const payLink = await within(orders).findByRole("link", { name: "去支付" });
     expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-1");
-    expect(screen.getByText("积分：100")).toBeTruthy();
+    expect(within(creditSection).getByText("积分：100")).toBeTruthy();
 
     fireEvent.click(await within(orders).findByRole("button", { name: "（开发）完成支付" }));
-    expect(await screen.findByText("积分：200")).toBeTruthy();
+    expect(await within(creditSection).findByText("积分：200")).toBeTruthy();
     expect(await within(orders).findByText("已支付")).toBeTruthy();
   });
 
@@ -475,6 +495,7 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listOrders: async () => [paidOrder] });
     await signIn(client);
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -504,6 +525,7 @@ describe("Desktop App", () => {
     await screen.findByText("开发验证码：123456");
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
     await screen.findByRole("button", { name: "Signed in as creator" });
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -528,6 +550,7 @@ describe("Desktop App", () => {
     };
     const client = createFakeClient({ listOrders: async () => [pendingOrder] });
     await signIn(client);
+    openView("账户");
 
     const ordersSection = screen.getByLabelText("订单");
     fireEvent.click(await within(ordersSection).findByRole("button", { name: "查看" }));
@@ -562,6 +585,7 @@ describe("Desktop App", () => {
         getGeneration: async () => succeeded
       });
       await signIn(client);
+      openView("任务");
 
       const taskCenter = screen.getByLabelText("任务中心");
       await within(taskCenter).findByText("生成中");
@@ -585,5 +609,45 @@ describe("Desktop App", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("switches workspace views from the icon rail", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("资产库");
+    expect(screen.getByLabelText("资产库")).toBeTruthy();
+    openView("任务");
+    expect(screen.getByLabelText("任务中心")).toBeTruthy();
+    openView("账户");
+    expect(screen.getByLabelText("订单")).toBeTruthy();
+    openView("创作");
+    expect(screen.getByRole("navigation", { name: "Studio modes" })).toBeTruthy();
+  });
+
+  it("switches views with Cmd+digit shortcuts", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    fireEvent.keyDown(window, { key: "3", metaKey: true });
+    expect(screen.getByLabelText("任务中心")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "1", metaKey: true });
+    expect(screen.getByRole("navigation", { name: "Studio modes" })).toBeTruthy();
+  });
+
+  it("shows an active-task badge on the tasks nav item", async () => {
+    const runningTask: GenerationTask = {
+      id: "task-run",
+      mode: "text",
+      status: "running",
+      prompt: "p",
+      optimizedPrompt: "op",
+      preset: { modelId: "gw-text-balanced", parameters: {}, creditEstimate: { credits: 1, unit: "credit" } },
+      resultPreview: { title: "生成任务", description: "进行中" },
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z"
+    };
+    const client = createFakeClient({ listGenerations: async () => [runningTask] });
+    await signIn(client);
+    const nav = screen.getByRole("navigation", { name: "Workspace views" });
+    expect(within(nav).getByText("1")).toBeTruthy();
   });
 });
