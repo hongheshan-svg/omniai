@@ -146,7 +146,10 @@ export function buildServer(options: BuildServerOptions = {}) {
     options.orderService ??
     new OrderServiceImpl(orderRepository, getPackageCatalog(), {
       paymentProvider: getPaymentProvider(),
-      publicBaseUrl: getConfig().publicBaseUrl
+      // Intentionally lazy: avoid getConfig() here so buildServer does not call
+      // loadConfig() when services are injected (see server.test.ts). The default
+      // Fake's publicBaseUrl is unused because getPaymentProvider() always supplies a provider.
+      publicBaseUrl: options.config?.publicBaseUrl
     });
   const paymentService =
     options.paymentService ??
