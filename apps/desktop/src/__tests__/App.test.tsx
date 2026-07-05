@@ -120,7 +120,18 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
     listModels: async () => { throw new Error("unused"); },
     listPackages: async () => [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }],
     createOrder: async (packageId: string) => {
-      const order = { id: `order-${orders.length + 1}`, packageId, credits: 100, amountCents: 990, currency: "CNY" as const, status: "pending" as const, checkoutRef: `checkout-${orders.length + 1}`, createdAt: "2026-07-03T00:00:00.000Z" };
+      const checkoutRef = `checkout-${orders.length + 1}`;
+      const order = {
+        id: `order-${orders.length + 1}`,
+        packageId,
+        credits: 100,
+        amountCents: 990,
+        currency: "CNY" as const,
+        status: "pending" as const,
+        checkoutRef,
+        checkoutUrl: `https://app.test/checkout/mock?ref=${checkoutRef}`,
+        createdAt: "2026-07-03T00:00:00.000Z"
+      };
       orders = [order, ...orders];
       return order;
     },
@@ -432,15 +443,21 @@ describe("Desktop App", () => {
     expect(await screen.findByText("积分：200")).toBeTruthy();
   });
 
-  it("buys a credit package and updates the balance", async () => {
+  it("buys a package (pending + pay link), then dev-completes it", async () => {
     const client = createFakeClient();
     await signIn(client);
     await screen.findByText("积分：100");
 
     fireEvent.click(screen.getByRole("button", { name: "购买 100 积分" }));
 
-    expect(await screen.findByText("积分：200")).toBeTruthy();
     const orders = screen.getByLabelText("订单");
+    expect(await within(orders).findByText("待支付")).toBeTruthy();
+    const payLink = await within(orders).findByRole("link", { name: "去支付" });
+    expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-1");
+    expect(screen.getByText("积分：100")).toBeTruthy();
+
+    fireEvent.click(await within(orders).findByRole("button", { name: "（开发）完成支付" }));
+    expect(await screen.findByText("积分：200")).toBeTruthy();
     expect(await within(orders).findByText("已支付")).toBeTruthy();
   });
 

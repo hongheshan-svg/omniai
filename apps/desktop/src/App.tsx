@@ -274,8 +274,24 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     }
     setActionError(undefined);
     try {
-      const order = await api.createOrder(pkg.id, token);
-      await api.devCompletePayment(order.id, token);
+      await api.createOrder(pkg.id, token);
+      setOrders(await api.listOrders(token));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleSignedOut("登录已失效，请重新登录");
+        return;
+      }
+      setActionError(errorMessage(error));
+    }
+  }
+
+  async function handleDevComplete(orderId: string) {
+    if (!token) {
+      return;
+    }
+    setActionError(undefined);
+    try {
+      await api.devCompletePayment(orderId, token);
       setBalance(await api.getCreditBalance(token));
       setOrders(await api.listOrders(token));
     } catch (error) {
@@ -532,6 +548,12 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
                   {expanded ? "收起" : "查看"}
                 </button>
               </p>
+              {order.status === "pending" && (
+                <p>
+                  {order.checkoutUrl ? <a href={order.checkoutUrl}>去支付</a> : null}{" "}
+                  <button type="button" onClick={() => void handleDevComplete(order.id)}>（开发）完成支付</button>
+                </p>
+              )}
               {expanded && (
                 <div aria-label="订单详情">
                   <p>订单号：{order.id}</p>
