@@ -146,7 +146,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     options.orderService ??
     new OrderServiceImpl(orderRepository, getPackageCatalog(), {
       paymentProvider: getPaymentProvider(),
-      publicBaseUrl: options.config?.publicBaseUrl
+      publicBaseUrl: getConfig().publicBaseUrl
     });
   const paymentService =
     options.paymentService ??
