@@ -150,7 +150,8 @@ function createFakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
         checkoutUrl: `https://app.test/checkout/mock?ref=${checkoutRef}`,
         createdAt: "2026-07-03T00:00:00.000Z"
       };
-      orders = [order, ...orders];
+      // Repositories return orders ascending by createdAt, so new orders append.
+      orders = [...orders, order];
       return order;
     },
     listOrders: async () => orders,
@@ -754,6 +755,51 @@ describe("Desktop App", () => {
     expect(screen.getByLabelText("购买积分")).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByLabelText("购买积分")).toBeNull();
+  });
+
+  it("shows the just-created pending order in the modal even when an older paid order exists", async () => {
+    const olderPaidOrder: Order = {
+      id: "order_seed_paid",
+      packageId: "credits-100",
+      credits: 100,
+      amountCents: 990,
+      currency: "CNY",
+      status: "paid",
+      checkoutRef: "checkout_seed",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      paidAt: "2026-07-01T01:00:00.000Z"
+    };
+    let seededOrders: Order[] = [olderPaidOrder];
+    const client = createFakeClient({
+      listOrders: async () => seededOrders,
+      createOrder: async (packageId: string) => {
+        const order: Order = {
+          id: "order-new",
+          packageId,
+          credits: 100,
+          amountCents: 990,
+          currency: "CNY",
+          status: "pending",
+          checkoutRef: "checkout-new",
+          checkoutUrl: "https://app.test/checkout/mock?ref=checkout-new",
+          createdAt: "2026-07-03T00:00:00.000Z"
+        };
+        // Ascending by createdAt: the new order comes LAST, like the real repositories.
+        seededOrders = [...seededOrders, order];
+        return order;
+      }
+    });
+    await signIn(client);
+    openView("账户");
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const purchaseModal = screen.getByLabelText("购买积分");
+
+    fireEvent.click(within(purchaseModal).getByRole("button", { name: "购买 100 积分" }));
+
+    const payLink = await within(purchaseModal).findByRole("link", { name: "去支付" });
+    expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-new");
+    expect(within(purchaseModal).getByRole("button", { name: "（开发）完成支付" })).toBeTruthy();
+    expect(within(purchaseModal).queryByText("已支付")).toBeNull();
   });
 
   it("expands a paid order to show detail and a receipt", async () => {

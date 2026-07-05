@@ -8,6 +8,7 @@ export interface AccountViewProps {
   packages: CreditPackage[];
   orders: Order[];
   selectedOrderId: string | null;
+  latestOrderId: string | null;
   purchaseOpen: boolean;
   onTopUp(): void;
   onBuy(pkg: CreditPackage): void;
@@ -24,6 +25,7 @@ export function AccountView({
   packages,
   orders,
   selectedOrderId,
+  latestOrderId,
   purchaseOpen,
   onTopUp,
   onBuy,
@@ -33,6 +35,9 @@ export function AccountView({
   onOpenPurchase,
   onClosePurchase
 }: AccountViewProps) {
+  // Repositories list orders ascending by createdAt, so the just-created order is
+  // tracked explicitly by id rather than assumed to sit at a fixed position.
+  const latestOrder = latestOrderId ? orders.find((order) => order.id === latestOrderId) : undefined;
   return (
     <>
       <div className="account-grid">
@@ -154,18 +159,18 @@ export function AccountView({
                 </div>
               </div>
             ))}
-            {orders[0] && orders[0].status === "pending" ? (
+            {latestOrder && latestOrder.status === "pending" ? (
               <div className="item stack">
                 <h3>最新订单</h3>
                 <div className="actions" style={{ marginTop: 0 }}>
-                  {orders[0].checkoutUrl ? <a href={orders[0].checkoutUrl}>去支付</a> : null}
-                  <button type="button" className="btn-sm" onClick={() => onDevComplete(orders[0].id)}>
+                  {latestOrder.checkoutUrl ? <a href={latestOrder.checkoutUrl}>去支付</a> : null}
+                  <button type="button" className="btn-sm" onClick={() => onDevComplete(latestOrder.id)}>
                     （开发）完成支付
                   </button>
                 </div>
               </div>
             ) : null}
-            {orders[0] && orders[0].status === "paid" ? (
+            {latestOrder && latestOrder.status === "paid" ? (
               <p className="muted">
                 最新订单：<span className="status status--paid">已支付</span>
               </p>

@@ -66,6 +66,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -185,6 +186,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setPackages([]);
     setOrders([]);
     setSelectedOrderId(null);
+    setLatestOrderId(null);
     setSelectedAssetId(null);
     setPurchaseOpen(false);
     setCopyNotice(undefined);
@@ -325,7 +327,8 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     }
     setActionError(undefined);
     try {
-      await api.createOrder(pkg.id, token);
+      const created = await api.createOrder(pkg.id, token);
+      setLatestOrderId(created.id);
       setOrders(await api.listOrders(token));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -579,6 +582,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
               packages={packages}
               orders={orders}
               selectedOrderId={selectedOrderId}
+              latestOrderId={latestOrderId}
               purchaseOpen={purchaseOpen}
               onTopUp={() => void handleTopUp()}
               onBuy={(pkg) => void handleBuy(pkg)}
