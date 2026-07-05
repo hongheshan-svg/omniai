@@ -1,0 +1,38 @@
+:root {
+  /* layered depth */
+  --bg-0: #07080d;
+  --bg-1: #0c0e16;
+  --bg-2: #12151f;
+  --bg-3: #191d2b;
+  --glass: rgba(18, 21, 31, 0.6);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* text hierarchy */
+  --text-1: #f2f4f8;
+  --text-2: #9aa3b5;
+  --text-3: #5c6478;
+
+  /* accent — CTA, active states, glow only */
+  --accent: #818cf8;
+  --accent-grad: linear-gradient(135deg, #6366f1, #a855f7);
+  --glow: 0 0 24px rgba(124, 108, 255, 0.35);
+
+  /* semantics */
+  --success: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+
+  /* geometry & motion */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 120ms;
+  --t-med: 200ms;
+  --t-slow: 320ms;
+
+  --font:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
