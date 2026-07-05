@@ -722,17 +722,38 @@ describe("Desktop App", () => {
     const creditSection = screen.getByLabelText("点数");
     await within(creditSection).findByText("积分：100");
 
-    fireEvent.click(screen.getByRole("button", { name: "购买 100 积分" }));
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    const purchaseModal = screen.getByLabelText("购买积分");
+    fireEvent.click(within(purchaseModal).getByRole("button", { name: "购买 100 积分" }));
 
     const orders = screen.getByLabelText("订单");
     expect(await within(orders).findByText("待支付")).toBeTruthy();
-    const payLink = await within(orders).findByRole("link", { name: "去支付" });
+    const payLink = await within(purchaseModal).findByRole("link", { name: "去支付" });
     expect(payLink.getAttribute("href")).toBe("https://app.test/checkout/mock?ref=checkout-1");
     expect(within(creditSection).getByText("积分：100")).toBeTruthy();
 
-    fireEvent.click(await within(orders).findByRole("button", { name: "（开发）完成支付" }));
+    fireEvent.click(await within(purchaseModal).findByRole("button", { name: "（开发）完成支付" }));
     expect(await within(creditSection).findByText("积分：200")).toBeTruthy();
-    expect(await within(orders).findByText("已支付")).toBeTruthy();
+    expect(await within(purchaseModal).findByText("已支付")).toBeTruthy();
+  });
+
+  it("shows the signed-in identity on the account view", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("账户");
+    const card = screen.getByLabelText("账户信息");
+    expect(within(card).getByText("creator")).toBeTruthy();
+    expect(within(card).getByText("creator@example.com")).toBeTruthy();
+  });
+
+  it("closes the purchase modal with Escape", async () => {
+    const client = createFakeClient();
+    await signIn(client);
+    openView("账户");
+    fireEvent.click(screen.getByRole("button", { name: "选购套餐" }));
+    expect(screen.getByLabelText("购买积分")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByLabelText("购买积分")).toBeNull();
   });
 
   it("expands a paid order to show detail and a receipt", async () => {

@@ -69,6 +69,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
   const [copyNotice, setCopyNotice] = useState<string | undefined>(undefined);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [view, setView] = useState<WorkspaceView>("studio");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -156,6 +157,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
       }
       if (event.key === "Escape") {
         setSelectedAssetId(null);
+        setPurchaseOpen(false);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -184,6 +186,7 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
     setOrders([]);
     setSelectedOrderId(null);
     setSelectedAssetId(null);
+    setPurchaseOpen(false);
     setCopyNotice(undefined);
     setOptimization(undefined);
     setModels([]);
@@ -571,15 +574,19 @@ export function App({ client, tokenStore, copyText }: { client?: ApiClient; toke
           ) : null}
           {view === "account" ? (
             <AccountView
+              session={session}
               balance={balance}
               packages={packages}
               orders={orders}
               selectedOrderId={selectedOrderId}
+              purchaseOpen={purchaseOpen}
               onTopUp={() => void handleTopUp()}
               onBuy={(pkg) => void handleBuy(pkg)}
               onDevComplete={(orderId) => void handleDevComplete(orderId)}
               onSelectOrder={setSelectedOrderId}
               onCopyReceipt={(order, packageName) => void handleCopyReceipt(order, packageName)}
+              onOpenPurchase={() => setPurchaseOpen(true)}
+              onClosePurchase={() => setPurchaseOpen(false)}
             />
           ) : null}
         </div>
