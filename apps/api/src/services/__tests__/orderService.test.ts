@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ConfigPackageCatalog } from "../packageCatalog";
 import { InMemoryOrderRepository } from "../../repositories/memory";
-import { OrderServiceImpl, OrderServiceError } from "../orderService";
+import { OrderServiceImpl, OrderServiceError, InMemoryOrderService } from "../orderService";
+import { FakeCheckoutProvider } from "../fakeCheckoutProvider";
+import { PaymentProviderError, type PaymentProvider } from "../paymentProvider";
 
 function makeService() {
   const catalog = new ConfigPackageCatalog({
@@ -26,7 +28,8 @@ describe("OrderServiceImpl", () => {
       currency: "CNY",
       status: "pending",
       checkoutRef: "checkout_1",
-      createdAt: "2026-07-03T00:00:00.000Z"
+      createdAt: "2026-07-03T00:00:00.000Z",
+      checkoutUrl: "http://localhost/checkout/mock?ref=checkout_1"
     });
   });
 
@@ -57,5 +60,38 @@ describe("OrderServiceImpl", () => {
     expect(await service.getOrder("user-a", created.id)).toMatchObject({ id: created.id, status: "pending" });
     expect(await service.getOrder("user-b", created.id)).toBeNull();
     expect(await service.getOrder("user-a", "missing")).toBeNull();
+  });
+
+  it("sets checkoutUrl from the configured payment provider", async () => {
+    const catalog = new ConfigPackageCatalog({
+      packages: [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }]
+    });
+    const service = new InMemoryOrderService(catalog, {
+      paymentProvider: new FakeCheckoutProvider("https://app.test"),
+      idGenerator: () => "order_1",
+      checkoutRefGenerator: () => "chk_1"
+    });
+    const order = await service.createOrder("user-a", "credits-100");
+    expect(order.checkoutUrl).toBe("https://app.test/checkout/mock?ref=chk_1");
+  });
+
+  it("translates a PaymentProviderError into an OrderServiceError with the same statusCode", async () => {
+    const catalog = new ConfigPackageCatalog({
+      packages: [{ id: "credits-100", displayName: "100 积分", credits: 100, amountCents: 990, currency: "CNY" }]
+    });
+    const failingProvider: PaymentProvider = {
+      async createCheckout() {
+        throw new PaymentProviderError("boom", 502);
+      }
+    };
+    const service = new InMemoryOrderService(catalog, {
+      paymentProvider: failingProvider,
+      idGenerator: () => "order_1",
+      checkoutRefGenerator: () => "chk_1"
+    });
+    await expect(service.createOrder("user-a", "credits-100")).rejects.toMatchObject({
+      statusCode: 502
+    });
+    await expect(service.createOrder("user-a", "credits-100")).rejects.toBeInstanceOf(OrderServiceError);
   });
 });

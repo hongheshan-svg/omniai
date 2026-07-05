@@ -27,6 +27,9 @@ import { ConfigModelCatalog, type ModelCatalog } from "./services/modelCatalog";
 import { loadModelCatalogConfig, resolveConfigPath } from "./services/modelConfig";
 import { OrderServiceImpl, type OrderService } from "./services/orderService";
 import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./services/packageCatalog";
+import type { PaymentProvider } from "./services/paymentProvider";
+import { loadPaymentProvidersConfig } from "./services/paymentProviderConfig";
+import { resolvePaymentProvider } from "./services/resolvePaymentProvider";
 import { PaymentServiceImpl, type PaymentService } from "./services/paymentService";
 import { LocalPromptOptimizer, type PromptOptimizer } from "./services/promptOptimizer";
 import { InMemoryOrderRepository } from "./repositories/memory";
@@ -49,6 +52,7 @@ export interface BuildServerOptions {
   orderRepository?: OrderRepository;
   orderService?: OrderService;
   packageCatalog?: PackageCatalog;
+  paymentProvider?: PaymentProvider;
   paymentService?: PaymentService;
   promptOptimizer?: PromptOptimizer;
   providerAdapter?: ProviderAdapter;
@@ -98,6 +102,19 @@ export function buildServer(options: BuildServerOptions = {}) {
     return loadedPackageCatalog;
   }
 
+  let loadedPaymentProvider = options.paymentProvider;
+  function getPaymentProvider() {
+    loadedPaymentProvider ??= resolvePaymentProvider(
+      loadPaymentProvidersConfig(resolveConfigPath(getConfig().paymentProvidersConfigPath)),
+      {
+        env: process.env,
+        publicBaseUrl: getConfig().publicBaseUrl,
+        activeProviderOverride: getConfig().paymentProvider
+      }
+    );
+    return loadedPaymentProvider;
+  }
+
   const assetService = options.assetService ?? new InMemoryAssetService();
   const creditService = options.creditService ?? new InMemoryCreditService();
   const devTopupEnabled = options.config?.devTopupEnabled ?? false;
@@ -125,7 +142,12 @@ export function buildServer(options: BuildServerOptions = {}) {
       creditService
     });
   const orderRepository = options.orderRepository ?? new InMemoryOrderRepository();
-  const orderService = options.orderService ?? new OrderServiceImpl(orderRepository, getPackageCatalog());
+  const orderService =
+    options.orderService ??
+    new OrderServiceImpl(orderRepository, getPackageCatalog(), {
+      paymentProvider: getPaymentProvider(),
+      publicBaseUrl: options.config?.publicBaseUrl
+    });
   const paymentService =
     options.paymentService ??
     new PaymentServiceImpl(orderRepository, creditService, { secret: options.config?.paymentWebhookSecret });

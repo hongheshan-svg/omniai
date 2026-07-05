@@ -15,6 +15,7 @@ import { CompositeProviderAdapter } from "../services/compositeProviderAdapter";
 import { InMemoryObjectStore } from "../services/objectStore";
 import { FakeAsyncProvider } from "../services/fakeAsyncProvider";
 import { AsyncVideoProvider } from "../services/asyncVideoProvider";
+import { FakeCheckoutProvider } from "../services/fakeCheckoutProvider";
 
 describe("product API", () => {
   it("returns service health", async () => {
@@ -771,7 +772,8 @@ describe("product API", () => {
           generationService: fakeGenerationService,
           assetService: fakeAssetService,
           modelCatalog: fakeModelCatalog,
-          packageCatalog: fakePackageCatalog
+          packageCatalog: fakePackageCatalog,
+          paymentProvider: new FakeCheckoutProvider("https://app.test")
         })
       ).not.toThrow();
     } finally {

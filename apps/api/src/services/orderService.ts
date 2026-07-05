@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { Order } from "@gw-link-omniai/shared";
 import type { OrderRecord, OrderRepository } from "../repositories/types";
 import { InMemoryOrderRepository } from "../repositories/memory";
+import { FakeCheckoutProvider } from "./fakeCheckoutProvider";
 import { PackageCatalogError, type PackageCatalog } from "./packageCatalog";
+import { PaymentProviderError, type PaymentProvider } from "./paymentProvider";
 
 export interface OrderServiceClock {
   now(): Date;
@@ -12,6 +14,8 @@ export interface OrderServiceOptions {
   idGenerator?: () => string;
   checkoutRefGenerator?: () => string;
   clock?: OrderServiceClock;
+  paymentProvider?: PaymentProvider;
+  publicBaseUrl?: string;
 }
 
 export class OrderServiceError extends Error {
@@ -52,6 +56,7 @@ export class OrderServiceImpl implements OrderService {
   private readonly idGenerator: () => string;
   private readonly checkoutRefGenerator: () => string;
   private readonly clock: OrderServiceClock;
+  private readonly paymentProvider: PaymentProvider;
 
   constructor(orders: OrderRepository, catalog: PackageCatalog, options: OrderServiceOptions = {}) {
     this.orders = orders;
@@ -59,6 +64,7 @@ export class OrderServiceImpl implements OrderService {
     this.idGenerator = options.idGenerator ?? (() => `order_${randomUUID()}`);
     this.checkoutRefGenerator = options.checkoutRefGenerator ?? (() => `checkout_${randomUUID()}`);
     this.clock = options.clock ?? { now: () => new Date() };
+    this.paymentProvider = options.paymentProvider ?? new FakeCheckoutProvider(options.publicBaseUrl ?? "http://localhost");
   }
 
   async createOrder(userId: string, packageId: string): Promise<Order> {
@@ -81,6 +87,20 @@ export class OrderServiceImpl implements OrderService {
       checkoutRef: this.checkoutRefGenerator(),
       createdAt: this.clock.now().toISOString()
     };
+    try {
+      const checkout = await this.paymentProvider.createCheckout({
+        checkoutRef: record.checkoutRef,
+        amountCents: record.amountCents,
+        currency: record.currency,
+        packageId: record.packageId
+      });
+      record.checkoutUrl = checkout.checkoutUrl;
+    } catch (error) {
+      if (error instanceof PaymentProviderError) {
+        throw new OrderServiceError(error.message, error.statusCode);
+      }
+      throw error;
+    }
     await this.orders.insert(record, userId);
     return toOrder(record);
   }

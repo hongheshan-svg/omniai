@@ -28,6 +28,9 @@ import { loadModelCatalogConfig, resolveConfigPath } from "./modelConfig";
 import { OpenAiCompatibleTextProvider } from "./openAiTextProvider";
 import { OrderServiceImpl, type OrderService } from "./orderService";
 import { ConfigPackageCatalog, loadPackageCatalogConfig, type PackageCatalog } from "./packageCatalog";
+import type { PaymentProvider } from "./paymentProvider";
+import { loadPaymentProvidersConfig } from "./paymentProviderConfig";
+import { resolvePaymentProvider } from "./resolvePaymentProvider";
 import { PaymentServiceImpl, type PaymentService } from "./paymentService";
 import { InMemoryOrderRepository } from "../repositories/memory";
 
@@ -55,6 +58,8 @@ export function createDbServices(
     objectStore: ObjectStore;
     providerAdapter?: ProviderAdapter;
     paymentWebhookSecret?: string;
+    paymentProvider?: PaymentProvider;
+    publicBaseUrl?: string;
   }
 ): {
   authService: AuthService;
@@ -99,7 +104,9 @@ export function createDbServices(
   const orderRepository = new DrizzleOrderRepository(db);
   const orderService = new OrderServiceImpl(orderRepository, packageCatalog, {
     idGenerator: () => `order_${randomUUID()}`,
-    checkoutRefGenerator: () => `checkout_${randomUUID()}`
+    checkoutRefGenerator: () => `checkout_${randomUUID()}`,
+    paymentProvider: options.paymentProvider,
+    publicBaseUrl: options.publicBaseUrl
   });
   const paymentService = new PaymentServiceImpl(orderRepository, creditService, {
     secret: options.paymentWebhookSecret
@@ -133,6 +140,11 @@ export function createServices(config: ApiConfig): AppServices {
 
   const objectStore = createObjectStore(config);
 
+  const paymentProvider = resolvePaymentProvider(
+    loadPaymentProvidersConfig(resolveConfigPath(config.paymentProvidersConfigPath)),
+    { env: process.env, publicBaseUrl: config.publicBaseUrl, activeProviderOverride: config.paymentProvider }
+  );
+
   if (!config.databaseUrl) {
     const creditService = new InMemoryCreditService({ initialCredits: config.initialCredits });
     const orderRepository = new InMemoryOrderRepository();
@@ -154,7 +166,10 @@ export function createServices(config: ApiConfig): AppServices {
       creditService,
       objectStore,
       modelCatalog,
-      orderService: new OrderServiceImpl(orderRepository, packageCatalog),
+      orderService: new OrderServiceImpl(orderRepository, packageCatalog, {
+        paymentProvider,
+        publicBaseUrl: config.publicBaseUrl
+      }),
       packageCatalog,
       paymentService: new PaymentServiceImpl(orderRepository, creditService, {
         secret: config.paymentWebhookSecret
@@ -169,6 +184,8 @@ export function createServices(config: ApiConfig): AppServices {
     authDevCodesEnabled: config.authDevCodesEnabled,
     initialCredits: config.initialCredits,
     objectStore,
+    paymentProvider,
+    publicBaseUrl: config.publicBaseUrl,
     paymentWebhookSecret: config.paymentWebhookSecret
   });
 
